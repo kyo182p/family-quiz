@@ -738,7 +738,7 @@ async function familyPage(back){
    <p class="lead">輸入網站管理者給你的「家庭邀請碼」，就能用 AI 產生題目，題庫也會存到雲端，換裝置輸入同一組邀請碼就看得到。</p>
    ${CONFIG.API_URL?'':'<p class="lead" style="color:var(--coral)">網站尚未設定後端網址（CONFIG.API_URL），目前只能練習內建題目。</p>'}
    <section class="card form">
-     <label>家庭邀請碼 <input id="fc" value="${esc(FAMILY.code)}" autocomplete="off" autocapitalize="characters" placeholder="例如：LEE-2026"></label>
+     <label>家庭邀請碼 <input id="fc" value="${esc(FAMILY.code)}" autocomplete="off" autocapitalize="characters" placeholder="請輸入管理者提供的邀請碼"></label>
      <p class="lead" id="fmsg" style="margin:10px 0 0;font-size:1.05rem">${FAMILY.code?`目前使用：${esc(FAMILY.name||FAMILY.code)}`:'尚未設定'}</p>
    </section>
    <button class="big" id="fsave">驗證並儲存</button>
@@ -1026,9 +1026,8 @@ const JSON_RULES=`題型規則：
 - why：一兩句解說，小朋友看得懂，不超過 60 字。
 - icon：一個適合這題的 emoji，沒有適合的就給空字串。`;
 
-function analyzePrompt(bank,text,note,nImages){
+function analyzePrompt(bank,text,note,nImages,aiLv){
   const cons=bank.concepts.map(x=>`${x.id}：${x.text}`).join('\n')||'（還沒有）';
-  const exist=bank.questions.concat(bank.pending).map(q=>'- '+q.q).join('\n')||'（還沒有）';
   return `你是台灣的國小老師，要把家長提供的教材整理成小朋友「點選作答」的練習題。
 
 題庫：${bankInfo(bank)}
@@ -1042,17 +1041,14 @@ ${note?'家長補充：'+note:''}
 4. 簡答、畫圖、需要寫出計算過程或寫字的題目：不要硬轉，放進 skipped 並寫出原因。
 5. 答案：資料裡有答案（訂正、解答、老師講解）就照資料，ansByAI 為 false；資料沒有答案時才自己判斷，ansByAI 為 true。
 6. 每題用 c 標出觀念。已經有的觀念請沿用代號；新觀念用 "n1"、"n2"…，並在 concepts 用一句話寫出觀念重點（只能根據資料）。
-7. 只能根據資料內容，不可以加入資料以外的知識。不要和「已經有的題目」重複。
-8. 資料不是題目、只是課文或講解時，就根據內容出幾題，src 為 "AI"。
+7. 只能根據資料內容，不可以加入資料以外的知識。
+8. 資料不是題目、只是課文或講解時，就根據內容出幾題，src 為 "AI"。${aiLv?`這些 AI 補充題全部出「${LV[aiLv]}」難度，lv 一律為 ${aiLv}（${['','直接回想','要分辨相近的觀念','反過來問、應用或結合兩個觀念'][aiLv]}）。`:''}
 9. 這一次最多整理 15 題；題目太多時，優先抄錄有答案的原題。
 
 ${JSON_RULES}
 
 已經有的觀念：
 ${cons}
-
-已經有的題目：
-${exist}
 
 只回傳一個 JSON 物件，不要其他文字，格式：
 {"concepts":[{"id":"n1","text":"互生是一個節長一片葉子"}],"questions":[{"c":"n1","t":"mc","q":"題目","o":["選項一","選項二","選項三"],"a":"選項一","why":"解說","src":"原題","ansByAI":false,"lv":1,"icon":"🌱"}],"skipped":[{"q":"題目","reason":"需要寫出句子"}]}
@@ -1183,7 +1179,8 @@ function bankHome(bank){
      <div class="section-title">題數</div>
      <div class="chips">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,t])=>`<button class="chip" data-cn="${v}" aria-pressed="${bprefs.count===v}">${t}</button>`).join('')}</div>
      <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目和解說</label>
-     <button class="big" id="go">開始練習</button></section>`
+     <button class="big" id="go">開始練習</button>
+     ${weakConcepts(bank).length?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weakConcepts(bank).length} 個）</button>`:''}</section>`
     :'<div class="card"><p class="lead" style="margin:0">還沒有題目。先上傳資料，確認後就可以練習。</p></div>'}
    <section class="card"><p style="margin:0;font-size:1.2rem">大人使用</p>
      <button class="ghost" id="up">📷 上傳資料產生題目（照片、字幕、文字）</button>
@@ -1199,6 +1196,7 @@ function bankHome(bank){
   app.querySelectorAll('[data-cn]').forEach(b=>b.onclick=()=>{bprefs.count=+b.dataset.cn;store.set('custom-prefs',bprefs);bankHome(bank)});
   if($('ar'))$('ar').onchange=e=>{prefs.autoRead=e.target.checked;store.set('g3plants-prefs',prefs)};
   if($('go'))$('go').onclick=()=>startBank(bank);
+  if($('weak'))$('weak').onclick=()=>startWeak(bank);
   $('up').onclick=()=>uploadPage(bank); $('gen').onclick=()=>genPage(bank);
   $('rv').onclick=()=>reviewPage(bank); $('ls').onclick=()=>listPage(bank); $('ex').onclick=()=>exportPage(bank);
   $('del').onclick=async()=>{if(await confirmBox('確定要刪除「'+(bank.title||bankInfo(bank))+'」嗎？題目和作答紀錄都會刪除。')){await bsDelete(bank);betaHome()}};
@@ -1217,6 +1215,17 @@ function bankCtx(bank){return {
   home:()=>{bsSave(bank);bankHome(bank)},
   restart:()=>startBank(bank),
 }}
+// 常錯的觀念：該觀念所有題目累計答錯次數，多的排前面
+function weakConcepts(bank){
+  const w={};bank.questions.forEach(q=>{const r=bank.rec[q.id];if(r&&r.wrong)w[q.c]=(w[q.c]||0)+r.wrong});
+  return Object.keys(w).sort((a,b)=>w[b]-w[a]);
+}
+// 每個常錯觀念出一題，優先用孩子練得最少的問法
+function startWeak(bank){
+  const qs=weakConcepts(bank).slice(0,10).map(c=>bank.questions.filter(q=>q.c===c).sort((a,b)=>((bank.rec[a.id]||{}).seen||0)-((bank.rec[b.id]||{}).seen||0))[0]).filter(Boolean);
+  if(!qs.length)return;
+  CTX=bankCtx(bank);start(shuffle(qs));
+}
 function startBank(bank){
   const pool=bank.questions.filter(q=>!bprefs.lv||q.lv===bprefs.lv);
   if(!pool.length){toast('這個難度還沒有題目');return}
@@ -1244,6 +1253,7 @@ async function toJpeg(file){
 }
 /* --- 頁面：上傳資料 --- */
 let upState={files:[],text:'',note:'',phase:'idle',msg:'',ctl:null};
+let upLv=store.get('custom-up-lv',0); // AI 補充題的難度：0 由 AI 判斷
 function cleanSubtitle(t){return t.split(/\r?\n/).filter(l=>!/^\s*\d+\s*$/.test(l)&&!/-->/.test(l)&&l.trim()).join(' ').replace(/\s+/g,' ').trim()}
 async function uploadPage(bank,keep){
   if(!keep)upState={files:[],text:'',note:'',phase:'idle',msg:'',ctl:null};
@@ -1278,6 +1288,9 @@ async function uploadPage(bank,keep){
      <textarea id="u-text" rows="6" placeholder="也可以直接貼上文字（例如用原況文字拷貝的講義內容）" ${busy?'disabled':''}>${esc(upState.text)}</textarea>
      <p style="margin:16px 0 8px;font-size:1.15rem">💬 補充說明（可不填）</p>
      <textarea id="u-note" rows="2" placeholder="例如：答案寫在每頁最下面；第 3 題老師說要背" ${busy?'disabled':''}>${esc(upState.note)}</textarea>
+     <p style="margin:16px 0 8px;font-size:1.15rem">🎯 AI 補充題的難度</p>
+     <div class="chips">${[[0,'由 AI 判斷'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-ulv="${l}" aria-pressed="${upLv===l}" ${busy?'disabled':''}>${t}</button>`).join('')}</div>
+     <p class="lead" style="font-size:.95rem;margin:6px 0 0">講義只有課文、沒有題目時，AI 會自己補出題目，這裡決定那些題目的難度。原題和改寫題維持講義原本的難度。</p>
    </section>
    <div id="u-act" style="margin-top:16px"></div>`}`;
   document.getElementById('bk').onclick=()=>{if(upState.ctl)upState.ctl.abort();bankHome(bank)};
@@ -1285,6 +1298,7 @@ async function uploadPage(bank,keep){
   if(sampleBlocked()||SAMPLE===undefined){ if(SAMPLE===undefined)setTimeout(()=>uploadPage(bank,true),1500); return; }
   const $=id=>document.getElementById(id);
   const sync=()=>{upState.text=$('u-text').value;upState.note=$('u-note').value};
+  app.querySelectorAll('[data-ulv]').forEach(b=>b.onclick=()=>{sync();upLv=+b.dataset.ulv;store.set('custom-up-lv',upLv);uploadPage(bank,true)});
   if($('u-img'))$('u-img').onchange=async e=>{
     sync();const list=[...e.target.files];let bad=0;
     toast('正在處理照片……');
@@ -1319,8 +1333,9 @@ async function runAnalyze(bank,maxN){
     try{
       const opts={signal:ctl.signal,cache:false,modelTier:'default',onText:()=>{const p=document.getElementById('u-prog');if(p)p.textContent=label+'Claude 正在整理題目……'}};
       if(batches[i].length)opts.images=batches[i];
-      const res=await SAMPLE.json(analyzePrompt(bank,i===0?text:'',note,batches[i].length),opts);
+      const res=await SAMPLE.json(analyzePrompt(bank,i===0?text:'',note,batches[i].length,upLv),opts);
       if(res&&res.__repaired)tot.cut=(tot.cut||0)+1;
+      if(upLv&&res&&Array.isArray(res.questions))res.questions.forEach(q=>{if(q&&q.src==='AI')q.lv=upLv});
       const r=mergeResult(bank,res,'原題'); tot.added+=r.added;tot.dropped+=r.dropped;tot.skipped+=r.skipped;
       await bsSave(bank);
     }catch(e){
