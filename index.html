@@ -457,12 +457,36 @@ const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(M
 const practice=()=>Q.concat(AIQ);
 const pool=()=>prefs.unit==='all'?practice():practice().filter(q=>q.u===prefs.unit);
 // 練習次數少的題目優先，多輪下來可以輪過整份題庫
-const pickRound=(qs,n,r)=>{r=r||rec;const s=shuffle(qs).sort((a,b)=>((r[a.id]||{}).seen||0)-((r[b.id]||{}).seen||0));return shuffle(n?s.slice(0,n):s)};
+const pickRound=(qs,n,r)=>{r=r||rec;const s=shuffle(qs).sort((a,b)=>((r[a.id]||{}).seen||0)-((r[b.id]||{}).seen||0));return spreadShuffle(n?s.slice(0,n):s)};
 // 常錯的觀念：該觀念（原題＋複習題）累計答錯次數
 const conceptWrong=c=>ALL.filter(q=>q.c===c).reduce((s,q)=>s+((rec[q.id]||{}).wrong||0),0);
 const wrongConcepts=()=>Object.keys(ORIGIN).filter(c=>conceptWrong(c)>0).sort((a,b)=>conceptWrong(b)-conceptWrong(a));
 
-const GAP_FIRST=2, GAP_SECOND=4, GAP_AGAIN=2, MAX_REVIEW=4;
+// 複習間隔加入隨機，避免孩子記住「錯題後第幾題一定是複習」
+const rint=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const GAP_FIRST=()=>rint(2,3), GAP_SECOND=()=>rint(3,5), GAP_AGAIN=()=>rint(2,3), MAX_REVIEW=4;
+// 依權重隨機挑一個
+function weightedPick(arr,wf){const ws=arr.map(wf),sum=ws.reduce((a,b)=>a+b,0);let r=Math.random()*sum;for(let i=0;i<arr.length;i++){r-=ws[i];if(r<=0)return arr[i]}return arr[arr.length-1]}
+// 打亂順序，並盡量避免同一個觀念的題目相鄰
+function spreadShuffle(qs){
+  const adj=a=>a.reduce((n,x,i)=>n+(i&&x.c===a[i-1].c?1:0),0);
+  let best=shuffle(qs),bs=adj(best);
+  for(let t=0;t<30&&bs>0;t++){const a=shuffle(qs),v=adj(a);if(v<bs){best=a;bs=v}}
+  return best;
+}
+// 常錯觀念練習：每個觀念隨機挑 1～2 題，答錯多、練得少的問法比較容易被選到
+function buildWeakRound(concepts,all,r){
+  const out=[];
+  concepts.forEach(c=>{
+    let fam=all.filter(q=>q.c===c);
+    const take=Math.min(fam.length,concepts.length<=4?2:1);
+    for(let k=0;k<take;k++){
+      const q=weightedPick(fam,x=>{const v=r[x.id]||{};return (1+2*(v.wrong||0))/(1+(v.seen||0))});
+      out.push(q);fam=fam.filter(x=>x!==q);
+    }
+  });
+  return spreadShuffle(out);
+}
 
 function home(){
   CTX=PLANT_CTX;
@@ -488,7 +512,7 @@ function home(){
   document.getElementById('go').onclick=()=>start(pickRound(pool(),prefs.count));
   const gw=document.getElementById('gw');
   // 常錯觀念：每個觀念出一題，優先用這個孩子還沒練過的問法
-  if(gw)gw.onclick=()=>start(wc.slice(0,10).map(c=>{const fam=ALL.filter(q=>q.c===c);return fam.slice().sort((a,b)=>((rec[a.id]||{}).seen||0)-((rec[b.id]||{}).seen||0))[0]}));
+  if(gw)gw.onclick=()=>start(buildWeakRound(shuffle(wc.slice(0,10)),ALL,rec));
   document.getElementById('gp').onclick=parent;
   document.getElementById('beta').onclick=()=>betaHome();
   document.getElementById('gai').onclick=()=>{aiState.phase='idle';aiState.msg='';aiPage()};
@@ -544,7 +568,7 @@ function ask(){
      <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
      <div class="qrow"><p class="qtext">${esc(q.q)}</p><button class="speak" id="sp" aria-label="念題目">🔊</button></div>
      <div class="opts ${q.t==='tf'?'tf':''}" id="opts">
-      ${q.t==='tf'?`<button class="opt" data-v="O"><span class="sym">⭕</span>對</button><button class="opt" data-v="X"><span class="sym">❌</span>錯</button>`
+      ${q.t==='tf'?(Math.random()<.5?`<button class="opt" data-v="O"><span class="sym">⭕</span>對</button><button class="opt" data-v="X"><span class="sym">❌</span>錯</button>`:`<button class="opt" data-v="X"><span class="sym">❌</span>錯</button><button class="opt" data-v="O"><span class="sym">⭕</span>對</button>`)
         :opts.map((o,i)=>`<button class="opt" data-v="${esc(o)}"><span class="n">${i+1}</span>${esc(o)}</button>`).join('')}
      </div>
      <div id="fb"></div>
@@ -565,12 +589,12 @@ function answer(btn){
   let note='';
   if(kind==='main'){
     S.leaves.push(ok);S.justAdded=true;
-    if(!ok){ if(!S.missed.includes(c))S.missed.push(c); schedule(c,1,GAP_FIRST,q.id); note='過幾題會換個問法再考你一次喔！'; }
+    if(!ok){ if(!S.missed.includes(c))S.missed.push(c); schedule(c,1,GAP_FIRST(),q.id); note='過幾題會換個問法再考你一次喔！'; }
   }else{
     const st=S.cs[c];
-    if(ok&&stage===1){ if(schedule(c,2,GAP_SECOND,q.id))note='記得越來越清楚了，等一下還會再考一次！'; else st.mastered=true; }
+    if(ok&&stage===1){ if(schedule(c,2,GAP_SECOND(),q.id))note='記得越來越清楚了，等一下還會再考一次！'; else st.mastered=true; }
     else if(ok){ st.mastered=true; note='🌟 這個觀念記住了！'; }
-    else { if(schedule(c,stage,GAP_AGAIN,q.id))note='沒關係，等一下再試一次。'; }
+    else { if(schedule(c,stage,GAP_AGAIN(),q.id))note='沒關係，等一下再試一次。'; }
   }
   ok?sndOK():sndNO();
   const ansText=q.t==='tf'?(q.a==='O'?'⭕ 對':'❌ 錯'):q.a;
@@ -1222,9 +1246,9 @@ function weakConcepts(bank){
 }
 // 每個常錯觀念出一題，優先用孩子練得最少的問法
 function startWeak(bank){
-  const qs=weakConcepts(bank).slice(0,10).map(c=>bank.questions.filter(q=>q.c===c).sort((a,b)=>((bank.rec[a.id]||{}).seen||0)-((bank.rec[b.id]||{}).seen||0))[0]).filter(Boolean);
+  const qs=buildWeakRound(shuffle(weakConcepts(bank).slice(0,10)),bank.questions,bank.rec);
   if(!qs.length)return;
-  CTX=bankCtx(bank);start(shuffle(qs));
+  CTX=bankCtx(bank);start(qs);
 }
 function startBank(bank){
   const pool=bank.questions.filter(q=>!bprefs.lv||q.lv===bprefs.lv);
