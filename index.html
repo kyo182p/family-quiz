@@ -693,9 +693,26 @@ function parseJSONLoose(t){
   t=String(t||'').replace(/```json|```/g,'').trim();
   try{return JSON.parse(t)}catch(e){}
   const i=Math.min(...['{','['].map(c=>{const k=t.indexOf(c);return k<0?Infinity:k}));
-  const j=Math.max(t.lastIndexOf('}'),t.lastIndexOf(']'));
-  if(i===Infinity||j<=i)return undefined;
-  try{return JSON.parse(t.slice(i,j+1))}catch(e){return undefined}
+  if(i===Infinity)return undefined;
+  const body=t.slice(i);
+  const j=Math.max(body.lastIndexOf('}'),body.lastIndexOf(']'));
+  if(j>0){try{return JSON.parse(body.slice(0,j+1))}catch(e){}}
+  return repairJSON(body);
+}
+// 回應太長被截斷時：退回到最後一個完整的物件，補上缺少的括號
+function repairJSON(t){
+  const stack=[];let inStr=false,esc=false,lastGood=-1,lastStack=null;
+  for(let k=0;k<t.length;k++){
+    const ch=t[k];
+    if(inStr){if(esc)esc=false;else if(ch==='\\')esc=true;else if(ch==='"')inStr=false;continue}
+    if(ch==='"'){inStr=true;continue}
+    if(ch==='{'||ch==='[')stack.push(ch);
+    else if(ch==='}'||ch===']'){stack.pop();if(ch==='}'&&stack.length){lastGood=k;lastStack=stack.slice()}}
+  }
+  if(lastGood<0)return undefined;
+  const close=lastStack.slice().reverse().map(c=>c==='{'?'}':']').join('');
+  try{const v=JSON.parse(t.slice(0,lastGood+1)+close);if(v&&typeof v==='object'){v.__repaired=true;return v}}catch(e){}
+  return undefined;
 }
 // 介面和原本 Claude 網站版的 sample 相同，其他程式不用改
 function makeSample(){
@@ -761,7 +778,7 @@ const AI_ERR={
   sampling_disabled:'這個帳號目前不能在網站裡使用 Claude。',
   rate_limited:'AI 服務目前太忙或使用太頻繁，請過一分鐘再試。',
   session_expired:'Claude 登入已過期，請重新登入後再試。',
-  invalid_json:'這次 Claude 回傳的格式不對，請再按一次「產生新題目」。',
+  invalid_json:'這次 Claude 回傳的格式不對，請再試一次。',
   empty_completion:'這次沒有產生內容，請把題數調少再試一次。',
   refused:'這次的出題要求被拒絕了，請換一個單元再試。',
   upstream_error:'連線不穩，這次沒有完成，請再試一次。',
@@ -1027,6 +1044,7 @@ ${note?'家長補充：'+note:''}
 6. 每題用 c 標出觀念。已經有的觀念請沿用代號；新觀念用 "n1"、"n2"…，並在 concepts 用一句話寫出觀念重點（只能根據資料）。
 7. 只能根據資料內容，不可以加入資料以外的知識。不要和「已經有的題目」重複。
 8. 資料不是題目、只是課文或講解時，就根據內容出幾題，src 為 "AI"。
+9. 這一次最多整理 15 題；題目太多時，優先抄錄有答案的原題。
 
 ${JSON_RULES}
 
@@ -1213,7 +1231,7 @@ async function toJpeg(file){
     const src=await readDataURL(file);
     const img=new Image();
     await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=src});
-    const max=2000,w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return null;
+    const max=1600,w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return null;
     const k=Math.min(1,max/Math.max(w,h));
     const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
     c.getContext('2d').drawImage(img,0,0,c.width,c.height);
@@ -1239,7 +1257,7 @@ async function uploadPage(bank,keep){
    <p class="lead">可以只放照片、只貼文字，或兩個一起。照片上有答案（訂正過的考卷、解答頁）最準確。</p>
    ${sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
    <section class="card form">
-     <p style="margin:0 0 8px;font-size:1.15rem">📷 照片${imgOK?`（一次最多 ${maxN} 張，超過會自動分批）`:''}</p>
+     <p style="margin:0 0 8px;font-size:1.15rem">📷 照片${imgOK?'（每 2 張一批分析，張數越多等越久）':''}</p>
      ${imgOK?`<label class="pickbtn">📷 選擇照片或拍照<input type="file" id="u-img" accept="image/*,.heic,.heif" multiple ${busy?'disabled':''} hidden></label>
        <p class="lead" style="font-size:.95rem;margin:6px 0 0">iPhone 的 HEIC 照片會自動轉成 JPG。</p>
        <div class="thumbs">${upState.files.map((f,i)=>`<span class="thumb"><img src="${f.thumb}" alt=""><button data-rm="${i}" aria-label="移除">✕</button></span>`).join('')}</div>`
@@ -1291,7 +1309,8 @@ async function uploadPage(bank,keep){
 async function runAnalyze(bank,maxN){
   upState.phase='working';upState.msg='Claude 正在看資料……';uploadPage(bank,true);
   const files=upState.files.slice(), text=upState.text.trim().slice(0,60000), note=upState.note.trim().slice(0,300);
-  const batches=[]; if(files.length&&maxN){for(let i=0;i<files.length;i+=maxN)batches.push(files.slice(i,i+maxN))} else batches.push([]);
+  const per=Math.min(maxN||2,2);
+  const batches=[]; if(files.length){for(let i=0;i<files.length;i+=per)batches.push(files.slice(i,i+per))} else batches.push([]);
   let tot={added:0,dropped:0,skipped:0},err=null;
   for(let i=0;i<batches.length;i++){
     const ctl=new AbortController();upState.ctl=ctl;
@@ -1301,15 +1320,20 @@ async function runAnalyze(bank,maxN){
       const opts={signal:ctl.signal,cache:false,modelTier:'default',onText:()=>{const p=document.getElementById('u-prog');if(p)p.textContent=label+'Claude 正在整理題目……'}};
       if(batches[i].length)opts.images=batches[i];
       const res=await SAMPLE.json(analyzePrompt(bank,i===0?text:'',note,batches[i].length),opts);
+      if(res&&res.__repaired)tot.cut=(tot.cut||0)+1;
       const r=mergeResult(bank,res,'原題'); tot.added+=r.added;tot.dropped+=r.dropped;tot.skipped+=r.skipped;
       await bsSave(bank);
-    }catch(e){err=e;break}
+    }catch(e){
+      if(e&&e.code==='cancelled'){err=e;break}
+      if(e&&['bad_code','daily_limit','no_credit','not_configured'].includes(e.code)){err=e;break}
+      err=e;tot.failed=(tot.failed||[]).concat(i+1);
+    }
   }
   upState.ctl=null;upState.phase='idle';
   if(tot.added||tot.skipped){
     upState.files=[];upState.text='';upState.note='';
     toast(`整理出 ${tot.added} 題，請到「待確認」檢查`);
-    reviewPage(bank,`整理出 ${tot.added} 題${tot.skipped?`，另有 ${tot.skipped} 題不適合點選作答`:''}${tot.dropped?`（${tot.dropped} 題格式不合格或重複，已略過）`:''}${err?'。部分資料沒有處理完：'+aiErrMsg(err):''}`);
+    reviewPage(bank,`整理出 ${tot.added} 題${tot.skipped?`，另有 ${tot.skipped} 題不適合點選作答`:''}${tot.dropped?`（${tot.dropped} 題格式不合格或重複，已略過）`:''}${tot.cut?`。有 ${tot.cut} 批內容太多，後段題目可能沒整理到，可以把那幾張照片再分析一次`:''}${tot.failed?`。第 ${tot.failed.join('、')} 批沒有成功（${aiErrMsg(err)}），可以把那幾張照片再上傳一次`:''}`);
     return;
   }
   upState.msg=err?aiErrMsg(err):'這次沒有整理出可以用的題目，請換清楚一點的照片，或補充說明再試一次。';
