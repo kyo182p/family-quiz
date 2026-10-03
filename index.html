@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>家庭題庫練習｜植物小學堂</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F1F7EA; --grid:#DCEBD2; --ink:#1E3A2B; --muted:#5A7464;
+  --card:#FFFFFF; --leaf:#3D8B4F; --leaf-soft:#D6EBCF; --sun:#F2B23A; --sun-soft:#FFF1CC;
+  --coral:#E25D44; --coral-soft:#FBE0DA; --soil:#8B5E3C; --line:#C9DDBF;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
+    --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
+    --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
+  --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
+  --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0; min-height:100%; color:var(--ink);
+  font-family:"Huninn","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;
+  -webkit-tap-highlight-color:transparent;
+}
+main{max-width:720px;margin:0 auto;padding:16px 16px 48px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
+h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
+.lead{color:var(--muted);font-size:1.1rem;margin:0 0 20px;line-height:1.6}
+.hero{display:flex;align-items:center;gap:16px}
+.hero svg{flex:0 0 96px;width:96px;height:96px}
+.section-title{font-size:1.15rem;margin:22px 0 10px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{
+  border:2px solid var(--line);background:var(--card);border-radius:999px;
+  padding:10px 18px;font-size:1.15rem;min-height:48px;
+}
+.chip[aria-pressed="true"]{background:var(--leaf);border-color:var(--leaf);color:#fff}
+.chip small{opacity:.75;margin-left:4px}
+.big{
+  display:block;width:100%;margin-top:26px;border:none;border-radius:20px;
+  background:var(--leaf);color:#fff;font-size:1.5rem;padding:18px;min-height:64px;
+  box-shadow:0 5px 0 #2a6438;
+}
+.big:active{transform:translateY(3px);box-shadow:0 2px 0 #2a6438}
+.ghost{
+  display:block;width:100%;margin-top:12px;border:2px dashed var(--line);background:transparent;
+  border-radius:16px;padding:14px;font-size:1.15rem;min-height:56px;color:var(--ink)
+}
+.toprow{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.iconbtn{border:2px solid var(--line);background:var(--card);border-radius:14px;padding:8px 12px;font-size:1rem;min-height:44px}
+.vine{width:100%;height:auto;display:block;margin:6px 0 4px}
+.counter{color:var(--muted);font-size:1rem}
+.card{
+  background:var(--card);border:2px solid var(--line);border-radius:22px;
+  padding:20px 18px;margin-top:10px;
+}
+.tag{display:inline-block;font-size:.95rem;background:var(--leaf-soft);color:var(--ink);border-radius:8px;padding:3px 10px}
+.retry-tag{background:var(--sun-soft)}
+.qrow{display:flex;gap:12px;align-items:flex-start;margin-top:12px}
+.qtext{font-size:1.6rem;line-height:1.55;margin:0;flex:1}
+.speak{flex:0 0 auto;width:52px;height:52px;border-radius:50%;border:2px solid var(--line);background:var(--paper);font-size:1.5rem}
+.opts{display:grid;gap:12px;margin-top:20px}
+.opts.tf{grid-template-columns:1fr 1fr}
+.opt{
+  display:flex;align-items:center;gap:12px;text-align:left;
+  border:3px solid var(--line);background:var(--card);border-radius:18px;
+  padding:14px 16px;font-size:1.35rem;min-height:66px;line-height:1.4;
+}
+.opt .n{flex:0 0 34px;height:34px;border-radius:50%;background:var(--leaf-soft);display:grid;place-items:center;font-size:1.05rem}
+.opts.tf .opt{justify-content:center;flex-direction:column;font-size:1.4rem;min-height:120px}
+.opts.tf .sym{font-size:3rem;line-height:1}
+.opt.correct{border-color:var(--leaf);background:var(--leaf-soft)}
+.opt.wrong{border-color:var(--coral);background:var(--coral-soft)}
+.opt:disabled{cursor:default}
+.opt:disabled:not(.correct):not(.wrong){opacity:.5}
+.feedback{margin-top:18px;border-radius:18px;padding:16px;border:3px solid var(--leaf);background:var(--leaf-soft)}
+.feedback.bad{border-color:var(--coral);background:var(--coral-soft)}
+.fb-head{font-size:1.5rem;margin:0 0 8px;display:flex;align-items:center;gap:10px}
+.fb-why{font-size:1.25rem;line-height:1.7;margin:0}
+.pic{margin-top:14px;background:#FAFDF7;border-radius:14px;padding:10px;color:#1E3A2B;overflow-x:auto}
+.pic svg{display:block;width:100%;height:auto;max-height:280px}
+.rows{display:grid;gap:8px}
+.r{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:10px;font-size:1.15rem;line-height:1.5}
+.r .e{font-size:2rem;flex:0 0 44px;text-align:center}
+.r b{flex:0 0 auto;min-width:4.5em}
+.r.hl{background:#FFF1CC;outline:2px solid #F2B23A}
+.pop{animation:pop .35s ease-out}
+@keyframes pop{0%{transform:scale(.92)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
+.shake{animation:shake .35s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.leaf-in{transform-box:fill-box;transform-origin:50% 100%;animation:grow .5s ease-out}
+@keyframes grow{from{transform:scale(0)}to{transform:scale(1)}}
+.score{font-size:3.2rem;margin:6px 0}
+.list{margin:10px 0 0;padding:0;list-style:none}
+.list li{padding:12px 4px;border-bottom:1px dashed var(--line);font-size:1.1rem;line-height:1.5;display:flex;justify-content:space-between;gap:12px}
+.list .cnt{flex:0 0 auto;color:var(--coral)}
+.toggle{display:flex;align-items:center;gap:10px;font-size:1.1rem;margin-top:18px}
+.toggle input{width:24px;height:24px}
+.footer{margin-top:28px;display:flex;gap:10px;flex-wrap:wrap}
+.footer button{flex:1}
+
+.beta-btn{display:inline-flex;align-items:center;gap:6px}
+.bankcard{display:flex;flex-direction:column;gap:4px;width:100%;text-align:left;margin-top:12px;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:16px 18px}
+.bk-title{font-size:1.3rem}.bk-meta{color:var(--muted);font-size:1rem}
+.form label{display:flex;flex-direction:column;gap:6px;font-size:1.05rem;margin-top:12px}
+.form input:not([type=radio]):not([type=checkbox]):not([type=file]),.form select,.form textarea{font:inherit;font-size:1.1rem;color:var(--ink);background:var(--paper);border:2px solid var(--line);border-radius:12px;padding:10px 12px;min-height:46px;width:100%}
+.form input[type=file]{font:inherit;font-size:1rem;max-width:100%}
+.optrow{flex-direction:row!important;align-items:center}
+.optrow input[type=radio]{width:24px;height:24px;flex:0 0 auto}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.thumb{position:relative}.thumb img{width:84px;height:84px;object-fit:cover;border-radius:10px;border:2px solid var(--line)}
+.thumb button{position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;border:none;background:var(--coral);color:#fff}
+.tag.warn{background:var(--coral-soft)}
+.pickbtn{display:inline-flex;align-items:center;gap:8px;border:2px solid var(--line);background:var(--paper);border-radius:14px;padding:12px 16px;font-size:1.1rem;cursor:pointer;min-height:52px}
+.pickbtn:focus-within{outline:3px solid var(--sun)}
+.tipbox{margin-top:10px;background:var(--sun-soft);border-radius:14px;padding:12px 14px;font-size:1.05rem;line-height:1.6}.tipbox p{margin:2px 0}
+.bpic{text-align:center}.bicon{font-size:4rem;line-height:1.2}.bpic p{font-size:1.15rem;margin:6px 0 0;text-align:left}
+.chip:disabled{opacity:.45;cursor:default}
+.ghost:disabled{opacity:.5;cursor:default}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--paper);padding:12px 18px;border-radius:14px;font-size:1.05rem;opacity:0;pointer-events:none;transition:.25s;max-width:90vw;z-index:20}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:center;z-index:30;padding:20px}
+.modal-card{background:var(--card);color:var(--ink);border-radius:18px;padding:20px;max-width:420px;width:100%;font-size:1.15rem;line-height:1.6}
+.iconbtn.danger{background:var(--coral);border-color:var(--coral);color:#fff}
+@media (max-width:480px){
+  h1{font-size:1.9rem}
+  .qtext{font-size:1.35rem}
+  .opt{font-size:1.2rem}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<main id="app"></main>
+
+<script>
+/* ===== 題庫：依安親班解題錄音整理（三上自然・植物） ===== */
+const UNITS = {leaf:'葉子', stem:'莖', root:'根', flower:'花、果實、種子', life:'觀察和生活'};
+
+const Q = [
+ // 葉子
+ {id:'L1',u:'leaf',t:'tf',q:'植物的葉子都是綠色的。',a:'X',why:'不一定喔！有些葉子是紅色、黃色、粉紅色。例如聖誕紅的葉子就是紅色的。',pic:'colors'},
+ {id:'L2',u:'leaf',t:'mc',q:'哪一種植物的葉子長得很像愛心？',o:['菩提樹','榕樹','椰子樹','青江菜'],a:'菩提樹',why:'菩提樹的葉子形狀像一顆愛心。',pic:'heart'},
+ {id:'L3',u:'leaf',t:'tf',q:'榕樹的葉子是網狀脈。',a:'O',why:'對！榕樹葉子上的紋路像一張網，叫做網狀脈。',pic:'net'},
+ {id:'L4',u:'leaf',t:'tf',q:'葉子的邊緣叫做葉緣，葉緣都是平滑的。',a:'X',why:'葉子的邊緣叫葉緣沒錯，但不是都平滑的，還有波浪狀和鋸齒狀。',pic:'margins'},
+ {id:'L5',u:'leaf',t:'tf',q:'葉子在莖上生長的方式，叫做「葉節」。',a:'X',why:'葉子生長的方式叫做「葉序」，不是葉節喔！',pic:'arr'},
+ {id:'L6',u:'leaf',t:'tf',q:'青江菜的葉子會集中長在一起，這叫做叢生。',a:'O',why:'對！青江菜的葉子集中生長，是叢生。',pic:'arr:叢生'},
+ {id:'L7',u:'leaf',t:'mc',q:'一個節長出三片葉子，這種葉序叫做什麼？',o:['輪生','對生','互生','叢生'],a:'輪生',why:'輪生是一個節長三片葉子。',pic:'arr:輪生'},
+ {id:'L8',u:'leaf',t:'mc',q:'一個節長出兩片葉子，長在對面，叫做什麼？',o:['對生','輪生','互生','叢生'],a:'對生',why:'一個節長兩片，長在對面，叫做對生。',pic:'arr:對生'},
+ {id:'L9',u:'leaf',t:'mc',q:'互生是一個節長幾片葉子？',o:['一片','兩片','三片'],a:'一片',why:'互生是一個節只長一片葉子，例如榕樹。',pic:'arr:互生'},
+ {id:'L10',u:'leaf',t:'mc',q:'葉子上的紋路叫做什麼？',o:['葉脈','葉緣','葉序'],a:'葉脈',why:'葉子上的紋路叫做葉脈；葉子的邊緣才叫葉緣。',pic:'net'},
+ {id:'L11',u:'leaf',t:'mc',q:'哪一種植物在秋冬的時候，葉子不會變成紅褐色？',o:['椰子樹','台灣欒樹','楓樹','落羽松'],a:'椰子樹',why:'椰子樹的葉子秋冬也不會變成紅褐色，要背起來！',pic:'autumn'},
+ {id:'L12',u:'leaf',t:'tf',q:'到了秋天，台灣欒樹的葉子會變成粉紅色。',a:'X',why:'老師說：秋天的台灣欒樹應該是橘紅色，粉紅色是錯的。',pic:'autumn'},
+ // 莖
+ {id:'S1',u:'stem',t:'tf',q:'植物的莖都是高大直立的。',a:'X',why:'小草的莖矮矮的，是草本莖；牽牛花、葡萄的莖彎彎曲曲，是藤本莖；樹的莖才高大直立，是木本莖。',pic:'stems'},
+ {id:'S2',u:'stem',t:'tf',q:'植物的莖上有節，節上只會長葉子。',a:'X',why:'節上除了長葉子，還會長花和果實。',pic:'node'},
+ {id:'S3',u:'stem',t:'tf',q:'榕樹小時候是草本莖，長大後才變成木本莖。',a:'X',why:'榕樹小時候就是木本莖，長大後還是木本莖。沒有植物會從草本莖變成木本莖。',pic:'stems:木本莖'},
+ {id:'S4',u:'stem',t:'mc',q:'哪一種植物是草本莖？',o:['咸豐草','榕樹','菩提樹','牽牛花'],a:'咸豐草',why:'咸豐草是小草，是草本莖。榕樹、菩提樹有「樹」，是木本莖；牽牛花是藤本莖。',pic:'stems:草本莖'},
+ {id:'S5',u:'stem',t:'mc',q:'牽牛花是哪一種莖？',o:['藤本莖','草本莖','木本莖'],a:'藤本莖',why:'牽牛花和葡萄的莖彎彎曲曲，是藤本莖。',pic:'stems:藤本莖'},
+ {id:'S6',u:'stem',t:'mc',q:'植物的名字裡看到哪一個字，就知道它是木本莖？',o:['樹','草','花','菜'],a:'樹',why:'看到「樹」，它就是木本莖！',pic:'stems:木本莖'},
+ {id:'S7',u:'stem',t:'mc',q:'哪一個「不是」莖的功能？',o:['吸收陽光','運送養分','長出葉子','長出花和果實'],a:'吸收陽光',why:'吸收陽光是葉子的功能。莖負責運送，節上會長葉子、花和果實。',pic:'transport'},
+ {id:'S8',u:'stem',t:'mc',q:'根吸收土裡的養分後，是誰把養分運送到植物全身？',o:['莖','葉','花','果實'],a:'莖',why:'根負責吸收，莖負責運送。',pic:'transport'},
+ {id:'S9',u:'stem',t:'mc',q:'哪一種植物的莖適合做家具？',o:['大樹','小草','牽牛花','青江菜'],a:'大樹',why:'大樹是木本莖，又粗又硬，適合做家具。',pic:'furniture'},
+ {id:'S10',u:'stem',t:'tf',q:'每一種植物的莖都可以拿來做家具。',a:'X',why:'不是每一種都可以！只有木本莖（看到「樹」）才可以做家具。',pic:'furniture'},
+ // 根
+ {id:'R1',u:'root',t:'tf',q:'植物的根可以把植物固定在生長的地方。',a:'O',why:'對！根可以固定植物、抓住土壤。',pic:'roots'},
+ {id:'R2',u:'root',t:'mc',q:'根的外觀可以分成哪兩種？',o:['軸根和鬚根','草本和木本','雄蕊和雌蕊','互生和對生'],a:'軸根和鬚根',why:'根在外觀上分成軸根和鬚根。',pic:'roots'},
+ {id:'R3',u:'root',t:'tf',q:'龍葵的根是鬚根。',a:'X',why:'龍葵是軸根，不是鬚根。',pic:'roots'},
+ {id:'R4',u:'root',t:'tf',q:'蒜的根是鬚根。',a:'O',why:'對！蒜是鬚根，要背起來。',pic:'roots'},
+ {id:'R5',u:'root',t:'mc',q:'哪一個部位負責吸收土裡的水分和養分？',o:['根','莖','葉','花'],a:'根',why:'根吸收土裡的養分，再由莖運送。',pic:'transport'},
+ {id:'R6',u:'root',t:'mc',q:'下面哪一種食物是吃植物的根？',o:['番薯','紅豆','蔥','米飯'],a:'番薯',why:'番薯就是地瓜，吃它的根。紅豆吃種子，蔥吃莖，米是果實。',pic:'food:根'},
+ {id:'R7',u:'root',t:'mc',q:'蘿蔔是吃它的哪一個部位？',o:['根','莖','葉','種子'],a:'根',why:'蘿蔔和地瓜都是吃根。',pic:'food:根'},
+ // 花、果實、種子
+ {id:'F1',u:'flower',t:'tf',q:'植物的花都有花萼、花瓣、雄蕊、雌蕊四個部分。',a:'X',why:'絲瓜是例外！絲瓜的雄花只有花萼、花瓣、雄蕊；雌花只有花萼、花瓣、雌蕊。',pic:'loofah'},
+ {id:'F2',u:'flower',t:'mc',q:'絲瓜的花少了雄蕊，只有花萼、花瓣和雌蕊，叫做什麼花？',o:['雌花','雄花'],a:'雌花',why:'有雌蕊的是雌花；有雄蕊的是雄花。',pic:'loofah'},
+ {id:'F3',u:'flower',t:'mc',q:'關於絲瓜的花，哪一個是「錯」的？',o:['一朵花同時有雄蕊和雌蕊','有雄花','有雌花','都有花萼和花瓣'],a:'一朵花同時有雄蕊和雌蕊',why:'絲瓜的一朵花不會同時有雄蕊和雌蕊，只會有其中一個，但一定都有花萼和花瓣。',pic:'loofah'},
+ {id:'F4',u:'flower',t:'tf',q:'雌蕊上有細細的花粉。',a:'X',why:'花粉在雄蕊上，不是雌蕊。',pic:'flower'},
+ {id:'F5',u:'flower',t:'mc',q:'哪一種花的花瓣超過五片，一層一層很多片？',o:['玫瑰花','牽牛花','絲瓜花'],a:'玫瑰花',why:'玫瑰花的花瓣一層一層，有很多片。',pic:'rose'},
+ {id:'F6',u:'flower',t:'tf',q:'蘋果、桃子、李子都只有一粒種子。',a:'X',why:'蘋果裡面有很多個種子。',pic:'apple'},
+ {id:'F7',u:'flower',t:'tf',q:'植物的種子沒有什麼用處。',a:'X',why:'種子種到土裡，可以繁殖下一代。',pic:'seed'},
+ {id:'F8',u:'flower',t:'mc',q:'水蜜桃香甜多汁的部分，是植物的什麼？',o:['果實','種子','莖','根'],a:'果實',why:'我們吃水蜜桃是吃果肉，是果實。水果通常都是吃果實。',pic:'food:果實'},
+ // 觀察和生活
+ {id:'V1',u:'life',t:'mc',q:'我們可以怎麼觀察植物？',o:['用放大鏡看','用尺量','用手摸','以上皆是'],a:'以上皆是',why:'放大鏡、望遠鏡、用尺量、用手摸都可以，就是不能用嘴巴！',pic:'tools'},
+ {id:'V2',u:'life',t:'tf',q:'觀察植物的時候，可以用嘴巴嚐嚐看。',a:'X',why:'觀察植物不能用嘴巴！',pic:'tools'},
+ {id:'V3',u:'life',t:'mc',q:'紅豆、黃豆、綠豆、黑豆，我們都是吃它的什麼？',o:['種子','果實','莖','根'],a:'種子',why:'豆類都是吃種子。',pic:'food:種子'},
+ {id:'V4',u:'life',t:'mc',q:'哪一種是吃植物的果實？',o:['絲瓜','蔥','莧菜','青江菜'],a:'絲瓜',why:'絲瓜吃果實。蔥吃莖；莧菜和青江菜吃莖和葉。',pic:'food:果實'},
+ {id:'V5',u:'life',t:'mc',q:'蔥是吃它的哪一個部位？',o:['莖','根','果實','種子'],a:'莖',why:'蔥是吃它的莖。',pic:'food:莖'},
+ {id:'V6',u:'life',t:'mc',q:'馬鈴薯是吃它的哪一個部位？',o:['莖','根','果實','種子'],a:'莖',why:'馬鈴薯是吃莖喔！地瓜和蘿蔔才是吃根。',pic:'food:莖'},
+ {id:'V7',u:'life',t:'mc',q:'青江菜是吃它的哪些部位？',o:['莖和葉','根','果實','種子'],a:'莖和葉',why:'青江菜和莧菜都是吃莖和葉。',pic:'food:莖和葉'},
+ {id:'V8',u:'life',t:'mc',q:'米飯的米，是植物的哪一個部位？',o:['果實','根','莖','葉'],a:'果實',why:'老師說：米飯的米是果實。',pic:'food:果實'},
+ {id:'V9',u:'life',t:'mc',q:'哪一種植物的幼苗可以當食物？',o:['綠豆','黃豆','蘿蔔','以上皆是'],a:'以上皆是',why:'都可以！綠豆發芽變成綠豆芽，也可以吃。',pic:'life:幼苗'},
+ {id:'V10',u:'life',t:'mc',q:'餵蠶寶寶吃的是哪一種葉子？',o:['桑葉','榕樹葉','菩提樹葉','青江菜'],a:'桑葉',why:'蠶寶寶吃的是桑葉。',pic:'life:桑葉'},
+ {id:'V11',u:'life',t:'tf',q:'中藥店可以買到人參、紅棗、當歸這些植物。',a:'O',why:'對！有些植物可以當藥材。',pic:'life:中藥'},
+ {id:'V12',u:'life',t:'tf',q:'為了吸引小鳥來，我們可以在空地上多種樹。',a:'O',why:'對！多種樹對環境很好，小鳥也會來。',pic:'life:小鳥'},
+];
+
+/* ===== 複習題：同觀念、不同問法（只在答錯後出現） ===== */
+const SAME_CONCEPT={S10:'S9',V2:'V1',R7:'R6'};
+Q.forEach(q=>{q.c=SAME_CONCEPT[q.id]||q.id});
+const RV=[
+ ['L1','mc','聖誕紅的葉子是什麼顏色？',['紅色','綠色','藍色'],'紅色','聖誕紅的葉子是紅色的，所以葉子不一定都是綠色。'],
+ ['L1','tf','有些植物的葉子是紅色或黃色的。','O','對！葉子不一定都是綠色，例如聖誕紅的葉子是紅色。'],
+ ['L2','tf','菩提樹的葉子形狀像愛心。','O','對！菩提樹的葉子像一顆愛心。'],
+ ['L2','mc','菩提樹的葉子長得像什麼形狀？',['愛心','圓圓的球','細細的針'],'愛心','菩提樹的葉子像愛心。'],
+ ['L3','tf','榕樹葉子上的紋路像一張網。','O','對！榕樹的葉子是網狀脈，紋路像一張網。'],
+ ['L3','mc','榕樹的葉子是哪一種葉脈？',['網狀脈','鋸齒狀','叢生'],'網狀脈','榕樹的葉子是網狀脈。'],
+ ['L10','tf','葉子上的紋路叫做葉緣。','X','葉子上的紋路叫做葉脈；葉子的邊緣才叫葉緣。'],
+ ['L10','mc','葉脈是指葉子的哪裡？',['葉子上的紋路','葉子的邊緣','葉子生長的方式'],'葉子上的紋路','葉脈是葉子上的紋路。'],
+ ['L4','mc','葉子的邊緣叫做什麼？',['葉緣','葉脈','葉序'],'葉緣','葉子的邊緣叫做葉緣。'],
+ ['L4','tf','葉緣除了平滑的，還有波浪狀和鋸齒狀。','O','對！葉緣有平滑、波浪、鋸齒。'],
+ ['L5','mc','葉子在莖上生長的方式叫做什麼？',['葉序','葉節','葉緣','葉脈'],'葉序','葉子生長的方式叫做葉序。'],
+ ['L5','tf','葉子生長的方式叫做葉序。','O','對！是「葉序」，不是葉節。'],
+ ['L6','mc','青江菜的葉子集中長在一起，是哪一種葉序？',['叢生','互生','對生','輪生'],'叢生','青江菜的葉子集中生長，是叢生。'],
+ ['L6','tf','青江菜的葉子是輪生。','X','青江菜的葉子是叢生，集中長在一起。'],
+ ['L7','mc','輪生是一個節長幾片葉子？',['一片','兩片','三片'],'三片','輪生是一個節長三片葉子。'],
+ ['L7','tf','輪生是一個節長三片葉子。','O','對！輪生是一個節長三片。'],
+ ['L8','mc','對生是一個節長幾片葉子？',['一片','兩片','三片'],'兩片','對生是一個節長兩片，長在對面。'],
+ ['L8','tf','對生是一個節長兩片葉子，長在對面。','O','對！所以叫「對」生。'],
+ ['L9','mc','一個節只長一片葉子，叫做什麼？',['互生','對生','輪生','叢生'],'互生','一個節長一片葉子是互生。'],
+ ['L9','tf','榕樹的葉序是互生。','O','對！榕樹是互生，一個節長一片葉子。'],
+ ['L11','tf','椰子樹到了秋冬，葉子會變成紅褐色。','X','椰子樹的葉子秋冬也不會變成紅褐色。'],
+ ['L11','mc','秋冬時，葉子「不會」變成紅褐色的是哪一種？',['椰子樹','台灣欒樹'],'椰子樹','椰子樹秋冬不會變紅褐色，要背起來！'],
+ ['L12','mc','老師說，秋天的台灣欒樹應該是什麼顏色？',['橘紅色','粉紅色','藍色'],'橘紅色','老師說：秋天的台灣欒樹是橘紅色。'],
+ ['S1','tf','小草的莖矮矮的，是草本莖。','O','對！小草是草本莖。'],
+ ['S1','tf','樹的莖高大直立，是木本莖。','O','對！樹是木本莖。'],
+ ['S2','mc','莖上的節，除了長葉子，還會長什麼？',['花和果實','根','土壤'],'花和果實','節上會長葉子、花和果實。'],
+ ['S2','tf','莖上的節會長葉子、花和果實。','O','對！不是只長葉子。'],
+ ['S3','mc','榕樹小時候是哪一種莖？',['木本莖','草本莖','藤本莖'],'木本莖','榕樹小時候就是木本莖，長大還是木本莖。'],
+ ['S3','tf','榕樹小時候就已經是木本莖了。','O','對！沒有植物會從草本莖變成木本莖。'],
+ ['S4','mc','咸豐草是哪一種莖？',['草本莖','木本莖','藤本莖'],'草本莖','咸豐草是小草，是草本莖。'],
+ ['S4','tf','咸豐草是木本莖。','X','咸豐草是小草，是草本莖。'],
+ ['S5','mc','哪一種植物是藤本莖？',['牽牛花','咸豐草','榕樹'],'牽牛花','牽牛花的莖彎彎曲曲，是藤本莖。'],
+ ['S5','tf','葡萄的莖彎彎曲曲，是藤本莖。','O','對！葡萄和牽牛花都是藤本莖。'],
+ ['S6','mc','菩提樹是哪一種莖？',['木本莖','草本莖','藤本莖'],'木本莖','看到「樹」就是木本莖！'],
+ ['S6','tf','看到植物名字裡有「樹」，它就是木本莖。','O','對！看到「樹」就是木本莖。'],
+ ['S7','mc','吸收陽光是哪一個部位的功能？',['葉子','莖','根'],'葉子','吸收陽光是葉子的功能。'],
+ ['S7','tf','吸收陽光是莖的功能。','X','吸收陽光是葉子的功能，莖負責運送。'],
+ ['S8','tf','根負責吸收，莖負責運送。','O','對！根吸收土裡的養分，莖把養分運送出去。'],
+ ['S8','mc','莖的功能是什麼？',['運送養分','吸收陽光','繁殖下一代'],'運送養分','莖負責運送養分。'],
+ ['R5','tf','莖負責吸收土裡的水分和養分。','X','吸收土裡養分的是根，莖負責運送。'],
+ ['R5','mc','土裡的養分是被哪一個部位吸收的？',['根','莖','花'],'根','根負責吸收土裡的養分。'],
+ ['S9','mc','哪一種莖可以做家具？',['木本莖','草本莖','藤本莖'],'木本莖','木本莖（樹）可以做家具。'],
+ ['S9','tf','小草的莖可以拿來做家具。','X','只有木本莖（樹）才可以做家具。'],
+ ['R1','mc','哪一個部位可以固定植物、抓住土壤？',['根','葉','花'],'根','根可以固定植物、抓住土壤。'],
+ ['R1','tf','根可以抓住土壤。','O','對！根可以固定植物、抓住土壤。'],
+ ['R2','tf','根的外觀分成軸根和鬚根。','O','對！根分成軸根和鬚根。'],
+ ['R2','mc','下面哪一個是根的種類？',['軸根','葉緣','花萼'],'軸根','根分成軸根和鬚根。'],
+ ['R3','mc','龍葵的根是哪一種？',['軸根','鬚根'],'軸根','龍葵是軸根。'],
+ ['R3','tf','龍葵是軸根。','O','對！龍葵是軸根。'],
+ ['R4','mc','哪一種植物的根是鬚根？',['蒜','龍葵'],'蒜','蒜是鬚根，龍葵是軸根。'],
+ ['R4','tf','蒜的根是軸根。','X','蒜是鬚根。'],
+ ['R6','mc','地瓜（番薯）是吃它的哪一個部位？',['根','莖','果實','種子'],'根','地瓜和蘿蔔都是吃根。'],
+ ['R6','tf','蘿蔔是吃它的根。','O','對！蘿蔔和地瓜都是吃根。'],
+ ['F1','tf','絲瓜的花只有三個部分。','O','對！絲瓜的花少了雄蕊或雌蕊，只有三個部分。'],
+ ['F1','mc','哪一個「不是」花的部分？',['根','花萼','花瓣','雄蕊'],'根','花的部分有花萼、花瓣、雄蕊、雌蕊。'],
+ ['F2','mc','絲瓜的花只有花萼、花瓣和雄蕊，叫做什麼花？',['雄花','雌花'],'雄花','有雄蕊的是雄花。'],
+ ['F2','tf','有雄蕊的絲瓜花叫做雌花。','X','有雄蕊的是雄花，有雌蕊的才是雌花。'],
+ ['F3','tf','絲瓜的一朵花，不會同時有雄蕊和雌蕊。','O','對！一朵絲瓜花只會有其中一個。'],
+ ['F3','tf','絲瓜沒有雄蕊。','X','絲瓜有雄蕊喔！只是雄蕊和雌蕊不會在同一朵花。'],
+ ['F4','mc','花粉長在哪裡？',['雄蕊','雌蕊','花萼'],'雄蕊','花粉在雄蕊上。'],
+ ['F4','tf','花粉在雄蕊上。','O','對！花粉在雄蕊上。'],
+ ['F5','tf','玫瑰花的花瓣一層一層，有很多片。','O','對！玫瑰花的花瓣超過五片。'],
+ ['F6','mc','蘋果裡面有幾個種子？',['很多個','只有一個'],'很多個','蘋果裡面有很多個種子。'],
+ ['F6','tf','蘋果裡面只有一粒種子。','X','蘋果裡面有很多個種子。'],
+ ['F7','mc','種子有什麼功用？',['繁殖下一代','吸收陽光','固定植物'],'繁殖下一代','種子種到土裡，可以繁殖下一代。'],
+ ['F7','tf','種子種到土裡，可以繁殖下一代。','O','對！這就是種子的功用。'],
+ ['F8','mc','水果通常是吃植物的什麼？',['果實','根','莖'],'果實','水果通常是吃果實。'],
+ ['F8','tf','我們吃水蜜桃，是吃它的種子。','X','吃水蜜桃是吃果肉，是果實。'],
+ ['V1','mc','觀察植物時，哪一個方法「不可以」？',['用嘴巴嚐','用放大鏡看','用尺量','用手摸'],'用嘴巴嚐','觀察植物不能用嘴巴！'],
+ ['V1','tf','觀察植物可以用放大鏡和尺。','O','對！放大鏡、望遠鏡、尺、用手摸都可以。'],
+ ['V3','mc','黃豆是吃它的哪一個部位？',['種子','果實','莖','根'],'種子','豆類都是吃種子。'],
+ ['V3','tf','紅豆是吃它的果實。','X','紅豆是豆類，豆類都是吃種子。'],
+ ['V4','mc','絲瓜是吃它的哪一個部位？',['果實','莖','根','種子'],'果實','絲瓜是吃果實。'],
+ ['V4','tf','絲瓜是吃果實。','O','對！絲瓜是吃果實。'],
+ ['V5','tf','蔥是吃它的根。','X','蔥是吃它的莖。'],
+ ['V5','mc','下面哪一個是吃植物的莖？',['蔥','紅豆','絲瓜'],'蔥','蔥是吃莖。'],
+ ['V6','tf','馬鈴薯是吃它的莖。','O','對！馬鈴薯是吃莖，地瓜才是吃根。'],
+ ['V6','mc','哪一個是吃植物的莖？',['馬鈴薯','地瓜','紅豆','絲瓜'],'馬鈴薯','馬鈴薯是吃莖；地瓜吃根、紅豆吃種子、絲瓜吃果實。'],
+ ['V7','mc','莧菜是吃它的哪些部位？',['莖和葉','根','果實','種子'],'莖和葉','莧菜和青江菜都是吃莖和葉。'],
+ ['V7','tf','青江菜是吃它的根。','X','青江菜是吃莖和葉。'],
+ ['V8','tf','米飯的米是植物的果實。','O','對！老師說米是果實。'],
+ ['V9','tf','綠豆發芽後的綠豆芽也可以吃。','O','對！幼苗也可以當食物。'],
+ ['V10','tf','蠶寶寶吃的是桑葉。','O','對！蠶寶寶吃桑葉。'],
+ ['V11','tf','有些植物可以當藥材。','O','對！像人參、紅棗、當歸。'],
+ ['V11','mc','人參、紅棗、當歸可以在哪裡買到？',['中藥店','文具店','書店'],'中藥店','中藥店可以買到人參、紅棗、當歸，有些植物可以當藥材。'],
+ ['V12','tf','多種樹對環境很好，小鳥也會來。','O','對！多種樹可以吸引小鳥。'],
+];
+const REVIEW=RV.map((r,i)=>{const base=Q.find(q=>q.id===r[0]);const [c,t]=r;
+  return t==='tf'?{id:'X'+(i+1),u:base.u,c,t,q:r[2],a:r[3],why:r[4],pic:base.pic,review:true}
+                 :{id:'X'+(i+1),u:base.u,c,t,q:r[2],o:r[3],a:r[4],why:r[5],pic:base.pic,review:true};});
+const ALL=Q.concat(REVIEW);
+const BYID=Object.fromEntries(ALL.map(q=>[q.id,q]));
+const ORIGIN=Object.fromEntries(Q.filter(q=>q.c===q.id).map(q=>[q.c,q]));
+/* ===== 圖片 ===== */
+const C={leaf:'#3D8B4F',leaf2:'#6DB36F',dark:'#1E3A2B',soil:'#8B5E3C',sun:'#F2B23A',red:'#D7322B',pink:'#F28DB2',hl:'#FFF1CC'};
+const svg=(w,h,inner)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" font-family="Huninn,PingFang TC,Noto Sans TC,sans-serif">${inner}</svg>`;
+const T=(x,y,t,s=16,c=C.dark,a='middle')=>`<text x="${x}" y="${y}" font-size="${s}" fill="${c}" text-anchor="${a}">${t}</text>`;
+const leafAt=(x,y,len,wid,ang,fill=C.leaf)=>`<g transform="translate(${x},${y}) rotate(${ang})"><path d="M0,0 C${wid},${-len*.3} ${wid*.6},${-len*.9} 0,${-len} C${-wid*.6},${-len*.9} ${-wid},${-len*.3} 0,0Z" fill="${fill}" stroke="${C.dark}" stroke-width="1.2"/><line x1="0" y1="0" x2="0" y2="${-len*.9}" stroke="#ffffff" stroke-opacity=".5"/></g>`;
+
+function leafPath(w,h,kind){
+  const N=kind==='saw'?160:80, pts=[];
+  for(let i=0;i<=N;i++){
+    const s=i/N, y=-h+2*h*s, base=w*Math.pow(Math.sin(Math.PI*s),.8);
+    let d=0;
+    if(kind==='wave') d=5*Math.sin(s*Math.PI*10)*Math.sin(Math.PI*s);
+    if(kind==='saw'){const k=(s*14)%1; d=7*(1-k)*Math.sin(Math.PI*s);}
+    pts.push([base+d,y]);
+  }
+  const left=pts.slice().reverse().map(([x,y])=>[-x,y]);
+  return 'M'+pts.concat(left).map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' L')+'Z';
+}
+
+const PICS={
+ colors:()=>svg(420,200,[['綠色',C.leaf,70],['紅色（聖誕紅）',C.red,210],['黃色',C.sun,350]].map(([n,c,x])=>
+   `<g transform="translate(${x},90)"><path d="${leafPath(38,60,'smooth')}" fill="${c}" stroke="${C.dark}" stroke-width="1.5"/><line x1="0" y1="-55" x2="0" y2="75" stroke="${C.dark}" stroke-width="1.5"/></g>${T(x,190,n,16)}`).join('')),
+ heart:()=>svg(300,230,`<g transform="translate(150,105)"><path d="M0,70 L0,90 M0,70 C-12,45 -70,15 -62,-30 C-55,-62 -15,-62 0,-38 C15,-62 55,-62 62,-30 C70,15 12,45 0,70Z" fill="${C.leaf}" stroke="${C.dark}" stroke-width="2"/><path d="M0,-38 L0,70 M0,-10 L-35,-30 M0,-10 L35,-30 M0,20 L-40,0 M0,20 L40,0" stroke="#fff" stroke-opacity=".6" fill="none" stroke-width="2"/></g>${T(150,222,'菩提樹的葉子像愛心 ❤️',17)}`),
+ net:()=>{const p=leafPath(70,85,'smooth');return svg(300,230,`<defs><pattern id="nt" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M0,7 L7,0 L14,7 L7,14Z" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.2"/></pattern><clipPath id="lc"><path d="${p}"/></clipPath></defs><g transform="translate(150,100)"><path d="${p}" fill="${C.leaf}" stroke="${C.dark}" stroke-width="2"/><rect x="-80" y="-90" width="160" height="180" fill="url(#nt)" clip-path="url(#lc)"/><path d="M0,-80 L0,95 M0,-40 L-45,-60 M0,-40 L45,-60 M0,0 L-55,-20 M0,0 L55,-20 M0,40 L-45,25 M0,40 L45,25" stroke="#fff" stroke-width="2.5" fill="none"/></g>${T(150,222,'網狀脈：葉脈像一張網（例如榕樹）',16)}`)},
+ margins:()=>svg(420,200,[['平滑','smooth',70],['波浪','wave',210],['鋸齒','saw',350]].map(([n,k,x])=>
+   `<g transform="translate(${x},90)"><path d="${leafPath(38,65,k)}" fill="${C.leaf}" stroke="${C.dark}" stroke-width="1.5"/><line x1="0" y1="-60" x2="0" y2="78" stroke="#fff" stroke-opacity=".5"/></g>${T(x,190,n,18)}`).join('')),
+ arr:(hl)=>{
+   const P=[
+    ['互生','一個節 1 片',cx=>[150,115,80,48].map((y,i)=>leafAt(cx,y,30,11,i%2?-60:60)).join('')],
+    ['對生','一個節 2 片',cx=>[150,105,60].map(y=>leafAt(cx,y,30,11,70)+leafAt(cx,y,30,11,-70)).join('')],
+    ['輪生','一個節 3 片',cx=>[150,100,55].map(y=>leafAt(cx,y,28,10,-60)+leafAt(cx,y,28,10,60)+leafAt(cx,y,22,9,180,C.leaf2)).join('')],
+    ['叢生','集中長在一起',cx=>[-55,-30,-8,12,32,55].map((a,i)=>leafAt(cx,180,60+(i%2)*18,15,a)).join('')],
+   ];
+   return svg(460,230,P.map(([n,s,f],i)=>{const cx=57+i*115,on=hl===n;
+     return `${on?`<rect x="${cx-55}" y="4" width="110" height="222" rx="12" fill="${C.hl}" stroke="${C.sun}" stroke-width="2"/>`:''}${n!=='叢生'?`<line x1="${cx}" y1="180" x2="${cx}" y2="30" stroke="${C.soil}" stroke-width="4" stroke-linecap="round"/>`:''}${f(cx)}${T(cx,203,n,18)}${T(cx,222,s,13,'#5A7464')}`}).join(''));
+ },
+ stems:(hl)=>{
+   const P=[
+    ['草本莖','小草、咸豐草',cx=>[-30,-14,0,14,30].map((d,i)=>`<path d="M${cx+d/3},175 Q${cx+d},${130} ${cx+d*1.4},${110+(i%2)*15}" stroke="${C.leaf}" stroke-width="5" fill="none" stroke-linecap="round"/>`).join('')],
+    ['藤本莖','牽牛花、葡萄',cx=>{let d=`M${cx},175`;for(let y=175;y>=40;y-=6){d+=` L${cx+Math.sin(y/10)*14},${y}`}return `<line x1="${cx}" y1="178" x2="${cx}" y2="30" stroke="#B9A07E" stroke-width="5"/><path d="${d}" stroke="${C.leaf}" stroke-width="4" fill="none"/>`+[150,110,70].map((y,i)=>leafAt(cx+(i%2?-12:12),y,22,9,i%2?-70:70)).join('')}],
+    ['木本莖','樹（榕樹、菩提樹）',cx=>`<path d="M${cx-10},178 L${cx-7},90 L${cx+7},90 L${cx+10},178Z" fill="${C.soil}"/><circle cx="${cx}" cy="70" r="40" fill="${C.leaf}"/><circle cx="${cx-28}" cy="90" r="24" fill="${C.leaf2}"/><circle cx="${cx+28}" cy="88" r="25" fill="${C.leaf2}"/>`],
+   ];
+   return svg(450,230,P.map(([n,s,f],i)=>{const cx=75+i*150,on=hl===n;
+     return `${on?`<rect x="${cx-70}" y="4" width="140" height="222" rx="12" fill="${C.hl}" stroke="${C.sun}" stroke-width="2"/>`:''}<line x1="${cx-55}" y1="178" x2="${cx+55}" y2="178" stroke="${C.soil}" stroke-width="2"/>${f(cx)}${T(cx,202,n,18)}${T(cx,221,s,13,'#5A7464')}`}).join(''));
+ },
+ node:()=>svg(340,240,`<line x1="170" y1="230" x2="170" y2="20" stroke="${C.soil}" stroke-width="7" stroke-linecap="round"/>
+   ${[180,115,50].map(y=>`<ellipse cx="170" cy="${y}" rx="8" ry="3" fill="${C.dark}"/>`).join('')}
+   ${leafAt(170,180,55,18,70)}
+   <line x1="170" y1="115" x2="125" y2="100" stroke="${C.leaf}" stroke-width="3"/>${[0,72,144,216,288].map(a=>`<ellipse cx="115" cy="88" rx="9" ry="16" fill="${C.pink}" transform="rotate(${a} 115 100)"/>`).join('')}<circle cx="115" cy="100" r="6" fill="${C.sun}"/>
+   <line x1="170" y1="50" x2="205" y2="55" stroke="${C.leaf}" stroke-width="3"/><circle cx="218" cy="62" r="16" fill="#F08A3C" stroke="${C.dark}"/>
+   ${T(245,185,'葉子',17,C.dark,'start')}${T(60,105,'花',17,C.dark,'start')}${T(245,67,'果實',17,C.dark,'start')}${T(150,236,'莖上的「節」會長葉子、花、果實',15,C.dark,'middle')}`),
+ roots:()=>svg(420,250,`<rect x="0" y="60" width="420" height="190" fill="#E8D5BF"/><line x1="0" y1="60" x2="420" y2="60" stroke="${C.soil}" stroke-width="3"/>
+   <line x1="110" y1="60" x2="110" y2="20" stroke="${C.leaf}" stroke-width="4"/>${leafAt(110,35,22,8,-60)}${leafAt(110,30,22,8,60)}
+   <path d="M103,60 L117,60 L111,220 L109,220Z" fill="${C.soil}"/>${[90,120,150,180].map((y,i)=>`<path d="M110,${y} q${i%2?24:-24},10 ${i%2?40:-40},22" stroke="${C.soil}" stroke-width="2" fill="none"/>`).join('')}
+   <line x1="310" y1="60" x2="310" y2="20" stroke="${C.leaf}" stroke-width="4"/>${leafAt(310,35,24,6,-20)}${leafAt(310,35,24,6,20)}
+   ${[-60,-40,-22,-8,8,22,40,60].map(d=>`<path d="M310,62 Q${310+d*.6},110 ${310+d},${150+Math.abs(d)%30}" stroke="${C.soil}" stroke-width="2.5" fill="none"/>`).join('')}
+   ${T(110,240,'軸根（例：龍葵）',17)}${T(310,240,'鬚根（例：蒜）',17)}${T(210,95,'根可以固定植物、抓住土壤',14,'#5A3A22')}`),
+ transport:()=>svg(380,250,`<circle cx="330" cy="40" r="22" fill="${C.sun}"/>${T(330,82,'陽光',14)}
+   <rect x="0" y="190" width="380" height="60" fill="#E8D5BF"/>
+   <line x1="160" y1="190" x2="160" y2="60" stroke="${C.leaf}" stroke-width="7"/>${leafAt(160,110,60,20,65)}${leafAt(160,80,55,18,-65)}
+   ${[-40,-20,0,20,40].map(d=>`<path d="M160,190 Q${160+d*.5},215 ${160+d},240" stroke="${C.soil}" stroke-width="3" fill="none"/>`).join('')}
+   <path d="M185,230 L185,140" stroke="#2F7DD1" stroke-width="3" marker-end="url(#ah)"/><defs><marker id="ah" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8Z" fill="#2F7DD1"/></marker></defs>
+   ${T(200,225,'根：吸收土裡的養分',15,C.dark,'start')}${T(195,160,'莖：運送',15,C.dark,'start')}${T(240,75,'葉：吸收陽光',15,C.dark,'start')}`),
+ flower:()=>svg(380,260,`<g transform="translate(150,130)">${[18,90,162,234,306].map(a=>`<path d="M0,0 L-12,-95 L12,-95Z" fill="${C.leaf}" transform="rotate(${a})"/>`).join('')}
+   ${[-18,54,126,198,270].map(a=>`<ellipse cx="0" cy="-55" rx="28" ry="45" fill="${C.pink}" stroke="#C25B85" transform="rotate(${a})"/>`).join('')}
+   ${[0,45,90,135,180,225,270,315].map(a=>`<g transform="rotate(${a})"><line x1="0" y1="0" x2="0" y2="-32" stroke="#C9A227" stroke-width="2"/><circle cx="0" cy="-34" r="4.5" fill="${C.sun}"/></g>`).join('')}
+   <circle cx="0" cy="0" r="10" fill="${C.leaf2}" stroke="${C.dark}"/></g>
+   <path d="M175,95 L265,60" stroke="${C.dark}"/>${T(270,64,'雄蕊（有花粉）',16,C.dark,'start')}
+   <path d="M158,130 L265,130" stroke="${C.dark}"/>${T(270,135,'雌蕊',16,C.dark,'start')}
+   <path d="M200,200 L265,200" stroke="${C.dark}"/>${T(270,205,'花瓣',16,C.dark,'start')}
+   <path d="M230,225 L265,240" stroke="${C.dark}"/>${T(270,245,'花萼',16,C.dark,'start')}`),
+ loofah:()=>{const fl=(x,inner)=>`<g transform="translate(${x},95)">${[0,72,144,216,288].map(a=>`<ellipse cx="0" cy="-38" rx="24" ry="34" fill="#F7D33C" stroke="#C9A227" transform="rotate(${a})"/>`).join('')}${inner}</g>`;
+   return svg(420,250,fl(105,`<circle r="13" fill="#E39B1E"/>${[0,60,120,180,240,300].map(a=>`<circle cx="${Math.cos(a*Math.PI/180)*9}" cy="${Math.sin(a*Math.PI/180)*9}" r="3" fill="#A8650C"/>`).join('')}`)+
+     `<rect x="275" y="140" width="30" height="70" rx="14" fill="${C.leaf2}" stroke="${C.dark}"/>`+fl(290,`<circle r="11" fill="${C.leaf}"/><circle r="5" fill="#E39B1E"/>`)+
+     T(105,190,'雄花',19)+T(105,212,'花萼＋花瓣＋雄蕊',14,'#5A7464')+T(225,190,'雌花',19,C.dark,'start')+T(225,212,'花萼＋花瓣＋雌蕊',14,'#5A7464','start')+T(210,242,'絲瓜：一朵花不會同時有雄蕊和雌蕊',15))},
+ rose:()=>svg(260,240,`<g transform="translate(130,105)">${[[80,0,8],[60,20,7],[42,10,6],[26,30,5]].map(([r,o,n])=>Array.from({length:n},(_,i)=>`<ellipse cx="0" cy="${-r*.55}" rx="${r*.38}" ry="${r*.5}" fill="#E0445E" stroke="#9E1F35" transform="rotate(${o+i*360/n})"/>`).join('')).join('')}<circle r="10" fill="#9E1F35"/></g>${T(130,232,'玫瑰花：花瓣一層一層，很多片',16)}`),
+ apple:()=>svg(300,240,`<g transform="translate(150,110)"><circle r="90" fill="${C.red}"/><circle r="80" fill="#FFF5D6"/>${[0,72,144,216,288].map(a=>`<ellipse cx="0" cy="-22" rx="7" ry="13" fill="#5A3A22" transform="rotate(${a})"/>`).join('')}<path d="M0,-90 q4,-20 14,-26" stroke="${C.soil}" stroke-width="4" fill="none"/></g>${T(150,232,'蘋果裡有很多個種子',17)}`),
+ seed:()=>svg(440,170,`<ellipse cx="60" cy="100" rx="22" ry="15" fill="${C.soil}"/>${T(60,150,'種子',16)}
+   <path d="M100,100 L140,100" stroke="${C.dark}" stroke-width="2" marker-end="url(#a2)"/><defs><marker id="a2" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8Z" fill="${C.dark}"/></marker></defs>
+   <rect x="160" y="115" width="80" height="12" fill="#E8D5BF"/><line x1="200" y1="115" x2="200" y2="80" stroke="${C.leaf}" stroke-width="3"/>${leafAt(200,82,20,8,-50)}${leafAt(200,82,20,8,50)}${T(200,150,'發芽',16)}
+   <path d="M260,100 L300,100" stroke="${C.dark}" stroke-width="2" marker-end="url(#a2)"/>
+   <rect x="320" y="115" width="100" height="12" fill="#E8D5BF"/><line x1="370" y1="115" x2="370" y2="30" stroke="${C.leaf}" stroke-width="4"/>${leafAt(370,95,28,10,-60)}${leafAt(370,70,28,10,60)}${leafAt(370,45,24,9,-55)}${T(370,150,'長大',16)}
+   ${T(220,22,'種子可以繁殖下一代',17)}`),
+ food:(hl)=>`<div class="rows">${[
+   ['🍠','根','地瓜（番薯）、蘿蔔'],
+   ['🥔','莖','馬鈴薯、蔥'],
+   ['🥬','莖和葉','青江菜、莧菜'],
+   ['🍑','果實','水蜜桃、絲瓜、米'],
+   ['🫘','種子','紅豆、黃豆、綠豆、黑豆'],
+  ].map(([e,p,f])=>`<div class="r${hl===p?' hl':''}"><span class="e">${e}</span><b>${p}</b><span>${f}</span></div>`).join('')}</div>`,
+ tools:()=>`<div class="rows">${[['🔍','用放大鏡看'],['🔭','用望遠鏡看'],['📏','用尺量'],['✋','用手摸']].map(([e,t])=>`<div class="r"><span class="e">${e}</span><span>${t} ✅</span></div>`).join('')}<div class="r hl"><span class="e">👄</span><span>用嘴巴 ❌ 不可以！</span></div></div>`,
+ furniture:()=>`<div class="rows"><div class="r hl"><span class="e">🌳</span><span>樹（木本莖）➜ 🪑 可以做家具</span></div><div class="r"><span class="e">🌱</span><span>小草（草本莖）✖ 不能做家具</span></div><div class="r"><span class="e">🌺</span><span>牽牛花（藤本莖）✖ 不能做家具</span></div></div>`,
+ autumn:()=>`<div class="rows"><div class="r"><span class="e">🍂</span><span>秋天：台灣欒樹會變成橘紅色</span></div><div class="r hl"><span class="e">🌴</span><span>椰子樹：秋冬不會變紅褐色</span></div></div>`,
+ life:(hl)=>`<div class="rows">${[['🐛','桑葉','蠶寶寶吃桑葉'],['🐦','小鳥','空地多種樹，小鳥會來'],['🌿','中藥','中藥：人參、紅棗、當歸'],['🌱','幼苗','幼苗可以吃：綠豆芽']].map(([e,k,t])=>`<div class="r${hl===k?' hl':''}"><span class="e">${e}</span><span>${t}</span></div>`).join('')}</div>`,
+};
+function renderPic(key){ if(!key) return ''; const [k,arg]=key.split(':'); return PICS[k]?PICS[k](arg):''; }
+
+/* ===== 紀錄（存在這台裝置） ===== */
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+let rec=store.get('g3plants-rec',{});
+let prefs=store.get('g3plants-prefs',{autoRead:true,unit:'all',count:10});
+function bump(id,correct){const r=rec[id]||{seen:0,wrong:0};r.seen++;if(!correct)r.wrong++;rec[id]=r;store.set('g3plants-rec',rec)}
+
+/* ===== 聲音 ===== */
+let ac=null;
+function tone(seq){
+  try{
+    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    let t=ac.currentTime;
+    seq.forEach(([f,d,type])=>{const o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.value=f;
+      g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.25,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+d);
+      o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+d+.02);t+=d*.85;});
+  }catch(e){}
+}
+const sndOK=()=>tone([[660,.14],[880,.14],[1175,.22]]);
+const sndNO=()=>tone([[300,.18,'triangle'],[220,.3,'triangle']]);
+const sndBloom=()=>tone([[523,.15],[659,.15],[784,.15],[1047,.35]]);
+let zhVoice=null;
+function pickVoice(){ if(!('speechSynthesis' in window))return; const v=speechSynthesis.getVoices(); zhVoice=v.find(x=>/zh[-_]TW/i.test(x.lang))||v.find(x=>/zh/i.test(x.lang))||null; }
+if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice;}
+function speak(text){
+  if(!('speechSynthesis' in window))return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text.replace(/[⭕❌❤️✅✖➜🪑]/g,''));
+  u.lang='zh-TW'; if(zhVoice)u.voice=zhVoice; u.rate=.9;
+  speechSynthesis.speak(u);
+}
+const NUMS=['一','二','三','四'];
+function readQuestion(q,opts){
+  if(q.t==='tf') speak(q.q+'。對，還是錯？');
+  else speak(q.q+'。'+opts.map((o,i)=>NUMS[i]+'，'+o).join('。'));
+}
+
+/* ===== 流程 ===== */
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const PLANT_CTX={all:()=>ALL,origin:c=>ORIGIN[c],label:q=>UNITS[q.u],bump:(id,ok)=>bump(id,ok),rec:()=>rec,
+  pic:q=>renderPic(q.pic),home:()=>home(),restart:()=>start(pickRound(pool(),prefs.count))};
+let CTX=PLANT_CTX;
+const app=document.getElementById('app');
+let S=null;
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const practice=()=>Q.concat(AIQ);
+const pool=()=>prefs.unit==='all'?practice():practice().filter(q=>q.u===prefs.unit);
+// 練習次數少的題目優先，多輪下來可以輪過整份題庫
+const pickRound=(qs,n,r)=>{r=r||rec;const s=shuffle(qs).sort((a,b)=>((r[a.id]||{}).seen||0)-((r[b.id]||{}).seen||0));return shuffle(n?s.slice(0,n):s)};
+// 常錯的觀念：該觀念（原題＋複習題）累計答錯次數
+const conceptWrong=c=>ALL.filter(q=>q.c===c).reduce((s,q)=>s+((rec[q.id]||{}).wrong||0),0);
+const wrongConcepts=()=>Object.keys(ORIGIN).filter(c=>conceptWrong(c)>0).sort((a,b)=>conceptWrong(b)-conceptWrong(a));
+
+const GAP_FIRST=2, GAP_SECOND=4, GAP_AGAIN=2, MAX_REVIEW=4;
+
+function home(){
+  CTX=PLANT_CTX;
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  const counts={all:practice().length};Object.keys(UNITS).forEach(k=>counts[k]=practice().filter(q=>q.u===k).length);
+  const wc=wrongConcepts();
+  app.innerHTML=`
+   <div class="toprow" style="justify-content:flex-end"><button class="iconbtn beta-btn" id="beta">🧪 自訂題庫 <span class="tag" style="background:var(--sun-soft)">Beta</span></button></div>
+   <div class="hero">${svg(100,100,`<line x1="50" y1="95" x2="50" y2="40" stroke="${C.soil}" stroke-width="5"/>${leafAt(50,70,34,13,-55)}${leafAt(50,55,34,13,55)}${[0,72,144,216,288].map(a=>`<ellipse cx="50" cy="22" rx="8" ry="13" fill="${C.pink}" transform="rotate(${a} 50 34)"/>`).join('')}<circle cx="50" cy="34" r="6" fill="${C.sun}"/>`)}
+   <div><h1>植物小學堂</h1><p class="lead">三年級上學期自然・植物單元<br>答錯的觀念，過幾題會換個問法再考你。</p></div></div>
+   <div class="section-title">要練哪一個單元？</div>
+   <div class="chips" id="units">${[['all','全部'],...Object.entries(UNITS)].map(([k,n])=>`<button class="chip" data-u="${k}" aria-pressed="${prefs.unit===k}">${n}<small>${counts[k]}題</small></button>`).join('')}</div>
+   <div class="section-title">這次要做幾題？</div>
+   <div class="chips" id="cnt">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,n])=>`<button class="chip" data-c="${v}" aria-pressed="${prefs.count===v}">${n}</button>`).join('')}</div>
+   <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目和解說</label>
+   <button class="big" id="go">開始練習</button>
+   ${wc.length?`<button class="ghost" id="gw">🌱 練常錯的觀念（${wc.length} 個）</button>`:''}
+   <button class="ghost" id="gp">📒 學習紀錄（給爸爸媽媽看）</button>
+   <button class="ghost" id="gai">🤖 用 AI 產生新題目（大人使用）</button>`;
+  app.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>{prefs.unit=b.dataset.u;store.set('g3plants-prefs',prefs);home()});
+  app.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{prefs.count=+b.dataset.c;store.set('g3plants-prefs',prefs);home()});
+  document.getElementById('ar').onchange=e=>{prefs.autoRead=e.target.checked;store.set('g3plants-prefs',prefs)};
+  document.getElementById('go').onclick=()=>start(pickRound(pool(),prefs.count));
+  const gw=document.getElementById('gw');
+  // 常錯觀念：每個觀念出一題，優先用這個孩子還沒練過的問法
+  if(gw)gw.onclick=()=>start(wc.slice(0,10).map(c=>{const fam=ALL.filter(q=>q.c===c);return fam.slice().sort((a,b)=>((rec[a.id]||{}).seen||0)-((rec[b.id]||{}).seen||0))[0]}));
+  document.getElementById('gp').onclick=parent;
+  document.getElementById('beta').onclick=()=>betaHome();
+  document.getElementById('gai').onclick=()=>{aiState.phase='idle';aiState.msg='';aiPage()};
+  window.scrollTo(0,0);
+}
+
+function start(qs){
+  if(!qs||!qs.length)return;
+  S={queue:qs.map(q=>({q,kind:'main'})),total:qs.length,pos:0,leaves:[],
+     used:new Set(qs.map(q=>q.id)),cs:{},missed:[]};
+  ask();
+}
+
+// 選同觀念、這一輪還沒出現過的問法
+function pickVariant(c,prevId){
+  const fam=CTX.all().filter(q=>q.c===c);
+  let cand=fam.filter(q=>!S.used.has(q.id));
+  if(!cand.length)cand=fam.filter(q=>q.id!==prevId);
+  if(!cand.length)cand=fam;
+  cand=shuffle(cand).sort((a,b)=>(b.review?1:0)-(a.review?1:0));
+  return cand[0];
+}
+function schedule(c,stage,gap,prevId){
+  const st=S.cs[c]||(S.cs[c]={reviews:0,mastered:false});
+  if(st.reviews>=MAX_REVIEW)return false;
+  const q=pickVariant(c,prevId);
+  st.reviews++; S.used.add(q.id);
+  const at=Math.min(S.pos+1+gap,S.queue.length);
+  S.queue.splice(at,0,{q,kind:'review',stage});
+  return true;
+}
+
+function vine(){
+  const n=S.total,W=600,H=70,step=(W-70)/Math.max(n,1);
+  let d='M10,40';for(let x=10;x<=W-40;x+=10)d+=` L${x},${40+Math.sin(x/28)*7}`;
+  const leaves=S.leaves.map((ok,i)=>{const x=24+i*step,y=40+Math.sin(x/28)*7,up=i%2===0;
+    return `<g class="${i===S.leaves.length-1&&S.justAdded?'leaf-in':''}">${leafAt(x,y,Math.min(22,step*1.6),Math.min(8,step*.6),up?-35:215,ok?C.leaf:C.sun)}</g>`}).join('');
+  const done=S.pos>=S.queue.length;
+  const fl=done?`<g class="leaf-in">${[0,72,144,216,288].map(a=>`<ellipse cx="${W-25}" cy="28" rx="7" ry="12" fill="${C.pink}" transform="rotate(${a} ${W-25} 40)"/>`).join('')}<circle cx="${W-25}" cy="40" r="6" fill="${C.sun}"/></g>`:`<circle cx="${W-25}" cy="40" r="5" fill="#B9D7AE"/>`;
+  return `<svg class="vine" viewBox="0 0 ${W} ${H}" aria-label="進度：已完成 ${S.leaves.length} / ${n} 題"><path d="${d}" stroke="${C.leaf}" stroke-width="3" fill="none"/>${leaves}${fl}</svg>`;
+}
+
+function ask(){
+  if(S.pos>=S.queue.length)return finish();
+  const item=S.queue[S.pos], q=item.q, rv=item.kind==='review';
+  const opts=q.t==='mc'?(q.o.includes('以上皆是')?shuffle(q.o.filter(x=>x!=='以上皆是')).concat('以上皆是'):shuffle(q.o)):null;
+  S.cur={...item,opts};
+  const mainDone=S.leaves.length;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button><span class="counter">${rv?'🔁 複習剛剛錯的觀念':`第 ${Math.min(mainDone+1,S.total)} / ${S.total} 題`}</span></div>
+   ${vine()}
+   <section class="card pop">
+     <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
+     <div class="qrow"><p class="qtext">${esc(q.q)}</p><button class="speak" id="sp" aria-label="念題目">🔊</button></div>
+     <div class="opts ${q.t==='tf'?'tf':''}" id="opts">
+      ${q.t==='tf'?`<button class="opt" data-v="O"><span class="sym">⭕</span>對</button><button class="opt" data-v="X"><span class="sym">❌</span>錯</button>`
+        :opts.map((o,i)=>`<button class="opt" data-v="${esc(o)}"><span class="n">${i+1}</span>${esc(o)}</button>`).join('')}
+     </div>
+     <div id="fb"></div>
+   </section>`;
+  S.justAdded=false;
+  document.getElementById('hm').onclick=()=>CTX.home();
+  document.getElementById('sp').onclick=()=>readQuestion(q,opts||[]);
+  app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>answer(b));
+  if(prefs.autoRead)setTimeout(()=>speak((rv?'複習題。':'')+(q.t==='tf'?q.q+'。對，還是錯？':q.q+'。'+opts.map((o,i)=>NUMS[i]+'，'+o).join('。'))),250);
+  window.scrollTo(0,0);
+}
+
+function answer(btn){
+  const {q,kind,stage}=S.cur, v=btn.dataset.v, ok=v===q.a, c=q.c;
+  app.querySelectorAll('.opt').forEach(b=>{b.disabled=true;if(b.dataset.v===q.a)b.classList.add('correct')});
+  if(!ok)btn.classList.add('wrong','shake'); else btn.classList.add('pop');
+  CTX.bump(q.id,ok);
+  let note='';
+  if(kind==='main'){
+    S.leaves.push(ok);S.justAdded=true;
+    if(!ok){ if(!S.missed.includes(c))S.missed.push(c); schedule(c,1,GAP_FIRST,q.id); note='過幾題會換個問法再考你一次喔！'; }
+  }else{
+    const st=S.cs[c];
+    if(ok&&stage===1){ if(schedule(c,2,GAP_SECOND,q.id))note='記得越來越清楚了，等一下還會再考一次！'; else st.mastered=true; }
+    else if(ok){ st.mastered=true; note='🌟 這個觀念記住了！'; }
+    else { if(schedule(c,stage,GAP_AGAIN,q.id))note='沒關係，等一下再試一次。'; }
+  }
+  ok?sndOK():sndNO();
+  const ansText=q.t==='tf'?(q.a==='O'?'⭕ 對':'❌ 錯'):q.a;
+  const last=S.pos+1>=S.queue.length;
+  const fb=document.getElementById('fb');
+  fb.innerHTML=`<div class="feedback ${ok?'':'bad'} pop">
+     <p class="fb-head">${ok?'🎉 答對了！':'🤔 再想想！正確答案是：'+esc(ansText)}</p>
+     <p class="fb-why">${esc(q.why)}</p>
+     ${note?`<p class="fb-why" style="margin-top:8px;color:var(--muted)">${note}</p>`:''}
+     ${(()=>{const ph=CTX.pic(q);return ph?`<div class="pic">${ph}</div>`:''})()}
+     <div class="footer"><button class="iconbtn" id="rw">🔊 再聽一次</button></div>
+     <button class="big" id="nx">${last?'看結果':'下一題'}</button>
+   </div>`;
+  const vineEl=app.querySelector('.vine'); if(vineEl&&S.justAdded)vineEl.outerHTML=vine();
+  const say=()=>speak((ok?'答對了！':'正確答案是'+ansText.replace(/[⭕❌]/g,'')+'。')+q.why+(note?note.replace('🌟',''):''));
+  document.getElementById('rw').onclick=say;
+  if(prefs.autoRead)setTimeout(say,ok?450:600);
+  document.getElementById('nx').onclick=()=>{S.pos++;ask()};
+  fb.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function finish(){
+  const first=S.leaves.filter(Boolean).length, total=S.total;
+  const mastered=S.missed.filter(c=>S.cs[c]&&S.cs[c].mastered), notyet=S.missed.filter(c=>!(S.cs[c]&&S.cs[c].mastered));
+  sndBloom();
+  const msg=first===total?'全部一次就答對，太厲害了！':first>=total*0.8?'很棒！差一點點就全對了！':'有些觀念要再熟一點，多練幾次就會了！';
+  const li=c=>{const q=CTX.origin(c);return q?`<li><span>${esc(q.q)}<br><small style="color:var(--muted)">${esc(q.why)}</small></span></li>`:''};
+  app.innerHTML=`
+   ${vine()}
+   <section class="card pop" style="text-align:center">
+     <p style="font-size:1.4rem;margin:0">🌸 練習完成！</p>
+     <p class="score">${first} / ${total}</p>
+     <p style="font-size:1.2rem;margin:0;color:var(--muted)">第一次就答對 ${first} 題</p>
+     <p style="font-size:1.3rem">${msg}</p>
+   </section>
+   ${mastered.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌟 錯了之後，複習到記住的觀念：</p><ul class="list">${mastered.map(li).join('')}</ul></section>`:''}
+   ${notyet.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌱 還要再加油的觀念：</p><ul class="list">${notyet.map(li).join('')}</ul></section>`:''}
+   <button class="big" id="again">${S.missed.length?'把錯的觀念再練一次':'再玩一次'}</button>
+   <button class="ghost" id="hm">🏠 回首頁</button>`;
+  if(prefs.autoRead)speak('練習完成！第一次就答對'+first+'題。'+msg);
+  document.getElementById('again').onclick=()=>S.missed.length
+    ?start(shuffle(S.missed.map(c=>pickVariantFresh(c))))
+    :CTX.restart();
+  document.getElementById('hm').onclick=()=>CTX.home();
+  window.scrollTo(0,0);
+}
+// 再練一次時，挑這個觀念裡練習次數最少的問法
+function pickVariantFresh(c){const r=CTX.rec();return shuffle(CTX.all().filter(q=>q.c===c)).sort((a,b)=>((r[a.id]||{}).seen||0)-((r[b.id]||{}).seen||0))[0]}
+function parent(){
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  const rows=ALL.filter(q=>rec[q.id]).sort((a,b)=>(rec[b.id].wrong-rec[a.id].wrong)||(rec[b.id].seen-rec[a.id].seen));
+  const seen=Object.values(rec).reduce((s,r)=>s+r.seen,0), wrong=Object.values(rec).reduce((s,r)=>s+r.wrong,0);
+  const byUnit=Object.entries(UNITS).map(([k,n])=>{const qs=ALL.filter(q=>q.u===k);const s=qs.reduce((a,q)=>a+((rec[q.id]||{}).seen||0),0),w=qs.reduce((a,q)=>a+((rec[q.id]||{}).wrong||0),0);
+    return `<li><span>${n}</span><span>${s?`作答 ${s} 次・答對率 ${Math.round((s-w)/s*100)}%`:'還沒練'}</span></li>`}).join('');
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button></div>
+   <h1 style="font-size:1.8rem">學習紀錄</h1>
+   <p class="lead">紀錄只存在這台裝置，🔁 是答錯後出現的複習題，🤖 是 AI 新題。累計作答 ${seen} 次，第一次就答對的比例 ${seen?Math.round((seen-wrong)/seen*100):0}%。</p>
+   <section class="card"><p style="margin:0;font-size:1.2rem">各單元</p><ul class="list">${byUnit}</ul></section>
+   <section class="card"><p style="margin:0;font-size:1.2rem">每一題（常錯的排前面）</p>
+   ${rows.length?`<ul class="list">${rows.map(q=>`<li><span>${q.review?'🔁 ':''}${q.ai?'🤖 ':''}${q.q}</span><span class="cnt">${rec[q.id].wrong?`錯 ${rec[q.id].wrong} 次`:'<span style="color:var(--leaf)">都答對</span>'} / ${rec[q.id].seen} 次</span></li>`).join('')}</ul>`:'<p class="lead" style="margin-top:10px">還沒有作答紀錄，先去練習吧。</p>'}</section>
+   <button class="ghost" id="clr">清除所有紀錄</button>`;
+  document.getElementById('hm').onclick=home;
+  document.getElementById('clr').onclick=async()=>{if(await confirmBox('確定要清除所有作答紀錄嗎？')){rec={};store.set('g3plants-rec',rec);parent()}};
+  window.scrollTo(0,0);
+}
+
+/* ===== AI 新題（存在這台裝置，使用目前登入帳號的 Claude 額度） ===== */
+let AIQ=[];
+const AI_KEY='g3plants-ai', PENDING_KEY='g3plants-ai-pending';
+function normAI(r,seen){
+  if(!r||typeof r!=='object')return null;
+  const origin=ORIGIN[r.c]; if(!origin)return null;
+  const q=String(r.q||'').trim(), why=String(r.why||'').trim();
+  if(!q||q.length>80||!why||why.length>120)return null;
+  if(seen&&seen.has(q))return null;
+  const base={u:origin.u,c:r.c,q,why,pic:origin.pic,ai:true};
+  if(r.t==='tf'){ if(r.a!=='O'&&r.a!=='X')return null; return {...base,t:'tf',a:r.a}; }
+  if(r.t==='mc'){
+    if(!Array.isArray(r.o))return null;
+    const o=[...new Set(r.o.map(x=>String(x).trim()).filter(Boolean))];
+    if(o.length<2||o.length>4||o.length!==r.o.length)return null;
+    if(o.some(x=>x.length>24||/以上皆/.test(x)))return null;
+    const a=String(r.a||'').trim(); if(!o.includes(a))return null;
+    return {...base,t:'mc',o,a};
+  }
+  return null;
+}
+function loadAI(){
+  AIQ=store.get(AI_KEY,[]).map(r=>{const n=normAI(r);return n&&r.id?{...n,id:r.id}:null}).filter(Boolean);
+  AIQ.forEach(q=>{ALL.push(q);BYID[q.id]=q});
+}
+function saveAI(){store.set(AI_KEY,AIQ.map(({id,c,t,q,o,a,why})=>({id,c,t,q,o,a,why})))}
+function addAI(n){const q={...n,id:'A'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)};AIQ.push(q);ALL.push(q);BYID[q.id]=q;saveAI();}
+function removeAI(id){AIQ=AIQ.filter(q=>q.id!==id);const i=ALL.findIndex(q=>q.id===id);if(i>=0)ALL.splice(i,1);delete BYID[id];saveAI();}
+loadAI();
+
+let aiState={unit:'leaf',count:5,phase:'idle',msg:'',ctl:null};
+/* ===== 後端設定（GitHub Pages 版） =====
+   部署 Google Apps Script 後，把「網頁應用程式網址」貼到 API_URL。 */
+const CONFIG={API_URL:'https://script.google.com/macros/s/AKfycbyoGx3P8l0zoLEXt1BBtY7ESliMbB2MhvTMr9fUJJFSJXAVLT38lVa1AnnAKs0fypk4/exec'};
+let FAMILY=store.get('family',{code:'',name:''});
+const hasBackend=()=>!!(CONFIG.API_URL&&FAMILY.code);
+
+async function api(action,data,signal){
+  if(!CONFIG.API_URL)throw {code:'not_configured',message:'網站尚未設定後端網址'};
+  let res;
+  try{
+    res=await fetch(CONFIG.API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action,code:FAMILY.code,...(data||{})}),signal,redirect:'follow'});
+  }catch(e){
+    if(e&&e.name==='AbortError')throw {code:'cancelled'};
+    throw {code:'network',message:'連不上後端'};
+  }
+  let j; try{j=await res.json()}catch(e){throw {code:'server_error',message:'後端回應格式錯誤'}}
+  if(!j.ok)throw {code:j.code||'server_error',message:j.message||''};
+  return j;
+}
+function parseJSONLoose(t){
+  t=String(t||'').replace(/```json|```/g,'').trim();
+  try{return JSON.parse(t)}catch(e){}
+  const i=Math.min(...['{','['].map(c=>{const k=t.indexOf(c);return k<0?Infinity:k}));
+  const j=Math.max(t.lastIndexOf('}'),t.lastIndexOf(']'));
+  if(i===Infinity||j<=i)return undefined;
+  try{return JSON.parse(t.slice(i,j+1))}catch(e){return undefined}
+}
+// 介面和原本 Claude 網站版的 sample 相同，其他程式不用改
+function makeSample(){
+  const call=async(prompt,opts={})=>{
+    const images=[];
+    for(const b of [].concat(opts.images||[]))images.push((await readDataURL(b)).split(',')[1]);
+    const j=await api('ai',{prompt,images,tier:opts.modelTier==='quick'?'quick':'default'},opts.signal);
+    if(opts.onText)opts.onText({text:j.text,delta:j.text});
+    if(j.remaining!=null)FAMILY.remaining=j.remaining;
+    return {text:j.text,truncated:!!j.truncated};
+  };
+  call.json=async(p,o)=>{const {text,truncated}=await call(p,o);const v=parseJSONLoose(text);if(v===undefined)throw {code:'invalid_json',message:truncated?'回應太長被截斷':''};return v};
+  call.limits=async()=>({maxPromptBytes:200000,images:{maxCount:5,maxInputBytes:20e6,mediaTypes:['image/jpeg','image/png','image/webp']}});
+  return call;
+}
+
+/* --- 家庭設定頁 --- */
+async function familyPage(back){
+  const b=back||home;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← 返回</button></div>
+   <h1 style="font-size:1.8rem">⚙️ 家庭設定</h1>
+   <p class="lead">輸入網站管理者給你的「家庭邀請碼」，就能用 AI 產生題目，題庫也會存到雲端，換裝置輸入同一組邀請碼就看得到。</p>
+   ${CONFIG.API_URL?'':'<p class="lead" style="color:var(--coral)">網站尚未設定後端網址（CONFIG.API_URL），目前只能練習內建題目。</p>'}
+   <section class="card form">
+     <label>家庭邀請碼 <input id="fc" value="${esc(FAMILY.code)}" autocomplete="off" autocapitalize="characters" placeholder="例如：LEE-2026"></label>
+     <p class="lead" id="fmsg" style="margin:10px 0 0;font-size:1.05rem">${FAMILY.code?`目前使用：${esc(FAMILY.name||FAMILY.code)}`:'尚未設定'}</p>
+   </section>
+   <button class="big" id="fsave">驗證並儲存</button>
+   ${FAMILY.code?'<button class="ghost" id="fclr">清除邀請碼（改回只存在這台裝置）</button>':''}`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=()=>b();
+  $('fsave').onclick=async()=>{
+    const code=$('fc').value.trim(); if(!code){$('fmsg').textContent='請輸入邀請碼';return}
+    $('fmsg').textContent='驗證中……';
+    const old=FAMILY; FAMILY={code,name:''};
+    try{
+      const j=await api('ping');
+      FAMILY={code,name:j.family||code,remaining:j.remaining};store.set('family',{code,name:FAMILY.name});
+      SAMPLE=makeSample();SAMPLE_WHY='';aiState.blocked=false;BS.mode='cloud';BS.note='';
+      $('fmsg').textContent=`✅ 驗證成功：${FAMILY.name}（今天還可以使用 AI ${j.remaining} 次）`;
+    }catch(e){
+      FAMILY=old;
+      $('fmsg').textContent=e.code==='bad_code'?'❌ 邀請碼不正確或已停用':e.code==='not_configured'?'❌ 網站尚未設定後端網址':'❌ 連不上後端，請稍後再試';
+    }
+  };
+  if($('fclr'))$('fclr').onclick=()=>{FAMILY={code:'',name:''};store.set('family',FAMILY);SAMPLE=null;SAMPLE_WHY='no_family_code';BS.mode='local';familyPage(back)};
+}
+const familyBtnHTML='<button class="ghost" id="b-family">⚙️ 輸入家庭邀請碼</button>';
+const bindFamilyBtn=back=>{const x=document.getElementById('b-family');if(x)x.onclick=()=>familyPage(back)};
+
+let SAMPLE=hasBackend()?makeSample():null;
+let SAMPLE_WHY=!CONFIG.API_URL?'not_configured':(!FAMILY.code?'no_family_code':'');
+
+const AI_ERR={
+  bad_code:'家庭邀請碼不正確或已停用，請到「⚙️ 家庭設定」重新輸入。',
+  daily_limit:'今天的 AI 使用次數已經用完了，明天再試。',
+  no_credit:'網站的 AI 額度用完了，請通知網站管理者儲值。',
+  network:'連不上後端，請檢查網路後再試。',
+  not_configured:'網站尚未設定後端網址。',
+  server_error:'後端發生問題，請稍後再試。',
+  not_granted:'這次沒有允許網站使用 Claude，所以無法產生新題目。重新整理頁面後可以再選一次。',
+  sampling_disabled:'這個帳號目前不能在網站裡使用 Claude。',
+  rate_limited:'AI 服務目前太忙或使用太頻繁，請過一分鐘再試。',
+  session_expired:'Claude 登入已過期，請重新登入後再試。',
+  invalid_json:'這次 Claude 回傳的格式不對，請再按一次「產生新題目」。',
+  empty_completion:'這次沒有產生內容，請把題數調少再試一次。',
+  refused:'這次的出題要求被拒絕了，請換一個單元再試。',
+  upstream_error:'連線不穩，這次沒有完成，請再試一次。',
+};
+
+function buildPrompt(unit,count){
+  const concepts=Object.values(ORIGIN).filter(q=>unit==='all'||q.u===unit);
+  const facts=concepts.map(q=>`【${q.c}】${UNITS[q.u]}｜原題：${q.q}｜答案：${q.t==='tf'?(q.a==='O'?'對':'錯'):q.a}｜老師說：${q.why}`).join('\n');
+  const cset=new Set(concepts.map(q=>q.c));
+  const existing=ALL.filter(q=>cset.has(q.c)).map(q=>'- '+q.q).join('\n');
+  return `你是台灣國小三年級自然科的出題老師。請「只根據」下面觀念清單裡的事實出新題目，不可以加入清單以外的植物、名詞、顏色或知識。
+
+規則：
+1. 出 ${count} 題，使用繁體中文（台灣用語），句子簡短，三年級小朋友看得懂。
+2. 每題用 c 標出對應的觀念代號，必須是清單裡的代號；盡量分散在不同觀念。
+3. t 是題型："tf"（是非題）或 "mc"（選擇題），兩種都要有。
+4. 是非題的 a 是 "O"（對）或 "X"（錯）。錯的敘述要根據清單明確是錯的。
+5. 選擇題的 o 是 3 到 4 個選項，只能有一個正確；a 必須和 o 裡的某個選項一字不差。錯誤選項必須根據清單明確是錯的，不能有兩個都說得通的選項。不要使用「以上皆是」「以上皆非」。
+6. why 是一兩句解說，口氣像老師，不超過 50 字。
+7. 不要和「已經有的題目」重複，要換問法、換角度，或把兩個相近觀念做比較。
+
+只回傳 JSON 陣列，不要任何其他文字。格式範例：
+[{"c":"L7","t":"mc","q":"一個節長三片葉子的是哪一種？","o":["輪生","對生","互生"],"a":"輪生","why":"輪生是一個節長三片葉子。"},{"c":"L1","t":"tf","q":"所有葉子都是綠色的。","a":"X","why":"有些葉子是紅色，例如聖誕紅。"}]
+
+觀念清單：
+${facts}
+
+已經有的題目：
+${existing}`;
+}
+
+async function runAI(){
+  aiState.phase='working';aiState.msg='';aiPage();
+  const ctl=new AbortController(); aiState.ctl=ctl;
+  try{
+    const data=await SAMPLE.json(buildPrompt(aiState.unit,aiState.count),{signal:ctl.signal,cache:false,modelTier:'quick',
+      onText:()=>{const s=document.getElementById('ai-prog'); if(s)s.textContent='Claude 正在寫題目……';}});
+    const seen=new Set(ALL.map(q=>q.q));
+    const pending=store.get(PENDING_KEY,[]); pending.forEach(p=>seen.add(p.q));
+    const ok=[]; (Array.isArray(data)?data:[]).forEach(r=>{const n=normAI(r,seen); if(n){seen.add(n.q);ok.push(n)}});
+    const dropped=(Array.isArray(data)?data.length:0)-ok.length;
+    store.set(PENDING_KEY,pending.concat(ok.map(({c,t,q,o,a,why})=>({c,t,q,o,a,why}))));
+    aiState.phase='idle';
+    aiState.msg=ok.length?`產生了 ${ok.length} 題，請一題一題確認。`+(dropped>0?`（有 ${dropped} 題格式不合格，已自動略過）`:''):'這次產生的題目都不合格，請再試一次。';
+  }catch(e){
+    aiState.phase='idle';
+    if(e&&e.code==='cancelled')aiState.msg='已停止。';
+    else if(e&&['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(e.code)){aiState.msg=AI_ERR[e.code]||'這個畫面無法使用 AI 出題。';aiState.blocked=true;aiState.code=e.code;}
+    else aiState.msg=AI_ERR[e&&e.code]||'發生問題，這次沒有完成，請再試一次。';
+  }
+  aiPage();
+}
+
+function aiPage(){
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  const pending=store.get(PENDING_KEY,[]).map(r=>normAI(r)).filter(Boolean);
+  const unitChips=[['all','全部'],...Object.entries(UNITS)].map(([k,n])=>`<button class="chip" data-au="${k}" aria-pressed="${aiState.unit===k}">${n}</button>`).join('');
+  const cntChips=[5,10].map(v=>`<button class="chip" data-ac="${v}" aria-pressed="${aiState.count===v}">${v} 題</button>`).join('');
+  const showAns=q=>q.t==='tf'?`答案：${q.a==='O'?'⭕ 對':'❌ 錯'}`:q.o.map(o=>o===q.a?`<b style="color:var(--leaf)">✔ ${o}</b>`:o).join('　');
+  let status='';
+  if(SAMPLE===undefined)status='<p class="lead">正在確認能不能使用 AI 出題……</p>';
+  else if(SAMPLE===null||aiState.blocked)status=`<p class="lead">${aiState.blocked?aiState.msg:'需要先輸入家庭邀請碼，才能用 AI 產生題目。'}</p>
+    <p class="lead" style="font-size:.95rem">狀態代碼：${aiState.blocked?(aiState.code||''):SAMPLE_WHY}</p>
+    ${familyBtnHTML}`;
+  else if(aiState.phase==='confirm')status=`
+    <div class="feedback bad" style="border-color:var(--sun);background:var(--sun-soft)">
+      <p class="fb-head">⚠️ 使用前提醒</p>
+      <p class="fb-why">每個家庭每天可以使用 AI 的次數有限${FAMILY.remaining!=null?`，今天還剩 ${FAMILY.remaining} 次`:''}。費用由網站管理者負擔，請確定需要再產生。</p>
+      <p class="fb-why">每次大約要等 10～60 秒。</p>
+      <button class="big" id="ai-go">我知道了，開始產生 ${aiState.count} 題</button>
+      <button class="ghost" id="ai-cancel">取消</button>
+    </div>`;
+  else if(aiState.phase==='working')status=`<div class="feedback"><p class="fb-head" id="ai-prog">Claude 正在思考題目……</p><p class="fb-why">大約要等 10～60 秒，請不要關掉畫面。</p><button class="ghost" id="ai-stop">停止</button></div>`;
+  else status=`<button class="big" id="ai-start">🤖 產生新題目</button>${aiState.msg?`<p class="lead" style="margin-top:12px">${aiState.msg}</p>`:''}`;
+
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button></div>
+   <h1 style="font-size:1.8rem">用 AI 產生新題目</h1>
+   <p class="lead">AI 只會用錄音裡教過的觀念出新的問法。產生後請大人先看過，按「收進題庫」的題目才會給小朋友練習。題目只存在這台裝置。</p>
+   <div id="ai-status">
+     <div class="section-title">哪一個單元？</div><div class="chips">${unitChips}</div>
+     <div class="section-title">一次產生幾題？</div><div class="chips">${cntChips}</div>
+     <div style="margin-top:18px">${status}</div>
+   </div>
+   ${pending.length?`<section class="card"><p style="margin:0;font-size:1.2rem">等待確認（${pending.length} 題）</p>
+     <ul class="list">${pending.map((q,i)=>`<li style="flex-direction:column;align-items:stretch">
+       <span><span class="tag">${UNITS[q.u]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span><br>${q.q}<br><small>${showAns(q)}</small><br><small style="color:var(--muted)">解說：${q.why}</small></span>
+       <span style="display:flex;gap:8px;margin-top:8px"><button class="iconbtn" data-acc="${i}">✅ 收進題庫</button><button class="iconbtn" data-rej="${i}">🗑 刪掉</button></span></li>`).join('')}</ul>
+     <button class="ghost" id="ai-all">全部收進題庫</button></section>`:''}
+   <section class="card"><p style="margin:0;font-size:1.2rem">已收進的 AI 題目（${AIQ.length} 題）</p>
+     ${AIQ.length?`<ul class="list">${AIQ.map(q=>`<li><span>${q.q}<br><small style="color:var(--muted)">${showAns(q)}</small></span><button class="iconbtn" data-del="${q.id}" aria-label="刪除這題">🗑</button></li>`).join('')}</ul>`:'<p class="lead" style="margin-top:10px">還沒有。</p>'}
+   </section>`;
+  document.getElementById('hm').onclick=home;
+  app.querySelectorAll('[data-au]').forEach(b=>b.onclick=()=>{aiState.unit=b.dataset.au;aiPage()});
+  app.querySelectorAll('[data-ac]').forEach(b=>b.onclick=()=>{aiState.count=+b.dataset.ac;aiPage()});
+  const $=id=>document.getElementById(id);
+  bindFamilyBtn(()=>{aiState.phase='idle';aiPage()});
+  if($('ai-start'))$('ai-start').onclick=()=>{aiState.phase='confirm';aiState.msg='';aiPage()};
+  if($('ai-cancel'))$('ai-cancel').onclick=()=>{aiState.phase='idle';aiPage()};
+  if($('ai-go'))$('ai-go').onclick=runAI;
+  if($('ai-stop'))$('ai-stop').onclick=()=>aiState.ctl&&aiState.ctl.abort();
+  const setPending=p=>store.set(PENDING_KEY,p.map(({c,t,q,o,a,why})=>({c,t,q,o,a,why})));
+  app.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{const p=pending.slice();addAI(p.splice(+b.dataset.acc,1)[0]);setPending(p);aiPage()});
+  app.querySelectorAll('[data-rej]').forEach(b=>b.onclick=()=>{const p=pending.slice();p.splice(+b.dataset.rej,1);setPending(p);aiPage()});
+  if($('ai-all'))$('ai-all').onclick=()=>{pending.forEach(addAI);setPending([]);aiPage()};
+  app.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(await confirmBox('確定要刪除這題嗎？')){removeAI(b.dataset.del);aiPage()}});
+}
+
+
+/* --- 自製確認視窗（不依賴瀏覽器的 confirm） --- */
+function confirmBox(msg,okText){return new Promise(res=>{
+  const d=document.createElement('div');d.className='modal';
+  d.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true"><p>${esc(msg)}</p><div class="footer"><button class="iconbtn" data-k="0">取消</button><button class="iconbtn danger" data-k="1">${esc(okText||'確定')}</button></div></div>`;
+  document.body.appendChild(d);d.querySelectorAll('button').forEach(x=>x.onclick=()=>{d.remove();res(x.dataset.k==='1')});
+})}
+/* ===== 自訂題庫（Beta） ===== */
+const LV={1:'基礎',2:'標準',3:'挑戰'};
+const GRADES=['一年級','二年級','三年級','四年級','五年級','六年級'];
+const PUBS=['翰林','康軒','南一','其他'];
+const LS_BANKS='custom-banks';
+const BS={mode:'loading',db:null,uid:null,note:''};
+let BANKS=[];               // 目前載入的題庫
+let bprefs=store.get('custom-prefs',{lv:0,count:10});
+
+/* --- 儲存：能用雲端就用雲端（綁定帳號），否則存在這台裝置；本機一律留一份備份 --- */
+const bsReady=Promise.resolve().then(()=>{BS.mode=hasBackend()?'cloud':'local'});
+const clone=o=>JSON.parse(JSON.stringify(o));
+function localBanks(){return store.get(LS_BANKS,{})}
+function localPut(b){const all=localBanks();all[b.id]=clone(b);store.set(LS_BANKS,all)}
+function localDel(id){const all=localBanks();delete all[id];store.set(LS_BANKS,all)}
+function toLocal(note){BS.mode='local';BS.note=note;}
+
+async function bsLoad(){
+  await bsReady;
+  const loc=localBanks();
+  if(BS.mode==='cloud'){
+    try{
+      const j=await api('listBanks');
+      const map={};
+      (j.banks||[]).forEach(b=>{if(b&&b.id)map[b.id]=b});
+      // 本機有、雲端沒有或比較新的，補上雲端
+      Object.values(loc).forEach(b=>{ if(!map[b.id]||(b.updatedAt||0)>(map[b.id].updatedAt||0)){map[b.id]=b;bsSave(b,true)} });
+      BANKS=Object.values(map);
+    }catch(e){
+      toLocal('目前連不上雲端，先顯示這台裝置上的題庫。');
+      BANKS=Object.values(loc);
+    }
+  }else BANKS=Object.values(loc);
+  BANKS.forEach(fixBank);
+  BANKS.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+}
+function fixBank(b){b.concepts=b.concepts||[];b.questions=b.questions||[];b.pending=b.pending||[];b.skipped=b.skipped||[];b.rec=b.rec||{};b.seq=b.seq||0;return b}
+
+const saving={};
+function bsSave(bank,keepTime){
+  if(!keepTime)bank.updatedAt=Date.now();
+  localPut(bank);
+  if(BS.mode!=='cloud')return Promise.resolve();
+  const s=saving[bank.id]||(saving[bank.id]={busy:null,next:null});
+  s.next=clone(bank);
+  if(!s.busy)s.busy=(async()=>{
+    while(s.next){
+      const d=s.next;s.next=null;
+      try{await api('saveBank',{bank:d});}
+      catch(e){
+        const c=e&&e.code;
+        if(c==='too_large')toast('題庫太大，雲端存不下，這次先存在這台裝置。');
+        else if(c==='bad_code'){toLocal('家庭邀請碼已失效，題庫改存在這台裝置。');toast(BS.note);}
+        else toast('暫時連不上雲端，已先存在這台裝置。');
+        break;
+      }
+    }
+    s.busy=null;
+  })();
+  return s.busy;
+}
+async function bsDelete(bank){
+  localDel(bank.id);
+  BANKS=BANKS.filter(b=>b.id!==bank.id);
+  if(BS.mode==='cloud'){try{await api('deleteBank',{id:bank.id})}catch(e){}}
+}
+const recTimers={};
+function scheduleSave(bank){clearTimeout(recTimers[bank.id]);recTimers[bank.id]=setTimeout(()=>bsSave(bank),6000)}
+
+let toastTimer;
+function toast(msg){
+  let t=document.getElementById('toast');
+  if(!t){t=document.createElement('div');t.id='toast';t.className='toast';document.body.appendChild(t)}
+  t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+/* --- 題目驗證 --- */
+function normQ(r,conceptIds){
+  if(!r||typeof r!=='object')return null;
+  const c=String(r.c||''); if(conceptIds&&!conceptIds.has(c))return null;
+  const q=String(r.q||'').trim(), why=String(r.why||'').trim();
+  if(!q||q.length>160||why.length>200)return null;
+  const lv=[1,2,3].includes(+r.lv)?+r.lv:1;
+  const src=['原題','改寫','AI'].includes(r.src)?r.src:'AI';
+  const icon=typeof r.icon==='string'?[...r.icon.trim()].slice(0,4).join(''):'';
+  const base={c,q,why:why||'',lv,src,ansByAI:!!r.ansByAI,icon};
+  if(r.t==='tf'){ if(r.a!=='O'&&r.a!=='X')return null; return {...base,t:'tf',a:r.a}; }
+  if(r.t==='mc'){
+    if(!Array.isArray(r.o))return null;
+    const o=r.o.map(x=>String(x).trim()).filter(Boolean);
+    if(o.length<2||o.length>4||new Set(o).size!==o.length||o.some(x=>x.length>40))return null;
+    const a=String(r.a||'').trim(); if(!o.includes(a))return null;
+    return {...base,t:'mc',o,a};
+  }
+  return null;
+}
+const newId=(bank,p)=>p+(++bank.seq).toString(36)+Math.random().toString(36).slice(2,5);
+
+function mergeResult(bank,res,defaultSrc){
+  const idMap={};
+  (Array.isArray(res&&res.concepts)?res.concepts:[]).forEach(con=>{
+    const id=String(con&&con.id||''), text=String(con&&con.text||'').trim().slice(0,120);
+    if(!id)return;
+    if(bank.concepts.some(x=>x.id===id)){idMap[id]=id;return}
+    if(!text)return;
+    const nid=newId(bank,'k'); idMap[id]=nid; bank.concepts.push({id:nid,text});
+  });
+  const ids=new Set(bank.concepts.map(x=>x.id));
+  const seen=new Set(bank.questions.concat(bank.pending).map(q=>q.q));
+  let added=0,dropped=0;
+  const qs=Array.isArray(res)?res:(Array.isArray(res&&res.questions)?res.questions:[]);
+  qs.forEach(r=>{
+    const rr={...r,c:idMap[r&&r.c]||(r&&r.c),src:(r&&r.src)||defaultSrc};
+    const n=normQ(rr,ids);
+    if(!n||seen.has(n.q)){dropped++;return}
+    seen.add(n.q); bank.pending.push({...n,id:newId(bank,'q')}); added++;
+  });
+  const sk=Array.isArray(res&&res.skipped)?res.skipped:[];
+  sk.forEach(x=>{const q=String(x&&x.q||'').trim().slice(0,160);if(q)bank.skipped.push({q,reason:String(x.reason||'').slice(0,80)})});
+  return {added,dropped,skipped:sk.length};
+}
+
+/* --- 給 Claude 的指示 --- */
+const bankInfo=b=>`${b.grade||''}${b.term?b.term+'學期':''} ${b.subject||''} ${b.publisher?b.publisher+'版':''} ${b.unit||''}`.replace(/\s+/g,' ').trim();
+const ansStr=q=>q.t==='tf'?(q.a==='O'?'對':'錯'):q.a;
+const JSON_RULES=`題型規則：
+- 是非題：t 為 "tf"，a 為 "O"（對）或 "X"（錯）。
+- 選擇題：t 為 "mc"，o 為 2 到 4 個選項，只能有一個正確，a 必須和 o 裡的某個選項一字不差；不要用「以上皆是」「以上皆非」。
+- lv 難度：1＝基礎（直接回想）、2＝標準（要分辨相近的觀念）、3＝挑戰（反過來問、應用或結合兩個觀念）。
+- why：一兩句解說，小朋友看得懂，不超過 60 字。
+- icon：一個適合這題的 emoji，沒有適合的就給空字串。`;
+
+function analyzePrompt(bank,text,note,nImages){
+  const cons=bank.concepts.map(x=>`${x.id}：${x.text}`).join('\n')||'（還沒有）';
+  const exist=bank.questions.concat(bank.pending).map(q=>'- '+q.q).join('\n')||'（還沒有）';
+  return `你是台灣的國小老師，要把家長提供的教材整理成小朋友「點選作答」的練習題。
+
+題庫：${bankInfo(bank)}
+${nImages?`附上 ${nImages} 張照片（講義、考卷或課本）。`:''}${text?'下面附上文字資料（可能是解題影片的字幕，語音辨識會有錯字，請依上下文修正成正確的名詞）。':''}
+${note?'家長補充：'+note:''}
+
+工作：
+1. 找出資料裡的每一題，判斷題型。
+2. 是非題、選擇題：照原題抄錄，src 為 "原題"。
+3. 填空、配合、連連看：能改成選擇題就改寫，選項用資料裡出現過的詞，src 為 "改寫"。
+4. 簡答、畫圖、需要寫出計算過程或寫字的題目：不要硬轉，放進 skipped 並寫出原因。
+5. 答案：資料裡有答案（訂正、解答、老師講解）就照資料，ansByAI 為 false；資料沒有答案時才自己判斷，ansByAI 為 true。
+6. 每題用 c 標出觀念。已經有的觀念請沿用代號；新觀念用 "n1"、"n2"…，並在 concepts 用一句話寫出觀念重點（只能根據資料）。
+7. 只能根據資料內容，不可以加入資料以外的知識。不要和「已經有的題目」重複。
+8. 資料不是題目、只是課文或講解時，就根據內容出幾題，src 為 "AI"。
+
+${JSON_RULES}
+
+已經有的觀念：
+${cons}
+
+已經有的題目：
+${exist}
+
+只回傳一個 JSON 物件，不要其他文字，格式：
+{"concepts":[{"id":"n1","text":"互生是一個節長一片葉子"}],"questions":[{"c":"n1","t":"mc","q":"題目","o":["選項一","選項二","選項三"],"a":"選項一","why":"解說","src":"原題","ansByAI":false,"lv":1,"icon":"🌱"}],"skipped":[{"q":"題目","reason":"需要寫出句子"}]}
+${text?'\n文字資料：\n'+text:''}`;
+}
+
+function genPrompt(bank,lv,count){
+  const cons=bank.concepts.map(x=>{
+    const ex=bank.questions.filter(q=>q.c===x.id).slice(0,3).map(q=>`    例題：${q.q}（答案：${ansStr(q)}）`).join('\n');
+    return `【${x.id}】${x.text}${ex?'\n'+ex:''}`;}).join('\n');
+  const exist=bank.questions.concat(bank.pending).map(q=>'- '+q.q).join('\n');
+  const lvText=lv?`全部都出「${LV[lv]}」難度（lv 一律為 ${lv}）。`:'基礎、標準、挑戰三種難度都要有。';
+  return `你是台灣的國小老師。題庫：${bankInfo(bank)}。
+請「只根據」下面的觀念清單出 ${count} 題新的點選作答練習題，不可以加入清單以外的知識。
+- 每題用 c 標出觀念代號（必須是清單裡的代號），盡量分散在不同觀念。
+- 是非題和選擇題都要有。${lvText}
+- 不要和「已經有的題目」重複，要換問法、換角度。
+- 錯誤選項必須根據清單明確是錯的，不能有兩個都說得通的選項。
+
+${JSON_RULES}
+
+觀念清單：
+${cons}
+
+已經有的題目：
+${exist||'（還沒有）'}
+
+只回傳 JSON 陣列，不要其他文字，格式：
+[{"c":"k1","t":"tf","q":"題目","a":"O","why":"解說","lv":2,"icon":"🌱"}]`;
+}
+
+/* --- AI 呼叫的共用提醒與錯誤處理 --- */
+const quotaNote=`<div class="feedback" style="border-color:var(--sun);background:var(--sun-soft)">
+  <p class="fb-head">⚠️ 使用前提醒</p>
+  <p class="fb-why">每個家庭每天可以使用 AI 的次數有限，費用由網站管理者負擔。上傳照片比純文字花費更多，請一次放齊要整理的資料。</p>
+  <p class="fb-why">每次大約要等 10～60 秒。</p></div>`;
+const sampleBlocked=()=>SAMPLE===null||aiState.blocked;
+function aiUnavailableHTML(){
+  if(SAMPLE===undefined)return '<p class="lead">正在確認能不能使用 AI……</p>';
+  return `<p class="lead">${aiState.blocked?esc(aiState.msg||'目前無法使用 AI。'):'需要先輸入家庭邀請碼，才能用 AI 產生題目。'}</p>
+    <p class="lead" style="font-size:.95rem">狀態代碼：${esc(aiState.blocked?(aiState.code||''):SAMPLE_WHY)}</p>
+    ${familyBtnHTML}`;
+}
+function aiErrMsg(e){
+  if(e&&e.code==='bad_code'){aiState.blocked=true;aiState.code=e.code;aiState.msg='家庭邀請碼不正確或已停用，請重新輸入。'}
+  if(e&&e.code==='cancelled')return '已停止。';
+  if(e&&e.code==='images_unavailable')return '這個畫面不能傳送照片，請改貼文字，或換用 Claude app、電腦開啟。';
+  if(e&&e.code==='image_rejected')return '有照片無法讀取（格式不支援或檔案太大），請換一張再試。';
+  if(e&&e.code==='prompt_too_large')return '資料太多了，請分成幾次上傳。';
+  return AI_ERR[e&&e.code]||'發生問題，這次沒有完成，請再試一次。';
+}
+const bindReload=(page,bank)=>bindFamilyBtn(()=>page==='gen'?genPage(bank):uploadPage(bank));
+
+/* --- 頁面：題庫列表 --- */
+async function betaHome(){
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  app.innerHTML=`<div class="toprow"><button class="iconbtn" id="hm">🌱 回植物小學堂</button></div><h1 style="font-size:1.9rem">自訂題庫 <span class="tag" style="background:var(--sun-soft);vertical-align:middle">Beta</span></h1><p class="lead">載入中……</p>`;
+  document.getElementById('hm').onclick=home;
+  await bsLoad();
+  const where=BS.mode==='cloud'?`☁️ 題庫存在雲端（${esc(FAMILY.name||FAMILY.code)}），換裝置輸入同一組家庭邀請碼就看得到。`:'📱 題庫存在這台裝置。輸入家庭邀請碼後，才能用 AI 產生題目、存到雲端。';
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="hm">🌱 回植物小學堂</button></div>
+   <h1 style="font-size:1.9rem">自訂題庫 <span class="tag" style="background:var(--sun-soft);vertical-align:middle">Beta</span></h1>
+   <p class="lead">上傳孩子的講義、考卷照片或解題字幕，AI 會整理成點選作答的練習題。大人確認過的題目才會給孩子練習。</p>
+   <p class="lead" style="font-size:1rem">${where}${BS.note?'<br>'+esc(BS.note):''}</p>
+   ${BANKS.length?BANKS.map(b=>`<button class="bankcard" data-b="${esc(b.id)}">
+      <span class="bk-title">${esc(b.title||bankInfo(b)||'未命名題庫')}</span>
+      <span class="bk-meta">${esc(bankInfo(b))}</span>
+      <span class="bk-meta">${b.questions.length} 題${b.pending.length?`・<b style="color:var(--coral)">${b.pending.length} 題待確認</b>`:''}</span></button>`).join('')
+     :'<div class="card"><p class="lead" style="margin:0">還沒有自訂題庫，先建立一個吧！</p></div>'}
+   <button class="big" id="new">＋ 建立新題庫</button>
+   <button class="ghost" id="imp">📥 匯入題庫檔（親友分享的 .json）</button>
+   <button class="ghost" id="fam">⚙️ 家庭設定（邀請碼）</button>
+   <input type="file" id="impf" accept=".json,application/json" hidden>`;
+  document.getElementById('hm').onclick=home;
+  document.getElementById('new').onclick=()=>bankForm(null);
+  document.getElementById('fam').onclick=()=>familyPage(betaHome);
+  app.querySelectorAll('[data-b]').forEach(el=>el.onclick=()=>bankHome(BANKS.find(b=>b.id===el.dataset.b)));
+  const f=document.getElementById('impf');
+  document.getElementById('imp').onclick=()=>f.click();
+  f.onchange=()=>importBank(f.files[0]);
+  window.scrollTo(0,0);
+}
+
+/* --- 頁面：建立／編輯題庫資料 --- */
+function bankForm(bank){
+  const b=bank||{};
+  const sel=(id,list,val)=>`<select id="${id}">${list.map(x=>`<option${x===val?' selected':''}>${x}</option>`).join('')}</select>`;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← 返回</button></div>
+   <h1 style="font-size:1.8rem">${bank?'編輯題庫資料':'建立新題庫'}</h1>
+   <div class="card form">
+     <label>年級 ${sel('f-grade',GRADES,b.grade||'三年級')}</label>
+     <label>學期 ${sel('f-term',['上','下'],b.term||'上')}</label>
+     <label>科目 <input id="f-subject" list="subjects" value="${esc(b.subject||'')}" placeholder="例如：自然"></label>
+     <datalist id="subjects"><option>國語</option><option>數學</option><option>自然</option><option>社會</option><option>英語</option><option>生活</option></datalist>
+     <label>版本 ${sel('f-pub',PUBS,b.publisher||'翰林')}</label>
+     <label>單元 <input id="f-unit" value="${esc(b.unit||'')}" placeholder="例如：第二單元 植物的身體"></label>
+     <label>題庫名稱（可不填） <input id="f-title" value="${esc(b.title||'')}" placeholder="例如：三上自然 植物"></label>
+   </div>
+   <button class="big" id="sv">${bank?'儲存':'建立題庫'}</button>`;
+  document.getElementById('bk').onclick=()=>bank?bankHome(bank):betaHome();
+  document.getElementById('sv').onclick=async()=>{
+    const v=id=>document.getElementById(id).value.trim();
+    if(!v('f-subject')){toast('請填科目');return}
+    const nb=bank||fixBank({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),createdAt:Date.now()});
+    Object.assign(nb,{grade:v('f-grade'),term:v('f-term'),subject:v('f-subject'),publisher:v('f-pub'),unit:v('f-unit'),title:v('f-title')});
+    if(!bank)BANKS.unshift(nb);
+    await bsSave(nb);
+    bankHome(nb);
+  };
+}
+
+/* --- 頁面：單一題庫 --- */
+function bankHome(bank){
+  CTX=PLANT_CTX;
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  const n=bank.questions.length;
+  const lvCount=l=>bank.questions.filter(q=>!l||q.lv===l).length;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← 題庫列表</button><button class="iconbtn" id="ed">✏️ 編輯資料</button></div>
+   <h1 style="font-size:1.8rem">${esc(bank.title||bankInfo(bank))}</h1>
+   <p class="lead">${esc(bankInfo(bank))}・${n} 題・${bank.concepts.length} 個觀念</p>
+   ${n?`<section class="card">
+     <p style="margin:0;font-size:1.2rem">▶ 開始練習</p>
+     <div class="section-title">難度</div>
+     <div class="chips">${[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${bprefs.lv===l}" ${lvCount(l)?'':'disabled'}>${t}<small>${lvCount(l)}題</small></button>`).join('')}</div>
+     <div class="section-title">題數</div>
+     <div class="chips">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,t])=>`<button class="chip" data-cn="${v}" aria-pressed="${bprefs.count===v}">${t}</button>`).join('')}</div>
+     <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目和解說</label>
+     <button class="big" id="go">開始練習</button></section>`
+    :'<div class="card"><p class="lead" style="margin:0">還沒有題目。先上傳資料，確認後就可以練習。</p></div>'}
+   <section class="card"><p style="margin:0;font-size:1.2rem">大人使用</p>
+     <button class="ghost" id="up">📷 上傳資料產生題目（照片、字幕、文字）</button>
+     <button class="ghost" id="gen" ${bank.concepts.length?'':'disabled'}>✨ 用已有的觀念產生更多題目${bank.concepts.length?'':'（先上傳資料）'}</button>
+     <button class="ghost" id="rv">✅ 待確認的題目（${bank.pending.length}）</button>
+     <button class="ghost" id="ls">📋 題目清單與作答紀錄（${n}）</button>
+     <button class="ghost" id="ex">📤 匯出（分享給親友或備份）</button>
+     <button class="ghost" id="del" style="color:var(--coral)">🗑 刪除這個題庫</button>
+   </section>`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=betaHome; $('ed').onclick=()=>bankForm(bank);
+  app.querySelectorAll('[data-lv]').forEach(b=>b.onclick=()=>{bprefs.lv=+b.dataset.lv;store.set('custom-prefs',bprefs);bankHome(bank)});
+  app.querySelectorAll('[data-cn]').forEach(b=>b.onclick=()=>{bprefs.count=+b.dataset.cn;store.set('custom-prefs',bprefs);bankHome(bank)});
+  if($('ar'))$('ar').onchange=e=>{prefs.autoRead=e.target.checked;store.set('g3plants-prefs',prefs)};
+  if($('go'))$('go').onclick=()=>startBank(bank);
+  $('up').onclick=()=>uploadPage(bank); $('gen').onclick=()=>genPage(bank);
+  $('rv').onclick=()=>reviewPage(bank); $('ls').onclick=()=>listPage(bank); $('ex').onclick=()=>exportPage(bank);
+  $('del').onclick=async()=>{if(await confirmBox('確定要刪除「'+(bank.title||bankInfo(bank))+'」嗎？題目和作答紀錄都會刪除。')){await bsDelete(bank);betaHome()}};
+  window.scrollTo(0,0);
+}
+
+/* --- 練習：沿用植物小學堂的引擎（間隔複習、朗讀、音效） --- */
+function bankCtx(bank){return {
+  all:()=>bank.questions,
+  origin:c=>bank.questions.find(q=>q.c===c&&q.src==='原題')||bank.questions.find(q=>q.c===c),
+  label:q=>LV[q.lv]||'基礎',
+  bump:(id,ok)=>{const r=bank.rec[id]||{seen:0,wrong:0};r.seen++;if(!ok)r.wrong++;bank.rec[id]=r;scheduleSave(bank)},
+  rec:()=>bank.rec,
+  pic:q=>{const con=(bank.concepts.find(x=>x.id===q.c)||{}).text;
+    return (q.icon||con)?`<div class="bpic">${q.icon?`<div class="bicon">${esc(q.icon)}</div>`:''}${con?`<p>📌 觀念：${esc(con)}</p>`:''}</div>`:''},
+  home:()=>{bsSave(bank);bankHome(bank)},
+  restart:()=>startBank(bank),
+}}
+function startBank(bank){
+  const pool=bank.questions.filter(q=>!bprefs.lv||q.lv===bprefs.lv);
+  if(!pool.length){toast('這個難度還沒有題目');return}
+  CTX=bankCtx(bank);
+  start(pickRound(pool,bprefs.count,bank.rec));
+}
+
+/* --- 照片統一轉成 JPG（含 HEIC），並縮小以節省額度 --- */
+function readDataURL(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
+async function toJpeg(file){
+  try{
+    const src=await readDataURL(file);
+    const img=new Image();
+    await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=src});
+    const max=2000,w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return null;
+    const k=Math.min(1,max/Math.max(w,h));
+    const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));if(!blob)return null;
+    const t=document.createElement('canvas');const tk=Math.min(1,168/Math.max(w,h));t.width=Math.round(w*tk);t.height=Math.round(h*tk);
+    t.getContext('2d').drawImage(img,0,0,t.width,t.height);
+    blob.thumb=t.toDataURL('image/jpeg',0.7);
+    return blob;
+  }catch(e){return null}
+}
+/* --- 頁面：上傳資料 --- */
+let upState={files:[],text:'',note:'',phase:'idle',msg:'',ctl:null};
+function cleanSubtitle(t){return t.split(/\r?\n/).filter(l=>!/^\s*\d+\s*$/.test(l)&&!/-->/.test(l)&&l.trim()).join(' ').replace(/\s+/g,' ').trim()}
+async function uploadPage(bank,keep){
+  if(!keep)upState={files:[],text:'',note:'',phase:'idle',msg:'',ctl:null};
+  let caps=null,capsWhy=''; if(SAMPLE){try{caps=await SAMPLE.limits(); if(!caps||!caps.images)capsWhy='images_unavailable'}catch(e){capsWhy='limits_failed:'+((e&&(e.code||e.message))||e)}}
+  const imgOK=!!(caps&&caps.images);
+  const maxN=imgOK?caps.images.maxCount:0;
+  const busy=upState.phase==='working';
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
+   <h1 style="font-size:1.8rem">上傳資料產生題目</h1>
+   <p class="lead">可以只放照片、只貼文字，或兩個一起。照片上有答案（訂正過的考卷、解答頁）最準確。</p>
+   ${sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
+   <section class="card form">
+     <p style="margin:0 0 8px;font-size:1.15rem">📷 照片${imgOK?`（一次最多 ${maxN} 張，超過會自動分批）`:''}</p>
+     ${imgOK?`<label class="pickbtn">📷 選擇照片或拍照<input type="file" id="u-img" accept="image/*,.heic,.heif" multiple ${busy?'disabled':''} hidden></label>
+       <p class="lead" style="font-size:.95rem;margin:6px 0 0">iPhone 的 HEIC 照片會自動轉成 JPG。</p>
+       <div class="thumbs">${upState.files.map((f,i)=>`<span class="thumb"><img src="${f.thumb}" alt=""><button data-rm="${i}" aria-label="移除">✕</button></span>`).join('')}</div>`
+       :`<p class="lead" style="margin:0">這個畫面不能把照片傳給 Claude，所以無法選照片。可以用下面的方法把照片上的字變成文字，貼到「文字」欄位：</p>
+         <div class="tipbox">
+           <p><b>📱 iPad／iPhone：用「原況文字」</b></p>
+           <p>1. 打開相機對準講義，或在「照片」打開拍好的講義。</p>
+           <p>2. 點畫面右下角的 <b>文字辨識按鈕</b>（方框裡有幾條線的圖示）。</p>
+           <p>3. 點「拷貝全部」，回到這裡貼到「文字」欄位。</p>
+           <p>題目、選項、答案都要在照片裡；一次可以貼好幾頁。</p>
+           <p style="margin-top:10px"><b>💻 Mac：用「預覽程式」</b></p>
+           <p>用「預覽程式」打開講義照片，直接用滑鼠選取照片上的文字（或按 ⌘A 全選），⌘C 拷貝，再貼到「文字」欄位。</p>
+           <p style="margin-top:10px"><b>💬 或把照片傳到 Claude 對話</b>，請 Claude 整理成「題庫檔（.json）」，再到自訂題庫按「匯入題庫檔」。</p>
+         </div>
+         <p class="lead" style="font-size:.9rem;margin:6px 0 0">狀態代碼：${esc(capsWhy||'unknown')}</p>`}
+     <p style="margin:16px 0 8px;font-size:1.15rem">📝 文字（字幕檔、逐字稿、課文）</p>
+     <label class="pickbtn">📄 選擇字幕或文字檔（.srt、.txt）<input type="file" id="u-txt" accept=".srt,.txt,.vtt,text/plain" ${busy?'disabled':''} hidden></label>
+     <textarea id="u-text" rows="6" placeholder="也可以直接貼上文字（例如用原況文字拷貝的講義內容）" ${busy?'disabled':''}>${esc(upState.text)}</textarea>
+     <p style="margin:16px 0 8px;font-size:1.15rem">💬 補充說明（可不填）</p>
+     <textarea id="u-note" rows="2" placeholder="例如：答案寫在每頁最下面；第 3 題老師說要背" ${busy?'disabled':''}>${esc(upState.note)}</textarea>
+   </section>
+   <div id="u-act" style="margin-top:16px"></div>`}`;
+  document.getElementById('bk').onclick=()=>{if(upState.ctl)upState.ctl.abort();bankHome(bank)};
+  bindReload('upload',bank);
+  if(sampleBlocked()||SAMPLE===undefined){ if(SAMPLE===undefined)setTimeout(()=>uploadPage(bank,true),1500); return; }
+  const $=id=>document.getElementById(id);
+  const sync=()=>{upState.text=$('u-text').value;upState.note=$('u-note').value};
+  if($('u-img'))$('u-img').onchange=async e=>{
+    sync();const list=[...e.target.files];let bad=0;
+    toast('正在處理照片……');
+    for(const f of list){const j=await toJpeg(f);if(j)upState.files.push(j);else bad++}
+    if(bad)toast(`有 ${bad} 張照片這個瀏覽器讀不出來（常見於 Chrome 開 HEIC），請改用 Safari，或先轉成 JPG。`);
+    uploadPage(bank,true)};
+  app.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{sync();upState.files.splice(+b.dataset.rm,1);uploadPage(bank,true)});
+  $('u-txt').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{sync();const t=String(r.result);upState.text=(upState.text?upState.text+'\n':'')+(/-->/.test(t)?cleanSubtitle(t):t);uploadPage(bank,true)};r.readAsText(f)};
+  const act=$('u-act');
+  if(upState.phase==='confirm'){
+    act.innerHTML=quotaNote+'<button class="big" id="u-go">我知道了，開始分析</button><button class="ghost" id="u-cancel">取消</button>';
+    $('u-go').onclick=()=>{sync();runAnalyze(bank,maxN)}; $('u-cancel').onclick=()=>{sync();upState.phase='idle';uploadPage(bank,true)};
+  }else if(busy){
+    act.innerHTML=`<div class="feedback"><p class="fb-head" id="u-prog">${esc(upState.msg||'Claude 正在看資料……')}</p><p class="fb-why">大約要等 10～60 秒，請不要關掉畫面。</p><button class="ghost" id="u-stop">停止</button></div>`;
+    $('u-stop').onclick=()=>upState.ctl&&upState.ctl.abort();
+  }else{
+    act.innerHTML=`<button class="big" id="u-start">🤖 開始分析</button>${upState.msg?`<p class="lead" style="margin-top:12px">${esc(upState.msg)}</p>`:''}`;
+    $('u-start').onclick=()=>{sync();if(!upState.files.length&&!upState.text.trim()){toast('請先放照片或貼上文字');return}upState.phase='confirm';upState.msg='';uploadPage(bank,true)};
+  }
+  window.scrollTo(0,0);
+}
+async function runAnalyze(bank,maxN){
+  upState.phase='working';upState.msg='Claude 正在看資料……';uploadPage(bank,true);
+  const files=upState.files.slice(), text=upState.text.trim().slice(0,60000), note=upState.note.trim().slice(0,300);
+  const batches=[]; if(files.length&&maxN){for(let i=0;i<files.length;i+=maxN)batches.push(files.slice(i,i+maxN))} else batches.push([]);
+  let tot={added:0,dropped:0,skipped:0},err=null;
+  for(let i=0;i<batches.length;i++){
+    const ctl=new AbortController();upState.ctl=ctl;
+    const label=batches.length>1?`第 ${i+1} / ${batches.length} 批：`:'';
+    const pr=document.getElementById('u-prog'); if(pr)pr.textContent=label+'Claude 正在看資料……';
+    try{
+      const opts={signal:ctl.signal,cache:false,modelTier:'default',onText:()=>{const p=document.getElementById('u-prog');if(p)p.textContent=label+'Claude 正在整理題目……'}};
+      if(batches[i].length)opts.images=batches[i];
+      const res=await SAMPLE.json(analyzePrompt(bank,i===0?text:'',note,batches[i].length),opts);
+      const r=mergeResult(bank,res,'原題'); tot.added+=r.added;tot.dropped+=r.dropped;tot.skipped+=r.skipped;
+      await bsSave(bank);
+    }catch(e){err=e;break}
+  }
+  upState.ctl=null;upState.phase='idle';
+  if(tot.added||tot.skipped){
+    upState.files=[];upState.text='';upState.note='';
+    toast(`整理出 ${tot.added} 題，請到「待確認」檢查`);
+    reviewPage(bank,`整理出 ${tot.added} 題${tot.skipped?`，另有 ${tot.skipped} 題不適合點選作答`:''}${tot.dropped?`（${tot.dropped} 題格式不合格或重複，已略過）`:''}${err?'。部分資料沒有處理完：'+aiErrMsg(err):''}`);
+    return;
+  }
+  upState.msg=err?aiErrMsg(err):'這次沒有整理出可以用的題目，請換清楚一點的照片，或補充說明再試一次。';
+  uploadPage(bank,true);
+}
+
+/* --- 頁面：用已有觀念產生更多題目 --- */
+let genState={lv:0,count:5,phase:'idle',msg:'',ctl:null};
+function genPage(bank){
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
+   <h1 style="font-size:1.8rem">產生更多題目</h1>
+   <p class="lead">只用這個題庫已經整理好的 ${bank.concepts.length} 個觀念出新的問法，不會加入其他知識。</p>
+   ${sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
+   <div class="section-title">難度</div>
+   <div class="chips">${[[0,'混合'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-glv="${l}" aria-pressed="${genState.lv===l}">${t}</button>`).join('')}</div>
+   <p class="lead" style="font-size:1rem;margin-top:8px">基礎：直接回想　標準：分辨相近觀念　挑戰：反過來問、結合兩個觀念</p>
+   <div class="section-title">題數</div>
+   <div class="chips">${[5,10].map(v=>`<button class="chip" data-gc="${v}" aria-pressed="${genState.count===v}">${v} 題</button>`).join('')}</div>
+   <div id="g-act" style="margin-top:16px"></div>`}`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=()=>{if(genState.ctl)genState.ctl.abort();bankHome(bank)};
+  bindReload('gen',bank);
+  if(sampleBlocked()||SAMPLE===undefined){ if(SAMPLE===undefined)setTimeout(()=>genPage(bank),1500); return; }
+  app.querySelectorAll('[data-glv]').forEach(b=>b.onclick=()=>{if(genState.phase==='working')return;genState.lv=+b.dataset.glv;genPage(bank)});
+  app.querySelectorAll('[data-gc]').forEach(b=>b.onclick=()=>{if(genState.phase==='working')return;genState.count=+b.dataset.gc;genPage(bank)});
+  const act=$('g-act');
+  if(genState.phase==='confirm'){
+    act.innerHTML=quotaNote+`<button class="big" id="g-go">我知道了，開始產生 ${genState.count} 題</button><button class="ghost" id="g-cancel">取消</button>`;
+    $('g-go').onclick=()=>runGen(bank); $('g-cancel').onclick=()=>{genState.phase='idle';genPage(bank)};
+  }else if(genState.phase==='working'){
+    act.innerHTML=`<div class="feedback"><p class="fb-head" id="g-prog">Claude 正在思考題目……</p><p class="fb-why">大約要等 10～60 秒，請不要關掉畫面。</p><button class="ghost" id="g-stop">停止</button></div>`;
+    $('g-stop').onclick=()=>genState.ctl&&genState.ctl.abort();
+  }else{
+    act.innerHTML=`<button class="big" id="g-start">✨ 產生新題目</button>${genState.msg?`<p class="lead" style="margin-top:12px">${esc(genState.msg)}</p>`:''}`;
+    $('g-start').onclick=()=>{genState.phase='confirm';genState.msg='';genPage(bank)};
+  }
+}
+async function runGen(bank){
+  genState.phase='working';genPage(bank);
+  const ctl=new AbortController();genState.ctl=ctl;
+  try{
+    const res=await SAMPLE.json(genPrompt(bank,genState.lv,genState.count),{signal:ctl.signal,cache:false,modelTier:'quick',
+      onText:()=>{const p=document.getElementById('g-prog');if(p)p.textContent='Claude 正在寫題目……'}});
+    const arr=(Array.isArray(res)?res:[]).map(r=>({...r,src:'AI',ansByAI:false,lv:genState.lv||r.lv}));
+    const r=mergeResult(bank,{questions:arr},'AI');
+    await bsSave(bank);
+    genState.phase='idle';genState.ctl=null;
+    if(r.added){genState.msg='';reviewPage(bank,`產生了 ${r.added} 題${r.dropped?`（${r.dropped} 題格式不合格或重複，已略過）`:''}`);return}
+    genState.msg='這次產生的題目都不合格，請再試一次。';
+  }catch(e){genState.phase='idle';genState.ctl=null;genState.msg=aiErrMsg(e);}
+  genPage(bank);
+}
+
+/* --- 頁面：待確認（可修改） --- */
+let editIdx=-1;
+function qView(q){
+  const tags=`<span class="tag">${LV[q.lv]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span> <span class="tag">${q.src==='原題'?'原題':q.src==='改寫'?'由填空等改寫':'AI 新題'}</span>${q.ansByAI?' <span class="tag warn">⚠️ 答案由 AI 判斷，請確認</span>':''}`;
+  const ans=q.t==='tf'?`答案：${q.a==='O'?'⭕ 對':'❌ 錯'}`:q.o.map(o=>o===q.a?`<b style="color:var(--leaf)">✔ ${esc(o)}</b>`:esc(o)).join('　');
+  return `${tags}<br><span style="font-size:1.15rem">${q.icon?esc(q.icon)+' ':''}${esc(q.q)}</span><br><small>${ans}</small><br><small style="color:var(--muted)">解說：${esc(q.why)}</small>`;
+}
+function qEditor(q){
+  return `<div class="form">
+    <label>題目<textarea id="e-q" rows="2">${esc(q.q)}</textarea></label>
+    ${q.t==='tf'?`<label>答案 <select id="e-a"><option value="O"${q.a==='O'?' selected':''}>⭕ 對</option><option value="X"${q.a==='X'?' selected':''}>❌ 錯</option></select></label>`
+      :`<p style="margin:6px 0">選項（點選正確答案；空白的選項會刪掉）</p>${[0,1,2,3].map(i=>`<label class="optrow"><input type="radio" name="e-ok" value="${i}" ${q.o[i]===q.a?'checked':''}><input id="e-o${i}" value="${esc(q.o[i]||'')}"></label>`).join('')}`}
+    <label>解說<textarea id="e-why" rows="2">${esc(q.why)}</textarea></label>
+    <label>難度 <select id="e-lv">${[1,2,3].map(l=>`<option value="${l}"${q.lv===l?' selected':''}>${LV[l]}</option>`).join('')}</select></label>
+    <div class="footer"><button class="iconbtn" id="e-save">💾 儲存修改</button><button class="iconbtn" id="e-cancel">取消</button></div></div>`;
+}
+function readEditor(q){
+  const v=id=>document.getElementById(id).value.trim();
+  const out={...q,q:v('e-q'),why:v('e-why'),lv:+v('e-lv'),ansByAI:false};
+  if(q.t==='tf')out.a=v('e-a');
+  else{
+    const raw=[0,1,2,3].map(i=>v('e-o'+i));
+    const ck=document.querySelector('input[name="e-ok"]:checked');
+    const a=ck?raw[+ck.value]:'';
+    out.o=raw.filter(Boolean); out.a=a;
+  }
+  return normQ(out)?{...out,...normQ(out),id:q.id,c:q.c}:null;
+}
+function reviewPage(bank,msg){
+  const P=bank.pending;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
+   <h1 style="font-size:1.8rem">待確認的題目（${P.length}）</h1>
+   ${msg?`<p class="lead">${esc(msg)}</p>`:''}
+   <p class="lead" style="font-size:1rem">請確認題目和答案正確，按「收進題庫」才會給孩子練習。有 ⚠️ 的題目特別要檢查。</p>
+   ${P.length?`<button class="big" id="all" style="margin-top:0">全部收進題庫</button>`:''}
+   <ul class="list">${P.map((q,i)=>`<li style="flex-direction:column;align-items:stretch">
+     ${editIdx===i?qEditor(q):`<span>${qView(q)}</span>
+     <span class="footer" style="margin-top:8px"><button class="iconbtn" data-acc="${i}">✅ 收進題庫</button><button class="iconbtn" data-edit="${i}">✏️ 修改</button><button class="iconbtn" data-rej="${i}">🗑 刪掉</button></span>`}</li>`).join('')}</ul>
+   ${bank.skipped.length?`<section class="card"><p style="margin:0;font-size:1.15rem">不適合點選作答的題目（${bank.skipped.length}）</p>
+     <ul class="list">${bank.skipped.map(s=>`<li><span>${esc(s.q)}<br><small style="color:var(--muted)">${esc(s.reason)}</small></span></li>`).join('')}</ul>
+     <button class="ghost" id="clrsk">清除這份清單</button></section>`:''}`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=()=>{editIdx=-1;bankHome(bank)};
+  const accept=i=>{const q=P.splice(i,1)[0];bank.questions.push(q)};
+  if($('all'))$('all').onclick=async()=>{
+    const warn=P.filter(q=>q.ansByAI).length;
+    if(warn&&!await confirmBox(`有 ${warn} 題的答案是 AI 判斷的，確定都檢查過了嗎？`))return;
+    bank.questions.push(...P.splice(0));editIdx=-1;await bsSave(bank);toast('已全部收進題庫');reviewPage(bank)};
+  app.querySelectorAll('[data-acc]').forEach(b=>b.onclick=async()=>{accept(+b.dataset.acc);editIdx=-1;await bsSave(bank);reviewPage(bank)});
+  app.querySelectorAll('[data-rej]').forEach(b=>b.onclick=async()=>{P.splice(+b.dataset.rej,1);editIdx=-1;await bsSave(bank);reviewPage(bank)});
+  app.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{editIdx=+b.dataset.edit;reviewPage(bank)});
+  if($('e-save'))$('e-save').onclick=async()=>{const nq=readEditor(P[editIdx]);if(!nq){toast('有欄位不完整：題目、答案都要有，選擇題至少兩個選項');return}P[editIdx]=nq;editIdx=-1;await bsSave(bank);reviewPage(bank)};
+  if($('e-cancel'))$('e-cancel').onclick=()=>{editIdx=-1;reviewPage(bank)};
+  if($('clrsk'))$('clrsk').onclick=async()=>{bank.skipped=[];await bsSave(bank);reviewPage(bank)};
+}
+
+/* --- 頁面：題目清單與紀錄 --- */
+function listPage(bank){
+  const r=bank.rec;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
+   <h1 style="font-size:1.8rem">題目清單</h1>
+   <p class="lead" style="font-size:1rem">依觀念分組；右邊是作答紀錄。</p>
+   ${bank.concepts.map(con=>{const qs=bank.questions.filter(q=>q.c===con.id);if(!qs.length)return '';
+     return `<section class="card"><p style="margin:0;font-size:1.1rem">📌 ${esc(con.text)}</p><ul class="list">${qs.map(q=>`<li><span>${qView(q)}</span>
+       <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><span class="cnt">${r[q.id]?(r[q.id].wrong?`錯 ${r[q.id].wrong} / ${r[q.id].seen} 次`:`<span style="color:var(--leaf)">對 ${r[q.id].seen} 次</span>`):'<span style="color:var(--muted)">還沒練</span>'}</span>
+       <button class="iconbtn" data-qdel="${esc(q.id)}" aria-label="刪除">🗑</button></span></li>`).join('')}</ul></section>`}).join('')}
+   ${bank.questions.length?'':'<p class="lead">還沒有題目。</p>'}
+   ${Object.keys(r).length?'<button class="ghost" id="clr">清除這個題庫的作答紀錄</button>':''}`;
+  document.getElementById('bk').onclick=()=>bankHome(bank);
+  app.querySelectorAll('[data-qdel]').forEach(b=>b.onclick=async()=>{if(!await confirmBox('確定要刪除這題嗎？'))return;bank.questions=bank.questions.filter(q=>q.id!==b.dataset.qdel);await bsSave(bank);listPage(bank)});
+  const c=document.getElementById('clr'); if(c)c.onclick=async()=>{if(await confirmBox('確定要清除作答紀錄嗎？')){bank.rec={};await bsSave(bank);listPage(bank)}};
+}
+
+/* --- 匯出／匯入 --- */
+const DL={save:async({filename,data})=>{
+  const blob=data instanceof Blob?data:new Blob([data],{type:filename.endsWith('.csv')?'text/csv;charset=utf-8':'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);return {}}};
+const safeName=s=>String(s).replace(/[\\/:*?"<>|]/g,'').slice(0,60)||'題庫';
+function exportPage(bank){
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
+   <h1 style="font-size:1.8rem">匯出題庫</h1>
+   <section class="card">
+     <p style="margin:0;font-size:1.15rem">📦 題庫檔（.json）</p>
+     <p class="lead" style="font-size:1rem">傳給用同一個版本的親友，他們在「自訂題庫 → 匯入題庫檔」就能直接使用，不用再花額度產生。只包含已確認的題目，不含作答紀錄。</p>
+     <button class="big" id="xj" style="margin-top:8px">下載題庫檔</button>
+   </section>
+   <section class="card">
+     <p style="margin:0;font-size:1.15rem">📊 表格（.csv）</p>
+     <p class="lead" style="font-size:1rem">可以用 Excel 或 Google 試算表打開，方便查看、列印或備份。</p>
+     <button class="ghost" id="xc">下載表格</button>
+   </section>
+   <p class="lead" id="xmsg"></p>`;
+  document.getElementById('bk').onclick=()=>bankHome(bank);
+  const msg=t=>{document.getElementById('xmsg').textContent=t};
+  const save=async(filename,data)=>{
+    if(DL===undefined){msg('正在準備下載功能，請再按一次。');return}
+    if(!DL){msg('這個畫面不能下載檔案，請改用 Claude app 或電腦開啟。');return}
+    try{await DL.save({filename,data});msg('已下載。')}
+    catch(e){msg(e&&e.code==='declined'?'已取消下載。':e&&e.code==='rate_limited'?'請稍等一下再按。':'這個畫面不能下載檔案，請改用 Claude app 或電腦開啟。')}
+  };
+  const name=safeName(bank.title||bankInfo(bank));
+  document.getElementById('xj').onclick=()=>{
+    const {id,rec,pending,skipped,...meta}=bank;
+    save(name+'.json',JSON.stringify({format:'family-quiz-bank',version:1,exportedAt:new Date().toISOString(),bank:{...meta,questions:bank.questions}},null,1));
+  };
+  document.getElementById('xc').onclick=()=>{
+    const cell=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+    const conText=c=>(bank.concepts.find(x=>x.id===c)||{}).text||'';
+    const rows=[['觀念','題型','難度','題目','選項1','選項2','選項3','選項4','答案','解說','來源','作答次數','答錯次數']]
+      .concat(bank.questions.map(q=>{const o=q.o||[];const r=bank.rec[q.id]||{};return [conText(q.c),q.t==='tf'?'是非':'選擇',LV[q.lv],q.q,o[0],o[1],o[2],o[3],ansStr(q),q.why,q.src,r.seen||0,r.wrong||0]}));
+    save(name+'.csv','\uFEFF'+rows.map(r=>r.map(cell).join(',')).join('\r\n'));
+  };
+}
+function importBank(file){
+  if(!file)return;
+  const r=new FileReader();
+  r.onload=async()=>{
+    try{
+      const j=JSON.parse(String(r.result));
+      if(!j||j.format!=='family-quiz-bank'||!j.bank)throw 0;
+      const src=j.bank;
+      const nb=fixBank({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),createdAt:Date.now(),
+        grade:String(src.grade||''),term:String(src.term||''),subject:String(src.subject||''),publisher:String(src.publisher||''),unit:String(src.unit||''),title:String(src.title||'')});
+      nb.concepts=(Array.isArray(src.concepts)?src.concepts:[]).map(c=>({id:String(c.id||''),text:String(c.text||'').slice(0,120)})).filter(c=>c.id&&c.text&&/^[\w.~:@+-]+$/.test(c.id));
+      const ids=new Set(nb.concepts.map(c=>c.id));
+      nb.questions=(Array.isArray(src.questions)?src.questions:[]).map(q=>{const n=normQ(q,ids);return n?{...n,id:newId(nb,'q')}:null}).filter(Boolean);
+      if(!nb.questions.length)throw 0;
+      BANKS.unshift(nb); await bsSave(nb);
+      toast(`已匯入 ${nb.questions.length} 題`); bankHome(nb);
+    }catch(e){toast('這個檔案不是可以匯入的題庫檔')}
+  };
+  r.readAsText(file);
+}
+
+/* --- 重新整理後回到原本的頁面 --- */
+(async()=>{
+  const r=store.get('resume',null); store.set('resume',null);
+  if(r&&Date.now()-r.t<120000){
+    if(r.p==='plantai'){aiState.phase='idle';aiPage();return}
+    if(r.b){
+      app.innerHTML='<p class="lead">載入中……</p>';
+      await bsLoad();
+      const b=BANKS.find(x=>x.id===r.b);
+      if(b){(r.p==='gen'?genPage:uploadPage)(b);return}
+    }
+  }
+  home();
+})();
+</script>
+</body>
+</html>
