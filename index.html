@@ -507,7 +507,7 @@ function home(){
   const counts={all:practice().length};Object.keys(UNITS).forEach(k=>counts[k]=practice().filter(q=>q.u===k).length);
   const wc=wrongConcepts();
   app.innerHTML=`
-   <div class="toprow" style="justify-content:flex-end"><button class="iconbtn beta-btn" id="beta">🧪 自訂題庫 <span class="tag" style="background:var(--sun-soft)">Beta</span></button></div>
+   <div class="toprow" style="justify-content:flex-end"><button class="iconbtn beta-btn" id="beta">📚 回題庫書架</button></div>
    <div class="hero">${svg(100,100,`<line x1="50" y1="95" x2="50" y2="40" stroke="${C.soil}" stroke-width="5"/>${leafAt(50,70,34,13,-55)}${leafAt(50,55,34,13,55)}${[0,72,144,216,288].map(a=>`<ellipse cx="50" cy="22" rx="8" ry="13" fill="${C.pink}" transform="rotate(${a} 50 34)"/>`).join('')}<circle cx="50" cy="34" r="6" fill="${C.sun}"/>`)}
    <div><h1>植物小學堂</h1><p class="lead">三年級上學期自然・植物單元<br>答錯的觀念，過幾題會換個問法再考你。</p></div></div>
    <div class="section-title">要練哪一個單元？</div>
@@ -527,7 +527,7 @@ function home(){
   // 常錯觀念：每個觀念出一題，優先用這個孩子還沒練過的問法
   if(gw)gw.onclick=()=>start(buildWeakRound(shuffle(wc.slice(0,10)),ALL,rec));
   document.getElementById('gp').onclick=parent;
-  document.getElementById('beta').onclick=()=>betaHome();
+  document.getElementById('beta').onclick=()=>libHome();
   document.getElementById('gai').onclick=()=>{aiState.phase='idle';aiState.msg='';aiPage()};
   window.scrollTo(0,0);
 }
@@ -791,7 +791,7 @@ async function familyPage(back){
     const old=FAMILY; FAMILY={code,name:''};
     try{
       const j=await api('ping');
-      FAMILY={code,name:j.family||code,remaining:j.remaining};store.set('family',{code,name:FAMILY.name});
+      FAMILY={code,name:j.family||code,remaining:j.remaining,canPublish:!!j.canPublish};store.set('family',{code,name:FAMILY.name,canPublish:FAMILY.canPublish});
       SAMPLE=makeSample();SAMPLE_WHY='';aiState.blocked=false;BS.mode='cloud';BS.note='';
       $('fmsg').textContent=`✅ 驗證成功：${FAMILY.name}（今天還可以使用 AI ${j.remaining} 次）`;
     }catch(e){
@@ -974,6 +974,7 @@ function fixBank(b){b.concepts=b.concepts||[];b.questions=b.questions||[];b.pend
 
 const saving={};
 function bsSave(bank,keepTime){
+  if(bank.__lib){libSaveLocal(bank);return Promise.resolve()}
   if(!keepTime)bank.updatedAt=Date.now();
   localPut(bank);
   if(BS.mode!=='cloud')return Promise.resolve();
@@ -1001,7 +1002,7 @@ async function bsDelete(bank){
   if(BS.mode==='cloud'){try{await api('deleteBank',{id:bank.id})}catch(e){}}
 }
 const recTimers={};
-function scheduleSave(bank){clearTimeout(recTimers[bank.id]);recTimers[bank.id]=setTimeout(()=>bsSave(bank),6000)}
+function scheduleSave(bank){if(bank.__lib){libSaveLocal(bank);return}clearTimeout(recTimers[bank.id]);recTimers[bank.id]=setTimeout(()=>bsSave(bank),6000)}
 
 let toastTimer;
 function toast(msg){
@@ -1146,13 +1147,13 @@ const bindReload=(page,bank)=>bindFamilyBtn(()=>page==='gen'?genPage(bank):uploa
 /* --- 頁面：題庫列表 --- */
 async function betaHome(){
   if('speechSynthesis' in window)speechSynthesis.cancel();
-  app.innerHTML=`<div class="toprow"><button class="iconbtn" id="hm">🌱 回植物小學堂</button></div><h1 style="font-size:1.9rem">自訂題庫 <span class="tag" style="background:var(--sun-soft);vertical-align:middle">Beta</span></h1><p class="lead">載入中……</p>`;
-  document.getElementById('hm').onclick=home;
+  app.innerHTML=`<div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div><h1 style="font-size:1.9rem">我的題庫</h1><p class="lead">載入中……</p>`;
+  document.getElementById('hm').onclick=libHome;
   await bsLoad();
   const where=BS.mode==='cloud'?`☁️ 題庫存在雲端（${esc(FAMILY.name||FAMILY.code)}），換裝置輸入同一組家庭邀請碼就看得到。`:'📱 題庫存在這台裝置。輸入家庭邀請碼後，才能用 AI 產生題目、存到雲端。';
   app.innerHTML=`
-   <div class="toprow"><button class="iconbtn" id="hm">🌱 回植物小學堂</button></div>
-   <h1 style="font-size:1.9rem">自訂題庫 <span class="tag" style="background:var(--sun-soft);vertical-align:middle">Beta</span></h1>
+   <div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div>
+   <h1 style="font-size:1.9rem">我的題庫</h1>
    <p class="lead">上傳孩子的講義、考卷照片或解題字幕，AI 會整理成點選作答的練習題。大人確認過的題目才會給孩子練習。</p>
    <p class="lead" style="font-size:1rem">${where}${BS.note?'<br>'+esc(BS.note):''}</p>
    ${BANKS.length?BANKS.map(b=>`<button class="bankcard" data-b="${esc(b.id)}">
@@ -1162,9 +1163,11 @@ async function betaHome(){
      :'<div class="card"><p class="lead" style="margin:0">還沒有自訂題庫，先建立一個吧！</p></div>'}
    <button class="big" id="new">＋ 建立新題庫</button>
    <button class="ghost" id="imp">📥 匯入題庫檔（親友分享的 .json）</button>
+   ${FAMILY.code?'<button class="ghost" id="rdr">👥 親友閱讀碼（產生與管理）</button>':''}
    <button class="ghost" id="fam">⚙️ 家庭設定（邀請碼）</button>
    <input type="file" id="impf" accept=".json,application/json" hidden>`;
-  document.getElementById('hm').onclick=home;
+  document.getElementById('hm').onclick=libHome;
+  if(document.getElementById('rdr'))document.getElementById('rdr').onclick=readerAdminPage;
   document.getElementById('new').onclick=()=>bankForm(null);
   document.getElementById('fam').onclick=()=>familyPage(betaHome);
   app.querySelectorAll('[data-b]').forEach(el=>el.onclick=()=>bankHome(BANKS.find(b=>b.id===el.dataset.b)));
@@ -1230,6 +1233,7 @@ function bankHome(bank){
      <button class="ghost" id="an" ${n?'':'disabled'}>📊 學習分析</button>
      <button class="ghost" id="det" ${needDetail(bank).length?'':'disabled'}>📝 補上詳細解題${needDetail(bank).length?`（${needDetail(bank).length} 題還沒有）`:'（都已完成）'}</button>
      <button class="ghost" id="ls">📋 題目清單與作答紀錄（${n}）</button>
+     ${FAMILY.canPublish?`<button class="ghost" id="pub">${bank.published?'🌐 已公開到題庫書架（按此取消公開）':'🌐 公開到題庫書架'}</button>`:''}
      <button class="ghost" id="ex">📤 匯出（分享給親友或備份）</button>
      <button class="ghost" id="del" style="color:var(--coral)">🗑 刪除這個題庫</button>
    </section>`;
@@ -1242,6 +1246,7 @@ function bankHome(bank){
   if($('weak'))$('weak').onclick=()=>startWeak(bank);
   $('up').onclick=()=>uploadPage(bank); $('gen').onclick=()=>genPage(bank);
   $('an').onclick=()=>{sumState.msg='';analysisPage(bank)}; $('det').onclick=()=>{detState.msg='';detailPage(bank)};
+  if($('pub'))$('pub').onclick=()=>togglePublish(bank);
   $('rv').onclick=()=>reviewPage(bank); $('ls').onclick=()=>listPage(bank); $('ex').onclick=()=>exportPage(bank);
   $('del').onclick=async()=>{if(await confirmBox('確定要刪除「'+(bank.title||bankInfo(bank))+'」嗎？題目和作答紀錄都會刪除。')){await bsDelete(bank);betaHome()}};
   window.scrollTo(0,0);
@@ -1256,7 +1261,7 @@ function bankCtx(bank){return {
   rec:()=>bank.rec,
   pic:q=>{const con=(bank.concepts.find(x=>x.id===q.c)||{}).text;
     return (q.icon||con)?`<div class="bpic">${q.icon?`<div class="bicon">${esc(q.icon)}</div>`:''}${con?`<p>📌 觀念：${esc(con)}</p>`:''}</div>`:''},
-  home:()=>{bsSave(bank);bankHome(bank)},
+  home:()=>{bsSave(bank);bank.__lib?libBankHome(bank):bankHome(bank)},
   restart:()=>startBank(bank),
 }}
 // 常錯的觀念：該觀念所有題目累計答錯次數，多的排前面
@@ -1706,10 +1711,11 @@ function analysisPage(bank){
      <p class="lead" style="font-size:1rem;margin:12px 0 0">觀念：<span style="color:var(--leaf)">已熟練 ${cnt('已熟練')}</span>・<span style="color:var(--sun)">練習中 ${cnt('練習中')}</span>・<span style="color:var(--coral)">需要加強 ${cnt('需要加強')}</span>・還沒練 ${cnt('還沒練')}</p>
    </section>
 
+   ${bank.__lib&&!hasBackend()?'':`
    <section class="card"><p style="margin:0;font-size:1.15rem">🤖 給家長的學習摘要</p>
      <div id="sum-box">${bank.summary?`<p class="fb-why" style="margin-top:10px;white-space:pre-wrap">${esc(bank.summary.text)}</p><p class="lead" style="font-size:.9rem;margin:6px 0 0">產生時間：${esc(new Date(bank.summary.at).toLocaleString())}</p>`:'<p class="lead" style="font-size:1rem;margin:8px 0 0">依照下面的統計，請 AI 寫一段重點摘要和練習建議。</p>'}</div>
      <div id="sum-act"></div>
-   </section>
+   </section>`}
 
    <section class="card"><p style="margin:0;font-size:1.15rem">最近 14 天</p>
      <div class="daychart">${st.days.map(d=>`<div class="day" title="${d.k}：作答 ${d.s} 次，答對率 ${pct(d.s?(d.s-d.w)/d.s:null)}"><span class="col" style="height:${Math.round(d.s/maxDay*100)}%;background:${!d.s?'transparent':(d.s-d.w)/d.s>=.8?'var(--leaf)':(d.s-d.w)/d.s>=.6?'var(--sun)':'var(--coral)'}"></span><small>${d.label}</small></div>`).join('')}</div>
@@ -1728,7 +1734,7 @@ function analysisPage(bank){
      <ul class="list">${st.wrongQs.map(q=>`<li><span>${esc(q.q)}<br><small style="color:var(--muted)">答案：${esc(ansStr(q))}</small></span><span class="cnt">錯 ${bank.rec[q.id].wrong} / ${bank.rec[q.id].seen} 次</span></li>`).join('')}</ul>
      <button class="ghost" id="weak2">🌱 練常錯的觀念</button></section>`:''}`}`;
   const $=id=>document.getElementById(id);
-  $('bk').onclick=()=>{if(sumState.ctl)sumState.ctl.abort();bankHome(bank)};
+  $('bk').onclick=()=>{if(sumState.ctl)sumState.ctl.abort();bank.__lib?libBankHome(bank):bankHome(bank)};
   if($('weak2'))$('weak2').onclick=()=>startWeak(bank);
   const act=$('sum-act'); if(!act)return;
   if(sampleBlocked()){act.innerHTML=aiUnavailableHTML();bindFamilyBtn(()=>analysisPage(bank));return}
@@ -1769,6 +1775,168 @@ ${lines}`,{signal:sumState.ctl.signal,modelTier:'quick'});
   analysisPage(bank);
 }
 
+/* ===== 題庫書架：有閱讀碼或邀請碼就能練習公開題庫，作答紀錄只存在這台裝置 ===== */
+let READER=store.get('reader',{code:'',name:''});
+const libCode=()=>READER.code||FAMILY.code;
+let LIB=null;              // 公開題庫清單
+let LIBERR='';
+const LIBBANKS={};         // 已下載的公開題庫
+let libFilter={g:'',s:'',p:''};
+
+async function libApi(action,data){
+  if(!CONFIG.API_URL)throw {code:'not_configured'};
+  let res;
+  try{res=await fetch(CONFIG.API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,code:libCode(),...(data||{})}),redirect:'follow'})}
+  catch(e){throw {code:'network'}}
+  const j=await res.json().catch(()=>({ok:false,code:'server_error'}));
+  if(!j.ok)throw {code:j.code||'server_error',message:j.message||''};
+  return j;
+}
+const libLocalKey=id=>'lib-rec:'+id;
+function libLoadLocal(b){const x=store.get(libLocalKey(b.id),{rec:{},days:{},summary:null});b.rec=x.rec||{};b.days=x.days||{};b.summary=x.summary||null;return b}
+function libSaveLocal(b){store.set(libLocalKey(b.id),{rec:b.rec,days:b.days,summary:b.summary})}
+const gradeTag=b=>(b.grade||'').replace('年級','')+(b.term||'');
+const PLANT_CARD={id:'__plant',title:'植物小學堂',grade:'三年級',term:'上',subject:'自然',publisher:'安親班',unit:'植物',count:Q.length,builtin:true};
+
+async function libHome(){
+  CTX=PLANT_CTX;
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  if(libCode()&&!LIB&&!LIBERR){
+    app.innerHTML='<h1 style="font-size:1.9rem">📚 題庫書架</h1><p class="lead">載入中……</p>';
+    try{LIB=(await libApi('libList')).banks||[]}
+    catch(e){LIBERR=e.code==='bad_code'?'閱讀碼不正確或已停用，請重新輸入。':'目前連不上題庫，請稍後再試。';if(e.code==='bad_code'&&READER.code){READER={code:'',name:''};store.set('reader',READER)}}
+  }
+  const items=[PLANT_CARD].concat(LIB||[]);
+  const uniq=f=>[...new Set(items.map(f).filter(Boolean))];
+  const chipRow=(key,label,vals)=>vals.length>1?`<div class="section-title">${label}</div><div class="chips">${['',...vals].map(v=>`<button class="chip" data-f="${key}" data-v="${esc(v)}" aria-pressed="${libFilter[key]===v}">${v?esc(v):'全部'}</button>`).join('')}</div>`:'';
+  const shown=items.filter(b=>(!libFilter.g||gradeTag(b)===libFilter.g)&&(!libFilter.s||b.subject===libFilter.s)&&(!libFilter.p||b.publisher===libFilter.p));
+  app.innerHTML=`
+   <div class="toprow" style="justify-content:flex-end;gap:8px;flex-wrap:wrap">
+     <button class="iconbtn" id="codes">🔑 ${READER.code?'閱讀碼：'+esc(READER.code):FAMILY.code?'使用邀請碼':'輸入閱讀碼'}</button>
+     <button class="iconbtn beta-btn" id="mine">🧪 我的題庫 <span class="tag" style="background:var(--sun-soft)">邀請碼</span></button>
+   </div>
+   <h1 style="font-size:2rem">📚 題庫書架</h1>
+   <p class="lead">選一本題庫開始練習。作答紀錄只存在這台裝置。</p>
+   ${!libCode()?`<section class="card form"><p style="margin:0;font-size:1.15rem">🔑 輸入親友閱讀碼，就能看到更多題庫</p>
+       <label><input id="rc" autocomplete="off" autocapitalize="characters" placeholder="請輸入親友給你的閱讀碼"></label>
+       <button class="big" id="rcgo" style="margin-top:10px">確認</button><p class="lead" id="rcmsg" style="margin:8px 0 0"></p></section>`:''}
+   ${LIBERR?`<p class="lead" style="color:var(--coral)">${esc(LIBERR)}</p>`:''}
+   ${chipRow('g','年級',uniq(gradeTag))}${chipRow('s','科目',uniq(b=>b.subject))}${chipRow('p','版本',uniq(b=>b.publisher))}
+   <div style="margin-top:8px">${shown.map(b=>`<button class="bankcard" data-lib="${esc(b.id)}">
+      <span class="bk-title">${esc(b.title||bankInfo(b))}${b.builtin?' <span class="tag">內建</span>':''}</span>
+      <span class="bk-meta">${[gradeTag(b),b.subject,b.publisher,b.unit].filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')}</span>
+      <span class="bk-meta">${b.count||0} 題</span></button>`).join('')||'<p class="lead">沒有符合的題庫。</p>'}</div>`;
+  const $=id=>document.getElementById(id);
+  $('mine').onclick=()=>betaHome();
+  $('codes').onclick=()=>codePage();
+  app.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{libFilter[b.dataset.f]=b.dataset.v;libHome()});
+  app.querySelectorAll('[data-lib]').forEach(b=>b.onclick=()=>b.dataset.lib==='__plant'?home():openLib(b.dataset.lib));
+  if($('rcgo'))$('rcgo').onclick=()=>verifyReader($('rc').value.trim(),$('rcmsg'));
+  window.scrollTo(0,0);
+}
+async function verifyReader(code,msgEl){
+  if(!code){msgEl.textContent='請輸入閱讀碼';return}
+  msgEl.textContent='確認中……';
+  const old=READER;READER={code,name:''};
+  try{LIB=(await libApi('libList')).banks||[];LIBERR='';store.set('reader',READER);libHome()}
+  catch(e){READER=old;msgEl.textContent=e.code==='bad_code'?'❌ 閱讀碼不正確或已停用':e.code==='not_configured'?'❌ 網站尚未設定後端網址':'❌ 連不上後端，請稍後再試'}
+}
+function codePage(){
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← 題庫書架</button></div>
+   <h1 style="font-size:1.8rem">🔑 代碼設定</h1>
+   <section class="card form"><p style="margin:0;font-size:1.15rem">親友閱讀碼</p>
+     <p class="lead" style="font-size:1rem;margin:6px 0 0">有閱讀碼就能練習題庫書架上的題庫，不能使用 AI。</p>
+     <label><input id="rc" value="${esc(READER.code)}" autocomplete="off" autocapitalize="characters" placeholder="請輸入親友給你的閱讀碼"></label>
+     <button class="big" id="rcgo" style="margin-top:10px">確認閱讀碼</button>
+     ${READER.code?'<button class="ghost" id="rcclr">清除閱讀碼</button>':''}
+     <p class="lead" id="rcmsg" style="margin:8px 0 0"></p></section>
+   <section class="card"><p style="margin:0;font-size:1.15rem">家庭邀請碼</p>
+     <p class="lead" style="font-size:1rem;margin:6px 0 0">有邀請碼可以用 AI 建立自己的題庫、產生親友閱讀碼。${FAMILY.code?`目前使用：${esc(FAMILY.name||FAMILY.code)}`:''}</p>
+     <button class="ghost" id="fam">⚙️ ${FAMILY.code?'變更':'輸入'}家庭邀請碼</button></section>`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=()=>libHome();
+  $('rcgo').onclick=()=>verifyReader($('rc').value.trim(),$('rcmsg'));
+  if($('rcclr'))$('rcclr').onclick=()=>{READER={code:'',name:''};store.set('reader',READER);LIB=null;LIBERR='';codePage()};
+  $('fam').onclick=()=>familyPage(()=>{LIB=null;LIBERR='';codePage()});
+}
+async function openLib(id){
+  let b=LIBBANKS[id];
+  if(!b){
+    app.innerHTML='<p class="lead">載入題庫中……</p>';
+    try{const j=await libApi('libGet',{id});b=fixBank({...j.bank,__lib:true});libLoadLocal(b);LIBBANKS[id]=b}
+    catch(e){toast(e.code==='not_found'?'這本題庫已經不公開了':'載入失敗，請稍後再試');LIB=null;return libHome()}
+  }
+  libBankHome(b);
+}
+function libBankHome(bank){
+  CTX=PLANT_CTX;
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  const n=bank.questions.length,lvCount=l=>bank.questions.filter(q=>!l||q.lv===l).length,weak=weakConcepts(bank).length;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← 題庫書架</button></div>
+   <h1 style="font-size:1.8rem">${esc(bank.title||bankInfo(bank))}</h1>
+   <p class="lead">${[gradeTag(bank),bank.subject,bank.publisher,bank.unit].filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')}　${n} 題・${bank.concepts.length} 個觀念</p>
+   <section class="card">
+     <p style="margin:0;font-size:1.2rem">▶ 開始練習</p>
+     <div class="section-title">難度</div>
+     <div class="chips">${[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${bprefs.lv===l}" ${lvCount(l)?'':'disabled'}>${t}<small>${lvCount(l)}題</small></button>`).join('')}</div>
+     <div class="section-title">題數</div>
+     <div class="chips">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,t])=>`<button class="chip" data-cn="${v}" aria-pressed="${bprefs.count===v}">${t}</button>`).join('')}</div>
+     <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目和解說</label>
+     <button class="big" id="go">開始練習</button>
+     ${weak?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weak} 個）</button>`:''}
+     <button class="ghost" id="an">📊 學習分析（這台裝置的紀錄）</button>
+   </section>`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=()=>libHome();
+  app.querySelectorAll('[data-lv]').forEach(b=>b.onclick=()=>{bprefs.lv=+b.dataset.lv;store.set('custom-prefs',bprefs);libBankHome(bank)});
+  app.querySelectorAll('[data-cn]').forEach(b=>b.onclick=()=>{bprefs.count=+b.dataset.cn;store.set('custom-prefs',bprefs);libBankHome(bank)});
+  $('ar').onchange=e=>{prefs.autoRead=e.target.checked;store.set('g3plants-prefs',prefs)};
+  $('go').onclick=()=>startBank(bank);
+  if($('weak'))$('weak').onclick=()=>startWeak(bank);
+  $('an').onclick=()=>{sumState.msg='';analysisPage(bank)};
+  window.scrollTo(0,0);
+}
+
+/* --- 親友閱讀碼管理（有邀請碼的人使用） --- */
+async function readerAdminPage(){
+  app.innerHTML='<p class="lead">載入中……</p>';
+  let list=[],limit=2,err='';
+  try{const j=await api('readerList');list=j.readers||[];limit=j.limit||2}catch(e){err=AI_ERR[e.code]||'載入失敗'}
+  const active=list.filter(r=>r.enabled).length;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← 我的題庫</button></div>
+   <h1 style="font-size:1.8rem">👥 親友閱讀碼</h1>
+   <p class="lead">把閱讀碼給親友，他們就能練習題庫書架上的題庫，不能使用 AI，也不會產生費用。每個家庭最多 ${limit} 組有效的閱讀碼。</p>
+   ${err?`<p class="lead" style="color:var(--coral)">${esc(err)}</p>`:''}
+   <section class="card form">
+     <label>給誰用（備註） <input id="rn" placeholder="例如：表姊家"></label>
+     <button class="big" id="rnew" ${active>=limit?'disabled':''} style="margin-top:10px">${active>=limit?`已達上限（${limit} 組）`:'產生新的閱讀碼'}</button>
+     <p class="lead" id="rmsg" style="margin:8px 0 0"></p>
+   </section>
+   <ul class="list">${list.map(r=>`<li><span><b style="font-size:1.3rem;letter-spacing:.05em">${esc(r.code)}</b> ${r.enabled?'':'<span class="tag warn">已停用</span>'}<br>
+     <small style="color:var(--muted)">${esc(r.note||'')}　建立：${esc(r.created||'')}　使用 ${r.uses||0} 次${r.lastUsed?'，最後：'+esc(r.lastUsed):''}</small></span>
+     ${r.enabled?`<button class="iconbtn" data-off="${esc(r.code)}">停用</button>`:''}</li>`).join('')}</ul>`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=()=>betaHome();
+  $('rnew').onclick=async()=>{$('rmsg').textContent='產生中……';
+    try{const j=await api('readerCreate',{note:$('rn').value.trim().slice(0,40)});toast('已產生閱讀碼 '+j.reader);readerAdminPage()}
+    catch(e){$('rmsg').textContent=e.code==='reader_limit'?'已達上限，請先停用一組舊的閱讀碼。':(AI_ERR[e.code]||'產生失敗')}};
+  app.querySelectorAll('[data-off]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmBox(`停用閱讀碼 ${b.dataset.off}？使用這組碼的親友將無法再看到題庫書架。`,'停用'))return;
+    try{await api('readerDisable',{reader:b.dataset.off});readerAdminPage()}catch(e){toast('停用失敗')}});
+}
+
+/* --- 公開到題庫書架（家庭工作表「可發布」為 TRUE 才能使用） --- */
+async function togglePublish(bank){
+  const to=!bank.published;
+  if(to&&!bank.questions.length){toast('題庫還沒有題目');return}
+  if(!await confirmBox(to?'公開後，有閱讀碼或邀請碼的人都能練習這本題庫（看不到你的作答紀錄和待確認題目）。確定公開？':'取消公開後，這本題庫會從題庫書架移除。確定取消？',to?'公開':'取消公開'))return;
+  try{await bsSave(bank);await api('setPublish',{id:bank.id,published:to});bank.published=to;await bsSave(bank);LIB=null;toast(to?'已公開到題庫書架':'已取消公開');bankHome(bank)}
+  catch(e){toast(e.code==='no_permission'?'這個家庭沒有發布權限':'設定失敗，請稍後再試')}
+}
+
 /* --- 重新整理後回到原本的頁面 --- */
 (async()=>{
   const r=store.get('resume',null); store.set('resume',null);
@@ -1781,7 +1949,7 @@ ${lines}`,{signal:sumState.ctl.signal,modelTier:'quick'});
       if(b){(r.p==='gen'?genPage:uploadPage)(b);return}
     }
   }
-  home();
+  libHome();
 })();
 </script>
 </body>
