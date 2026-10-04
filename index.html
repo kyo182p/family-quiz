@@ -439,7 +439,9 @@ const store={
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 };
 let rec=store.get('g3plants-rec',{});
-let prefs=store.get('g3plants-prefs',{autoRead:true,unit:'all',count:10});
+let prefs=store.get('g3plants-prefs',{autoRead:false,unit:'all',count:10});
+// 舊版預設自動朗讀全部開啟，這版改為預設關閉、由每題自己選擇
+if(prefs.v!==2){prefs.autoRead=false;prefs.v=2;store.set('g3plants-prefs',prefs)}
 function bump(id,correct){const r=rec[id]||{seen:0,wrong:0};r.seen++;if(!correct)r.wrong++;rec[id]=r;store.set('g3plants-rec',rec)}
 
 /* ===== 聲音 ===== */
@@ -527,7 +529,7 @@ function home(){
    <div class="chips" id="units">${[['all','全部'],...Object.entries(UNITS)].map(([k,n])=>`<button class="chip" data-u="${k}" aria-pressed="${prefs.unit===k}">${n}<small>${counts[k]}題</small></button>`).join('')}</div>
    <div class="section-title">這次要做幾題？</div>
    <div class="chips" id="cnt">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,n])=>`<button class="chip" data-c="${v}" aria-pressed="${prefs.count===v}">${n}</button>`).join('')}</div>
-   <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目和解說</label>
+   <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
    <button class="big" id="go">開始練習</button>
    ${wc.length?`<button class="ghost" id="gw">🌱 練常錯的觀念（${wc.length} 個）</button>`:''}
    <button class="ghost" id="gp">📒 學習紀錄（給爸爸媽媽看）</button>
@@ -588,7 +590,7 @@ function ask(){
   S.cur={...item,opts};
   const mainDone=S.leaves.length;
   app.innerHTML=`
-   <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button><span class="counter">${rv?'🔁 複習剛剛錯的觀念':`第 ${Math.min(mainDone+1,S.total)} / ${S.total} 題`}</span></div>
+   <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button><button class="iconbtn" id="arq" aria-pressed="${prefs.autoRead}">${prefs.autoRead?'🔊 自動念：開':'🔇 自動念：關'}</button><span class="counter">${rv?'🔁 複習剛剛錯的觀念':`第 ${Math.min(mainDone+1,S.total)} / ${S.total} 題`}</span></div>
    ${vine()}
    <section class="card pop">
      <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
@@ -602,6 +604,7 @@ function ask(){
   S.justAdded=false;
   document.getElementById('hm').onclick=()=>CTX.home();
   document.getElementById('sp').onclick=()=>readQuestion(q,opts||[]);
+  document.getElementById('arq').onclick=e=>{prefs.autoRead=!prefs.autoRead;store.set('g3plants-prefs',prefs);e.currentTarget.textContent=prefs.autoRead?'🔊 自動念：開':'🔇 自動念：關';e.currentTarget.setAttribute('aria-pressed',prefs.autoRead);if(prefs.autoRead)readQuestion(q,opts||[]);else if('speechSynthesis' in window)speechSynthesis.cancel()};
   app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>answer(b));
   if(prefs.autoRead)setTimeout(()=>speak((rv?'複習題。':'')+(q.t==='tf'?q.q+'。對，還是錯？':q.q+'。'+opts.map((o,i)=>NUMS[i]+'，'+o).join('。'))),250);
   window.scrollTo(0,0);
@@ -632,15 +635,13 @@ function answer(btn){
      ${q.detail?`<details class="detail" id="det"><summary>📖 看詳細解題</summary><p>${esc(q.detail)}</p><button class="iconbtn" id="det-say">🔊 念詳解</button></details>`:''}
      ${note?`<p class="fb-why" style="margin-top:8px;color:var(--muted)">${note}</p>`:''}
      ${(()=>{const ph=CTX.pic(q);return ph?`<div class="pic">${ph}</div>`:''})()}
-     <div class="footer"><button class="iconbtn" id="rw">🔊 再聽一次</button></div>
+     <div class="footer"><button class="iconbtn" id="rw">🔊 聽解說</button></div>
      <button class="big" id="nx">${last?'看結果':'下一題'}</button>
    </div>`;
   const vineEl=app.querySelector('.vine'); if(vineEl&&S.justAdded)vineEl.outerHTML=vine();
   const say=()=>speak((ok?'答對了！':'正確答案是'+ansText.replace(/[⭕❌]/g,'')+'。')+q.why+(note?note.replace('🌟',''):''));
   document.getElementById('rw').onclick=say;
   const ds=document.getElementById('det-say');if(ds)ds.onclick=()=>speak(q.detail);
-  const dt=document.getElementById('det');if(dt)dt.addEventListener('toggle',()=>{if(dt.open&&prefs.autoRead)speak(q.detail)});
-  if(prefs.autoRead)setTimeout(say,ok?450:600);
   document.getElementById('nx').onclick=()=>{S.pos++;ask()};
   fb.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -663,7 +664,6 @@ function finish(){
    ${notyet.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌱 還要再加油的觀念：</p><ul class="list">${notyet.map(li).join('')}</ul></section>`:''}
    <button class="big" id="again">${S.missed.length?'把錯的觀念再練一次':'再玩一次'}</button>
    <button class="ghost" id="hm">🏠 回首頁</button>`;
-  if(prefs.autoRead)speak('練習完成！第一次就答對'+first+'題。'+msg);
   document.getElementById('again').onclick=()=>S.missed.length
     ?start(shuffle(S.missed.map(c=>pickVariantFresh(c))))
     :CTX.restart();
@@ -1254,7 +1254,7 @@ function bankHome(bank){
      <div class="chips">${[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${bprefs.lv===l}" ${lvCount(l)?'':'disabled'}>${t}<small>${lvCount(l)}題</small></button>`).join('')}</div>
      <div class="section-title">題數</div>
      <div class="chips">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,t])=>`<button class="chip" data-cn="${v}" aria-pressed="${bprefs.count===v}">${t}</button>`).join('')}</div>
-     <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目和解說</label>
+     <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
      <button class="big" id="go">開始練習</button>
      ${weakConcepts(bank).length?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weakConcepts(bank).length} 個）</button>`:''}</section>`
     :'<div class="card"><p class="lead" style="margin:0">還沒有題目。先上傳資料，確認後就可以練習。</p></div>'}
@@ -1915,7 +1915,7 @@ function libBankHome(bank){
      <div class="chips">${[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${bprefs.lv===l}" ${lvCount(l)?'':'disabled'}>${t}<small>${lvCount(l)}題</small></button>`).join('')}</div>
      <div class="section-title">題數</div>
      <div class="chips">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,t])=>`<button class="chip" data-cn="${v}" aria-pressed="${bprefs.count===v}">${t}</button>`).join('')}</div>
-     <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目和解說</label>
+     <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
      <button class="big" id="go">開始練習</button>
      ${weak?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weak} 個）</button>`:''}
      <button class="ghost" id="an">📊 學習分析（這台裝置的紀錄）</button>
@@ -1983,7 +1983,7 @@ const TOURS={
   plant:[
     {el:'#units',title:'選單元',text:'選要練習的單元，或選「全部」。'},
     {el:'#cnt',title:'選題數',text:'這次要做幾題。答錯的觀念，過幾題會換個問法再考一次。'},
-    {el:'.toggle',title:'自動朗讀',text:'打勾後會自動念出題目和解說，適合還在認字的孩子。'},
+    {el:'.toggle',title:'自動朗讀',text:'打勾後每一題會自動念出題目，適合還在認字的孩子。解說要聽的話按喇叭。'},
     {el:'#go',title:'開始練習',text:'準備好就按這裡開始。'},
     {el:'#gw',title:'練常錯的觀念',text:'把之前答錯過的觀念挑出來，再練一次。'},
     {el:'#gp',title:'學習紀錄',text:'給爸爸媽媽看每一題的作答次數和答錯次數。'},
@@ -2028,13 +2028,14 @@ const TOURS={
   ],
   practice:[
     {el:'.vine',title:'進度藤蔓',text:'每做完一題長出一片葉子：綠色是一次答對，黃色是答錯過。全部做完會開花。'},
-    {el:'#sp',title:'念題目',text:'按喇叭可以再聽一次題目。'},
+    {el:'#arq',title:'自動念開關',text:'要不要每題自動念題目，練習中隨時可以切換。'},
+    {el:'#sp',title:'念題目',text:'按喇叭聽這一題的題目。'},
     {el:'#opts',title:'點選答案',text:'直接點答案。答完會馬上知道對不對，還有解說。'},
   ],
   feedback:[
     {el:'.fb-head',title:'馬上知道對錯',text:'答錯會顯示正確答案和原因，這個觀念過幾題會換個問法再考一次。'},
     {el:'#det',title:'看詳細解題',text:'想知道更多，點這裡看詳細解題。'},
-    {el:'#rw',title:'再聽一次',text:'再念一次解說。'},
+    {el:'#rw',title:'聽解說',text:'想聽解說就按這裡。'},
     {el:'#nx',title:'下一題',text:'看懂了就按這裡繼續。'},
   ],
   analysis:[
