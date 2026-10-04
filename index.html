@@ -143,6 +143,19 @@ h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
 .day{flex:1;min-width:26px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
 .day .col{width:70%;border-radius:4px 4px 0 0;min-height:2px}
 .day small{font-size:.75rem;color:var(--muted);margin-top:4px}
+
+.tour-block{position:fixed;inset:0;z-index:39}
+.tour-hole{position:fixed;z-index:40;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.55);outline:3px solid var(--sun);pointer-events:none;transition:left .2s,top .2s,width .2s,height .2s}
+.tour-tip{position:fixed;z-index:41;background:var(--card);color:var(--ink);border:2px solid var(--sun);border-radius:16px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.tour-step{margin:0;color:var(--muted);font-size:.9rem}
+.tour-title{margin:2px 0 6px;font-size:1.25rem}
+.tour-text{margin:0;font-size:1.08rem;line-height:1.6}
+.tour-chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:1rem;color:var(--muted)}
+.tour-chk input{width:20px;height:20px}
+.tour-btns{display:flex;gap:8px;margin-top:10px;align-items:center}
+.iconbtn.tour-next{background:var(--leaf);border-color:var(--leaf);color:#fff}
+.tour-help{position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:15;width:48px;height:48px;border-radius:50%;border:2px solid var(--line);background:var(--card);font-size:1.4rem;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+@media (prefers-reduced-motion:reduce){.tour-hole{transition:none}}
 .tipbox{margin-top:10px;background:var(--sun-soft);border-radius:14px;padding:12px 14px;font-size:1.05rem;line-height:1.6}.tipbox p{margin:2px 0}
 .bpic{text-align:center}.bicon{font-size:4rem;line-height:1.2}.bpic p{font-size:1.15rem;margin:6px 0 0;text-align:left}
 .chip:disabled{opacity:.45;cursor:default}
@@ -937,7 +950,8 @@ function confirmBox(msg,okText){return new Promise(res=>{
 /* ===== 自訂題庫（Beta） ===== */
 const LV={1:'基礎',2:'標準',3:'挑戰'};
 const GRADES=['一年級','二年級','三年級','四年級','五年級','六年級'];
-const PUBS=['翰林','康軒','南一','其他'];
+// 常見版本；欄位也可以直接輸入清單以外的名稱
+const PUBS=['翰林','康軒','南一','何嘉仁','佳音','學校自編','安親班講義','補習班講義','其他'];
 const LS_BANKS='custom-banks';
 const BS={mode:'loading',db:null,uid:null,note:''};
 let BANKS=[];               // 目前載入的題庫
@@ -1150,7 +1164,24 @@ async function betaHome(){
   app.innerHTML=`<div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div><h1 style="font-size:1.9rem">我的題庫</h1><p class="lead">載入中……</p>`;
   document.getElementById('hm').onclick=libHome;
   await bsLoad();
-  const where=BS.mode==='cloud'?`☁️ 題庫存在雲端（${esc(FAMILY.name||FAMILY.code)}），換裝置輸入同一組家庭邀請碼就看得到。`:'📱 題庫存在這台裝置。輸入家庭邀請碼後，才能用 AI 產生題目、存到雲端。';
+  // 沒有邀請碼：不能建立或匯入題庫，只提示輸入邀請碼；這台裝置上已有的舊題庫仍可練習
+  if(!FAMILY.code){
+    app.innerHTML=`
+     <div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div>
+     <h1 style="font-size:1.9rem">我的題庫</h1>
+     <section class="card"><p style="margin:0;font-size:1.2rem">🔒 需要家庭邀請碼</p>
+       <p class="lead" style="margin:8px 0 0">「我的題庫」可以上傳講義、用 AI 整理題目、產生親友閱讀碼，需要網站管理者提供的家庭邀請碼才能使用。</p>
+       <p class="lead" style="margin:8px 0 0">只想練習的話，回到題庫書架輸入親友閱讀碼即可。</p>
+       <button class="big" id="fam">⚙️ 輸入家庭邀請碼</button></section>
+     ${BANKS.length?`<p class="section-title">這台裝置上的題庫（只能練習）</p>${BANKS.map(b=>`<button class="bankcard" data-b="${esc(b.id)}">
+        <span class="bk-title">${esc(b.title||bankInfo(b)||'未命名題庫')}</span><span class="bk-meta">${b.questions.length} 題</span></button>`).join('')}`:''}`;
+    document.getElementById('hm').onclick=libHome;
+    document.getElementById('fam').onclick=()=>familyPage(betaHome);
+    app.querySelectorAll('[data-b]').forEach(el=>el.onclick=()=>{const b=BANKS.find(x=>x.id===el.dataset.b);if(b.questions.length)startBank(b);else toast('這個題庫還沒有題目')});
+    window.scrollTo(0,0);
+    return;
+  }
+  const where=`☁️ 題庫存在雲端（${esc(FAMILY.name||FAMILY.code)}），換裝置輸入同一組家庭邀請碼就看得到。`;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div>
    <h1 style="font-size:1.9rem">我的題庫</h1>
@@ -1159,15 +1190,15 @@ async function betaHome(){
    ${BANKS.length?BANKS.map(b=>`<button class="bankcard" data-b="${esc(b.id)}">
       <span class="bk-title">${esc(b.title||bankInfo(b)||'未命名題庫')}</span>
       <span class="bk-meta">${esc(bankInfo(b))}</span>
-      <span class="bk-meta">${b.questions.length} 題${b.pending.length?`・<b style="color:var(--coral)">${b.pending.length} 題待確認</b>`:''}</span></button>`).join('')
+      <span class="bk-meta">${b.questions.length} 題${b.pending.length?`・<b style="color:var(--coral)">${b.pending.length} 題待確認</b>`:''}${b.published?'・🌐 已公開':''}</span></button>`).join('')
      :'<div class="card"><p class="lead" style="margin:0">還沒有自訂題庫，先建立一個吧！</p></div>'}
    <button class="big" id="new">＋ 建立新題庫</button>
-   <button class="ghost" id="imp">📥 匯入題庫檔（親友分享的 .json）</button>
-   ${FAMILY.code?'<button class="ghost" id="rdr">👥 親友閱讀碼（產生與管理）</button>':''}
+   <button class="ghost" id="imp">📥 匯入題庫檔（.json）</button>
+   <button class="ghost" id="rdr">👥 親友閱讀碼（產生與管理）</button>
    <button class="ghost" id="fam">⚙️ 家庭設定（邀請碼）</button>
    <input type="file" id="impf" accept=".json,application/json" hidden>`;
   document.getElementById('hm').onclick=libHome;
-  if(document.getElementById('rdr'))document.getElementById('rdr').onclick=readerAdminPage;
+  document.getElementById('rdr').onclick=readerAdminPage;
   document.getElementById('new').onclick=()=>bankForm(null);
   document.getElementById('fam').onclick=()=>familyPage(betaHome);
   app.querySelectorAll('[data-b]').forEach(el=>el.onclick=()=>bankHome(BANKS.find(b=>b.id===el.dataset.b)));
@@ -1189,7 +1220,8 @@ function bankForm(bank){
      <label>學期 ${sel('f-term',['上','下'],b.term||'上')}</label>
      <label>科目 <input id="f-subject" list="subjects" value="${esc(b.subject||'')}" placeholder="例如：自然"></label>
      <datalist id="subjects"><option>國語</option><option>數學</option><option>自然</option><option>社會</option><option>英語</option><option>生活</option></datalist>
-     <label>版本 ${sel('f-pub',PUBS,b.publisher||'翰林')}</label>
+     <label>版本（可從清單選，也可以直接輸入） <input id="f-pub" list="pubs" value="${esc(b.publisher||'')}" placeholder="例如：翰林"></label>
+     <datalist id="pubs">${PUBS.map(x=>`<option>${x}</option>`).join('')}</datalist>
      <label>單元 <input id="f-unit" value="${esc(b.unit||'')}" placeholder="例如：第二單元 植物的身體"></label>
      <label>題庫名稱（可不填） <input id="f-title" value="${esc(b.title||'')}" placeholder="例如：三上自然 植物"></label>
    </div>
@@ -1796,7 +1828,7 @@ const libLocalKey=id=>'lib-rec:'+id;
 function libLoadLocal(b){const x=store.get(libLocalKey(b.id),{rec:{},days:{},summary:null});b.rec=x.rec||{};b.days=x.days||{};b.summary=x.summary||null;return b}
 function libSaveLocal(b){store.set(libLocalKey(b.id),{rec:b.rec,days:b.days,summary:b.summary})}
 const gradeTag=b=>(b.grade||'').replace('年級','')+(b.term||'');
-const PLANT_CARD={id:'__plant',title:'植物小學堂',grade:'三年級',term:'上',subject:'自然',publisher:'安親班',unit:'植物',count:Q.length,builtin:true};
+const PLANT_CARD={id:'__plant',title:'植物小學堂',grade:'三年級',term:'上',subject:'自然',publisher:'安親班講義',unit:'植物',count:Q.length,builtin:true};
 
 async function libHome(){
   CTX=PLANT_CTX;
@@ -1936,6 +1968,165 @@ async function togglePublish(bank){
   try{await bsSave(bank);await api('setPublish',{id:bank.id,published:to});bank.published=to;await bsSave(bank);LIB=null;toast(to?'已公開到題庫書架':'已取消公開');bankHome(bank)}
   catch(e){toast(e.code==='no_permission'?'這個家庭沒有發布權限':'設定失敗，請稍後再試')}
 }
+
+/* ===== 第一次使用導覽：圈出畫面上的功能並說明，勾選「不再顯示」後就不會自動跳出 ===== */
+const $q=s=>document.querySelector(s);
+const parentOf=s=>()=>{const e=$q(s);return e&&e.parentElement};
+const TOURS={
+  lib:[
+    {el:'#codes',title:'代碼設定',text:'輸入親友給你的「閱讀碼」，就能看到更多題庫。有家庭邀請碼的大人也在這裡設定。'},
+    {el:'#rc',title:'輸入閱讀碼',text:'還沒有閱讀碼的話，可以向分享網站給你的親友索取。'},
+    {el:parentOf('[data-f]'),title:'用標籤找題庫',text:'點年級、科目、版本的標籤，可以只顯示符合的題庫。'},
+    {el:'.bankcard',title:'選一本題庫開始練習',text:'點題庫卡片就能開始練習。作答紀錄只存在這台裝置。'},
+    {el:'#mine',title:'我的題庫',text:'有家庭邀請碼的大人，可以在這裡上傳講義、用 AI 建立題庫。'},
+  ],
+  plant:[
+    {el:'#units',title:'選單元',text:'選要練習的單元，或選「全部」。'},
+    {el:'#cnt',title:'選題數',text:'這次要做幾題。答錯的觀念，過幾題會換個問法再考一次。'},
+    {el:'.toggle',title:'自動朗讀',text:'打勾後會自動念出題目和解說，適合還在認字的孩子。'},
+    {el:'#go',title:'開始練習',text:'準備好就按這裡開始。'},
+    {el:'#gw',title:'練常錯的觀念',text:'把之前答錯過的觀念挑出來，再練一次。'},
+    {el:'#gp',title:'學習紀錄',text:'給爸爸媽媽看每一題的作答次數和答錯次數。'},
+    {el:'#beta',title:'回題庫書架',text:'回到首頁，選擇其他題庫。'},
+  ],
+  mine:[
+    {el:'.bankcard',title:'你的題庫',text:'點題庫卡片進入，可以練習、上傳資料、確認題目、看學習分析。'},
+    {el:'#new',title:'建立新題庫',text:'先填年級、科目、版本、單元，建立一本空的題庫，再上傳講義產生題目。'},
+    {el:'#imp',title:'匯入題庫檔',text:'把別人匯出的題庫檔（.json）加進來，不用再花 AI 費用。'},
+    {el:'#rdr',title:'親友閱讀碼',text:'產生閱讀碼給親友，他們就能練習題庫書架上的題庫。每個家庭最多 2 組。'},
+    {el:'#fam',title:'家庭設定',text:'查看或變更家庭邀請碼。'},
+  ],
+  bank:[
+    {el:parentOf('[data-lv]'),title:'選難度',text:'基礎是直接回想，標準要分辨相近的觀念，挑戰會反過來問或結合兩個觀念。'},
+    {el:'#go',title:'開始練習',text:'答錯的觀念會在後面換個問法再出現，兩次都答對才算記住。'},
+    {el:'#weak',title:'練常錯的觀念',text:'依照答錯次數，挑出常錯的觀念重新練習。'},
+    {el:'#up',title:'上傳資料產生題目',text:'拍講義、考卷照片，或貼上字幕、文字，AI 會整理成練習題。'},
+    {el:'#gen',title:'產生更多題目',text:'用已經整理好的觀念出新的問法，可以指定難度。'},
+    {el:'#det',title:'補上詳細解題',text:'AI 幫每題寫好詳解，孩子答題後可以點開看，練習時不會再花費。'},
+    {el:'#rv',title:'待確認的題目',text:'AI 整理的題目要大人看過、按「收進題庫」，才會給孩子練習。'},
+    {el:'#an',title:'學習分析',text:'看答對率、觀念掌握度、最近 14 天的練習狀況，也可以請 AI 寫學習摘要。'},
+    {el:'#pub',title:'公開到題庫書架',text:'公開後，有閱讀碼的親友也能練習這本題庫，看不到你的作答紀錄。'},
+    {el:'#ex',title:'匯出',text:'下載題庫檔分享給親友，或下載表格用 Excel、Google 試算表查看。'},
+  ],
+  upload:[
+    {el:'.pickbtn',title:'選擇照片或拍照',text:'一次可以選很多張，照片會每 2 張一批分析。照片上有答案（訂正過的考卷）最準確。'},
+    {el:'#u-text',title:'貼上文字',text:'也可以放字幕檔或直接貼文字，例如用「原況文字」拷貝的講義內容。'},
+    {el:'#u-note',title:'補充說明',text:'告訴 AI 需要注意的地方，例如答案寫在哪裡、哪幾題老師說要背。'},
+    {el:parentOf('[data-ulv]'),title:'AI 補充題的難度',text:'講義只有課文時，AI 會自己補題目，這裡決定那些題目的難度。'},
+    {el:'#u-start',title:'開始分析',text:'按下後會先提醒費用，確認後才開始。完成後會帶你到「待確認」頁。'},
+  ],
+  review:[
+    {el:'.tag.warn',title:'⚠️ 要特別檢查',text:'照片上沒有答案、由 AI 判斷的題目會標這個記號，請特別確認答案。'},
+    {el:'[data-acc]',title:'收進題庫',text:'確認題目和答案正確，按這裡才會給孩子練習。'},
+    {el:'[data-edit]',title:'修改',text:'可以修改題目、選項、正確答案、解說、詳解和難度。'},
+    {el:'#all',title:'全部收進題庫',text:'全部檢查過後，可以一次收進題庫。'},
+  ],
+  libBank:[
+    {el:parentOf('[data-lv]'),title:'選難度',text:'基礎是直接回想，標準要分辨相近的觀念，挑戰會反過來問或結合兩個觀念。'},
+    {el:'#go',title:'開始練習',text:'答錯的觀念會在後面換個問法再出現，兩次都答對才算記住。'},
+    {el:'#an',title:'學習分析',text:'看這台裝置的作答紀錄：答對率、哪些觀念需要加強。'},
+  ],
+  practice:[
+    {el:'.vine',title:'進度藤蔓',text:'每做完一題長出一片葉子：綠色是一次答對，黃色是答錯過。全部做完會開花。'},
+    {el:'#sp',title:'念題目',text:'按喇叭可以再聽一次題目。'},
+    {el:'#opts',title:'點選答案',text:'直接點答案。答完會馬上知道對不對，還有解說。'},
+  ],
+  feedback:[
+    {el:'.fb-head',title:'馬上知道對錯',text:'答錯會顯示正確答案和原因，這個觀念過幾題會換個問法再考一次。'},
+    {el:'#det',title:'看詳細解題',text:'想知道更多，點這裡看詳細解題。'},
+    {el:'#rw',title:'再聽一次',text:'再念一次解說。'},
+    {el:'#nx',title:'下一題',text:'看懂了就按這裡繼續。'},
+  ],
+  analysis:[
+    {el:'.stats',title:'總覽',text:'累計作答次數、整體答對率、練過幾題。'},
+    {el:'#sum-box',title:'學習摘要',text:'可以請 AI 根據統計寫一段給家長的重點和練習建議。'},
+    {el:'.daychart',title:'最近 14 天',text:'柱子高度是作答次數，顏色代表當天的答對率。'},
+    {el:'.srow',title:'掌握度',text:'每個觀念標示已熟練、練習中、需要加強或還沒練，需要加強的排在最前面。'},
+  ],
+};
+let tourDone=store.get('tour-done',{});
+const tourShown=new Set();   // 這次開啟網頁已經自動顯示過的導覽
+let CUR_TOUR=null;           // 目前頁面可以重看的導覽
+let tourState=null;
+
+function tourSteps(key){
+  return (TOURS[key]||[]).map(s=>({...s,node:typeof s.el==='function'?s.el():$q(s.el)}))
+    .filter(s=>s.node&&s.node.getClientRects().length);
+}
+function runTour(key,force){
+  CUR_TOUR=key;helpBtn();
+  if(!force&&(tourDone[key]||tourShown.has(key)))return;
+  setTimeout(()=>{
+    if(CUR_TOUR!==key)return;
+    const steps=tourSteps(key);if(!steps.length)return;
+    tourShown.add(key);endTour();
+    tourState={key,steps,i:0};drawTour();
+  },350);
+}
+function endTour(){
+  if(!tourState)return;
+  const chk=document.getElementById('tour-skip');
+  if(chk&&chk.checked){tourDone[tourState.key]=true;store.set('tour-done',tourDone)}
+  ['tour-block','tour-hole','tour-tip'].forEach(id=>{const e=document.getElementById(id);if(e)e.remove()});
+  window.removeEventListener('resize',placeTour);window.removeEventListener('scroll',placeTour,true);
+  tourState=null;
+}
+function drawTour(){
+  const {steps,i,key}=tourState,s=steps[i];
+  let block=document.getElementById('tour-block'),hole=document.getElementById('tour-hole'),tip=document.getElementById('tour-tip');
+  const wasChecked=tip?document.getElementById('tour-skip').checked:!!tourDone[key];
+  if(!block){
+    block=document.createElement('div');block.id='tour-block';block.className='tour-block';
+    hole=document.createElement('div');hole.id='tour-hole';hole.className='tour-hole';
+    tip=document.createElement('div');tip.id='tour-tip';tip.className='tour-tip';tip.setAttribute('role','dialog');tip.setAttribute('aria-modal','true');
+    document.body.append(block,hole,tip);
+    window.addEventListener('resize',placeTour);window.addEventListener('scroll',placeTour,true);
+  }
+  tip.innerHTML=`<p class="tour-step">${i+1} / ${steps.length}</p><p class="tour-title">${esc(s.title)}</p><p class="tour-text">${esc(s.text)}</p>
+    <label class="tour-chk"><input type="checkbox" id="tour-skip" ${wasChecked?'checked':''}> 不再顯示這個介紹</label>
+    <div class="tour-btns"><button class="iconbtn" id="tour-close">略過</button><span style="flex:1"></span>
+      ${i?'<button class="iconbtn" id="tour-prev">上一步</button>':''}<button class="iconbtn tour-next" id="tour-next">${i===steps.length-1?'完成':'下一步'}</button></div>`;
+  document.getElementById('tour-close').onclick=endTour;
+  document.getElementById('tour-next').onclick=()=>{if(tourState.i>=steps.length-1)return endTour();tourState.i++;drawTour()};
+  const pv=document.getElementById('tour-prev');if(pv)pv.onclick=()=>{tourState.i--;drawTour()};
+  block.onclick=()=>document.getElementById('tour-next').focus();
+  if(s.node.scrollIntoView)s.node.scrollIntoView({block:'center',behavior:'smooth'});
+  placeTour();setTimeout(placeTour,350);
+  document.getElementById('tour-next').focus();
+}
+function placeTour(){
+  if(!tourState)return;
+  const s=tourState.steps[tourState.i],hole=document.getElementById('tour-hole'),tip=document.getElementById('tour-tip');
+  if(!s||!hole||!s.node.isConnected){endTour();return}
+  const r=s.node.getBoundingClientRect(),pad=6,vw=window.innerWidth,vh=window.innerHeight;
+  Object.assign(hole.style,{left:r.left-pad+'px',top:r.top-pad+'px',width:r.width+pad*2+'px',height:r.height+pad*2+'px'});
+  const tw=Math.min(360,vw-24);tip.style.width=tw+'px';
+  const th=tip.offsetHeight;
+  let top=r.bottom+pad+12;
+  if(top+th>vh-12)top=r.top-pad-12-th;
+  if(top<12)top=Math.min(vh-th-12,Math.max(12,r.bottom+pad+12));
+  const left=Math.min(vw-tw-12,Math.max(12,r.left+r.width/2-tw/2));
+  Object.assign(tip.style,{top:top+'px',left:left+'px'});
+}
+function helpBtn(){
+  let b=document.getElementById('tour-help');
+  if(!b){b=document.createElement('button');b.id='tour-help';b.className='tour-help';b.setAttribute('aria-label','看這一頁的使用說明');b.textContent='❔';document.body.appendChild(b);
+    b.onclick=()=>{if(CUR_TOUR)runTour(CUR_TOUR,true)}}
+  b.style.display=CUR_TOUR?'':'none';
+}
+
+// 每個頁面畫完後自動檢查是否要顯示導覽
+(function hookTours(){
+  const wrap=(name,key)=>{const f=window[name];if(typeof f!=='function')return;
+    window[name]=function(...a){CUR_TOUR=null;helpBtn();const r=f.apply(this,a);
+      const go=()=>{const k=typeof key==='function'?key(...a):key;if(k)runTour(k)};
+      if(r&&typeof r.then==='function')r.then(go);else go();return r}};
+  wrap('libHome','lib');wrap('home','plant');wrap('betaHome',()=>FAMILY.code?'mine':null);wrap('bankHome','bank');
+  wrap('uploadPage','upload');wrap('reviewPage',()=>tourStepsReady('review'));wrap('libBankHome','libBank');
+  wrap('ask','practice');wrap('analysisPage','analysis');
+  const ans=window.answer;window.answer=function(...a){const r=ans.apply(this,a);runTour('feedback');return r};
+})();
+function tourStepsReady(k){return k}
 
 /* --- 重新整理後回到原本的頁面 --- */
 (async()=>{
