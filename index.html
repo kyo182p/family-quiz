@@ -157,6 +157,17 @@ h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
 .qbtns{display:flex;flex-direction:column;gap:8px}.speak.rp:disabled{opacity:.4}
 .tour-help{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:15;width:40px;height:40px;opacity:.75;border-radius:50%;border:2px solid var(--line);background:var(--card);font-size:1.4rem;box-shadow:0 4px 12px rgba(0,0,0,.15)}
 @media (prefers-reduced-motion:reduce){.tour-hole{transition:none}}
+
+.ghost.needfix{border-color:var(--coral);border-style:solid;background:var(--coral-soft);line-height:1.5}
+.ghost.needfix b{color:var(--coral);font-size:1rem}
+.fixbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--coral-soft);border:2px solid var(--coral);border-radius:14px;padding:10px 14px;margin:8px 0;font-size:1.05rem}
+.filters .frow{display:flex;gap:10px;align-items:flex-start;margin-top:8px}
+.filters .flabel{flex:0 0 3em;color:var(--muted);padding-top:12px;font-size:.95rem}
+.filters .chip{font-size:1rem;padding:6px 12px;min-height:40px}
+.chip.chip-warn{border-color:var(--coral)}
+.chip.chip-warn[aria-pressed="true"]{background:var(--coral);border-color:var(--coral)}
+.list li.qissue{background:var(--coral-soft);border-radius:12px;padding-left:10px;padding-right:10px}
+.list li.qreported{background:var(--sun-soft);border-radius:12px;padding-left:10px;padding-right:10px}
 .tipbox{margin-top:10px;background:var(--sun-soft);border-radius:14px;padding:12px 14px;font-size:1.05rem;line-height:1.6}.tipbox p{margin:2px 0}
 .bpic{text-align:center}.bicon{font-size:4rem;line-height:1.2}.bpic p{font-size:1.15rem;margin:6px 0 0;text-align:left}
 .chip:disabled{opacity:.45;cursor:default}
@@ -1197,7 +1208,7 @@ async function betaHome(){
    ${BANKS.length?BANKS.map(b=>`<button class="bankcard" data-b="${esc(b.id)}">
       <span class="bk-title">${esc(b.title||bankInfo(b)||'未命名題庫')}</span>
       <span class="bk-meta">${esc(bankInfo(b))}</span>
-      <span class="bk-meta">${b.questions.length} 題${b.pending.length?`・<b style="color:var(--coral)">${b.pending.length} 題待確認</b>`:''}${b.published?'・🌐 已公開':''}</span></button>`).join('')
+      <span class="bk-meta">${b.questions.length} 題${b.pending.length?`・<b style="color:var(--coral)">${b.pending.length} 題待確認</b>`:''}${b.questions.filter(q=>q.check&&q.check.s==='issue').length?`・<b style="color:var(--coral)">⚠️ ${b.questions.filter(q=>q.check&&q.check.s==='issue').length} 題需要修正</b>`:''}${b.published?'・🌐 已公開':''}</span></button>`).join('')
      :'<div class="card"><p class="lead" style="margin:0">還沒有自訂題庫，先建立一個吧！</p></div>'}
    <button class="big" id="new">＋ 建立新題庫</button>
    <button class="ghost" id="imp">📥 匯入題庫檔（.json）</button>
@@ -1248,7 +1259,7 @@ function bankForm(bank){
 /* --- 頁面：單一題庫 --- */
 function bankHome(bank){
   CTX=PLANT_CTX;
-  loadFlags(bank.id);
+  if(!FLAGS[bank.id])loadFlags(bank.id).then(()=>{const b=document.getElementById('ls');if(b&&b.isConnected){b.outerHTML=listBtnHTML(bank);const nb=document.getElementById('ls');if(nb)nb.onclick=()=>openList(bank)}});
   if('speechSynthesis' in window)speechSynthesis.cancel();
   const n=bank.questions.length;
   const lvCount=l=>bank.questions.filter(q=>!l||q.lv===l).length;
@@ -1272,7 +1283,7 @@ function bankHome(bank){
      <button class="ghost" id="rv">✅ 待確認的題目（${bank.pending.length}）</button>
      <button class="ghost" id="an" ${n?'':'disabled'}>📊 學習分析</button>
      <button class="ghost" id="det" ${needDetail(bank).length?'':'disabled'}>📝 補上詳細解題${needDetail(bank).length?`（${needDetail(bank).length} 題還沒有）`:'（都已完成）'}</button>
-     <button class="ghost" id="ls">📋 題目清單與作答紀錄（${n}）</button>
+     ${listBtnHTML(bank)}
      ${FAMILY.canPublish?`<button class="ghost" id="pub">${bank.published?'🌐 已公開到題庫書架（按此取消公開）':'🌐 公開到題庫書架'}</button>`:''}
      <button class="ghost" id="ex">📤 匯出（分享給親友或備份）</button>
      <button class="ghost" id="del" style="color:var(--coral)">🗑 刪除這個題庫</button>
@@ -1287,7 +1298,7 @@ function bankHome(bank){
   $('up').onclick=()=>uploadPage(bank); $('gen').onclick=()=>genPage(bank);
   $('an').onclick=()=>{sumState.msg='';analysisPage(bank)}; $('det').onclick=()=>{detState.msg='';detailPage(bank)};
   if($('pub'))$('pub').onclick=()=>togglePublish(bank);
-  $('rv').onclick=()=>reviewPage(bank); $('ls').onclick=()=>listPage(bank); $('ex').onclick=()=>exportPage(bank);
+  $('rv').onclick=()=>reviewPage(bank); $('ls').onclick=()=>openList(bank); $('ex').onclick=()=>exportPage(bank);
   $('del').onclick=async()=>{if(await confirmBox('確定要刪除「'+(bank.title||bankInfo(bank))+'」嗎？題目和作答紀錄都會刪除。')){await bsDelete(bank);betaHome()}};
   window.scrollTo(0,0);
 }
@@ -1559,32 +1570,82 @@ function reviewPage(bank,msg){
 }
 
 /* --- 頁面：題目清單與紀錄 --- */
-let listEdit='';
+let listEdit='',listDraft=null;
+let LF={st:'',lv:0,t:'',src:'',rec:''};   // 題目清單的篩選
+// 題目的狀態：需要修正（AI 判讀有問題或回報成立）／有人回報／通過／未判斷
+function qStatus(q,key){
+  const f=(FLAGS[key]&&FLAGS[key].f[q.id])||'';
+  if(f==='issue'||(q.check&&q.check.s==='issue'))return 'issue';
+  if(f==='reported')return 'reported';
+  return q.check&&q.check.s==='pass'?'pass':'none';
+}
+function issueCounts(bank){
+  const c={issue:0,reported:0};
+  bank.questions.forEach(q=>{const s=qStatus(q,bank.id);if(s in c)c[s]++});
+  return c;
+}
+function listBtnHTML(bank){
+  const n=bank.questions.length,c=issueCounts(bank);
+  const extra=[c.issue?`⚠️ ${c.issue} 題需要修正`:'',c.reported?`🚩 ${c.reported} 題被回報`:''].filter(Boolean).join('・');
+  return extra?`<button class="ghost needfix" id="ls">📋 題目清單與作答紀錄（${n}）<br><b>${extra}</b></button>`:`<button class="ghost" id="ls">📋 題目清單與作答紀錄（${n}）</button>`;
+}
+// 從外層進入：有需要修正的題目時，預設只顯示那些題目
+function openList(bank){LF={st:issueCounts(bank).issue?'issue':'',lv:0,t:'',src:'',rec:''};listEdit='';listDraft=null;listPage(bank)}
 function listPage(bank){
   const r=bank.rec;CUR_BANK_KEY=bank.id;
-  const issues=bank.questions.filter(q=>isBlocked(q,bank.id)).length;
+  const Q=bank.questions,key=bank.id;
+  const rows=[
+    ['st','狀態',[['','全部'],['issue','⚠️ 需要修正'],['reported','🚩 有人回報'],['pass','✅ 判讀通過'],['none','⏳ 未判斷'],['aians','答案由 AI 判斷']]],
+    ['lv','難度',[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']]],
+    ['t','題型',[['','全部'],['tf','是非題'],['mc','選擇題']]],
+    ['src','來源',[['','全部'],['原題','原題'],['改寫','改寫'],['AI','AI 新題']]],
+    ['rec','作答',[['','全部'],['wrong','答錯過'],['never','還沒練']]],
+  ];
+  const test={
+    st:(q,v)=>v==='aians'?!!q.ansByAI:qStatus(q,key)===v,
+    lv:(q,v)=>q.lv===v, t:(q,v)=>q.t===v, src:(q,v)=>q.src===v,
+    rec:(q,v)=>v==='wrong'?!!(r[q.id]&&r[q.id].wrong):!(r[q.id]&&r[q.id].seen),
+  };
+  const pass=(q,skip)=>Object.keys(LF).every(k=>k===skip||!LF[k]||test[k](q,LF[k]));
+  const shown=Q.filter(q=>pass(q)||q.id===listEdit);
+  const c=issueCounts(bank);
+  const chips=rows.map(([k,label,opts])=>`<div class="frow"><span class="flabel">${label}</span><div class="chips">${opts.map(([v,t])=>{
+      const n=v?Q.filter(q=>pass(q,k)&&test[k](q,v)).length:Q.filter(q=>pass(q,k)).length;
+      return `<button class="chip ${k==='st'&&v==='issue'&&n?'chip-warn':''}" data-lf="${k}" data-v="${v}" aria-pressed="${LF[k]===v}" ${n||LF[k]===v||!v?'':'disabled'}>${t}<small>${n}</small></button>`}).join('')}</div></div>`).join('');
+  const item=q=>{
+    if(listEdit===q.id)return `<li style="flex-direction:column;align-items:stretch">${qEditor(listDraft||q)}</li>`;
+    const st=qStatus(q,key);
+    return `<li class="${st==='issue'?'qissue':st==='reported'?'qreported':''}"><span>${qView(q)}${q.check&&q.check.fix&&st==='issue'?`<br><button class="iconbtn" data-fix="${esc(q.id)}" style="margin-top:6px">🛠 套用 AI 建議修正</button>`:''}</span>
+       <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><span class="cnt">${r[q.id]?(r[q.id].wrong?`錯 ${r[q.id].wrong} / ${r[q.id].seen} 次`:`<span style="color:var(--leaf)">對 ${r[q.id].seen} 次</span>`):'<span style="color:var(--muted)">還沒練</span>'}</span>
+       <button class="iconbtn" data-qed="${esc(q.id)}" aria-label="修改">✏️</button><button class="iconbtn" data-qdel="${esc(q.id)}" aria-label="刪除">🗑</button></span></li>`;
+  };
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
    <h1 style="font-size:1.8rem">題目清單</h1>
    <p class="lead" style="font-size:1rem">依觀念分組；右邊是作答紀錄。修改題目後會清除 AI 判讀，等下次掃題重新判讀。</p>
-   ${issues?`<p class="lead" style="color:var(--coral)">有 ${issues} 題被判定有問題、已暫停出題，請修改。</p>`:''}
-   ${bank.concepts.map(con=>{const qs=bank.questions.filter(q=>q.c===con.id);if(!qs.length)return '';
-     return `<section class="card"><p style="margin:0;font-size:1.1rem">📌 ${esc(con.text)}</p><ul class="list">${qs.map(q=>listEdit===q.id?`<li style="flex-direction:column;align-items:stretch">${qEditor(q)}</li>`:`<li><span>${qView(q)}${q.check&&q.check.fix?`<br><button class="iconbtn" data-fix="${esc(q.id)}" style="margin-top:6px">🛠 套用 AI 建議修正</button>`:''}</span>
-       <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><span class="cnt">${r[q.id]?(r[q.id].wrong?`錯 ${r[q.id].wrong} / ${r[q.id].seen} 次`:`<span style="color:var(--leaf)">對 ${r[q.id].seen} 次</span>`):'<span style="color:var(--muted)">還沒練</span>'}</span>
-       <button class="iconbtn" data-qed="${esc(q.id)}" aria-label="修改">✏️</button><button class="iconbtn" data-qdel="${esc(q.id)}" aria-label="刪除">🗑</button></span></li>`).join('')}</ul></section>`}).join('')}
-   ${bank.questions.length?'':'<p class="lead">還沒有題目。</p>'}
+   ${c.issue?`<div class="fixbar"><span>⚠️ 有 <b>${c.issue}</b> 題需要修正，已暫停出題。</span>${LF.st!=='issue'?'<button class="iconbtn" id="only-issue">只看需要修正的題目</button>':''}</div>`:''}
+   <section class="card filters">${chips}
+     <p class="lead" style="font-size:.95rem;margin:8px 0 0">顯示 ${shown.length} / ${Q.length} 題${Object.values(LF).some(Boolean)?'　<button class="iconbtn" id="lf-clr">清除篩選</button>':''}</p></section>
+   ${bank.concepts.map(con=>{const qs=shown.filter(q=>q.c===con.id);if(!qs.length)return '';
+     return `<section class="card"><p style="margin:0;font-size:1.1rem">📌 ${esc(con.text)}</p><ul class="list">${qs.map(item).join('')}</ul></section>`}).join('')}
+   ${Q.length?(shown.length?'':'<p class="lead">沒有符合篩選條件的題目。</p>'):'<p class="lead">還沒有題目。</p>'}
    ${Object.keys(r).length?'<button class="ghost" id="clr">清除這個題庫的作答紀錄</button>':''}`;
-  document.getElementById('bk').onclick=()=>{listEdit='';bankHome(bank)};
-  const idx=id=>bank.questions.findIndex(q=>q.id===id);
-  app.querySelectorAll('[data-qed]').forEach(b=>b.onclick=()=>{listEdit=b.dataset.qed;listPage(bank)});
-  const es=document.getElementById('e-save');
-  if(es)es.onclick=async()=>{const i=idx(listEdit);const nq=readEditor(bank.questions[i]);if(!nq){toast('有欄位不完整：題目、答案都要有，選擇題至少兩個選項');return}bank.questions[i]=nq;listEdit='';await bsSave(bank);delete FLAGS[bank.id];loadFlags(bank.id);toast('已修改，會在下次掃題重新判讀');listPage(bank)};
-  const ec=document.getElementById('e-cancel');if(ec)ec.onclick=()=>{listEdit='';listPage(bank)};
-  app.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>{const q=bank.questions[idx(b.dataset.fix)],f=q.check.fix;
-    const nq={...q};['q','o','a','why','detail'].forEach(k=>{if(f[k]!=null&&f[k]!=='')nq[k]=f[k]});
-    bank.questions[idx(q.id)]=nq;listEdit=q.id;listPage(bank);toast('已帶入建議內容，請確認後按「儲存修改」')});
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=()=>{listEdit='';listDraft=null;bankHome(bank)};
+  app.querySelectorAll('[data-lf]').forEach(b=>b.onclick=()=>{const k=b.dataset.lf;LF[k]=k==='lv'?+b.dataset.v:b.dataset.v;listPage(bank)});
+  if($('only-issue'))$('only-issue').onclick=()=>{LF={st:'issue',lv:0,t:'',src:'',rec:''};listPage(bank)};
+  if($('lf-clr'))$('lf-clr').onclick=()=>{LF={st:'',lv:0,t:'',src:'',rec:''};listPage(bank)};
+  const idx=id=>Q.findIndex(q=>q.id===id);
+  app.querySelectorAll('[data-qed]').forEach(b=>b.onclick=()=>{listEdit=b.dataset.qed;listDraft=null;listPage(bank)});
+  if($('e-save'))$('e-save').onclick=async()=>{const i=idx(listEdit);const nq=readEditor(listDraft||Q[i]);if(!nq){toast('有欄位不完整：題目、答案都要有，選擇題至少兩個選項');return}
+    Q[i]=nq;listEdit='';listDraft=null;await bsSave(bank);delete FLAGS[bank.id];await loadFlags(bank.id);toast('已修改，會在下次掃題重新判讀');listPage(bank)};
+  if($('e-cancel'))$('e-cancel').onclick=()=>{listEdit='';listDraft=null;listPage(bank)};
+  app.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>{const q=Q[idx(b.dataset.fix)],f=q.check.fix;
+    const d={...q};['q','o','a','why','detail'].forEach(k=>{if(f[k]!=null&&f[k]!=='')d[k]=f[k]});
+    listDraft=d;listEdit=q.id;listPage(bank);toast('已帶入建議內容，請確認後按「儲存修改」')});
   app.querySelectorAll('[data-qdel]').forEach(b=>b.onclick=async()=>{if(!await confirmBox('確定要刪除這題嗎？'))return;bank.questions=bank.questions.filter(q=>q.id!==b.dataset.qdel);await bsSave(bank);listPage(bank)});
-  const c=document.getElementById('clr'); if(c)c.onclick=async()=>{if(await confirmBox('確定要清除作答紀錄嗎？')){bank.rec={};await bsSave(bank);listPage(bank)}};
+  if($('clr'))$('clr').onclick=async()=>{if(await confirmBox('確定要清除作答紀錄嗎？')){bank.rec={};await bsSave(bank);listPage(bank)}};
+  if(!FLAGS[bank.id])loadFlags(bank.id).then(()=>{if(CUR_BANK_KEY===bank.id&&!listEdit&&document.querySelector('.filters'))listPage(bank)});
 }
 
 /* --- 匯出／匯入 --- */
