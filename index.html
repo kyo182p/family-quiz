@@ -1507,7 +1507,7 @@ async function runGen(bank){
 /* --- 頁面：待確認（可修改） --- */
 let editIdx=-1;
 function qView(q){
-  const tags=`<span class="tag">${LV[q.lv]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span> <span class="tag">${q.src==='原題'?'原題':q.src==='改寫'?'由填空等改寫':'AI 新題'}</span>${q.ansByAI?' <span class="tag warn">⚠️ 答案由 AI 判斷，請確認</span>':''}`;
+  const tags=`<span class="tag">${LV[q.lv]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span> <span class="tag">${q.src==='原題'?'原題':q.src==='改寫'?'由填空等改寫':'AI 新題'}</span>${needAnsCheck(q)?' <span class="tag warn">⚠️ 答案由 AI 判斷，請確認</span>':''}`;
   const ans=q.t==='tf'?`答案：${q.a==='O'?'⭕ 對':'❌ 錯'}`:q.o.map(o=>o===q.a?`<b style="color:var(--leaf)">✔ ${esc(o)}</b>`:esc(o)).join('　');
   const ck=q.check?(q.check.s==='pass'?' <span class="tag">✅ AI 判讀通過</span>':` <span class="tag warn">⚠️ AI 判讀有問題</span>`):'';
   const fl=FLAGS[CUR_BANK_KEY]&&FLAGS[CUR_BANK_KEY].f[q.id];
@@ -1573,6 +1573,8 @@ function reviewPage(bank,msg){
 let listEdit='',listDraft=null;
 let LF={st:'',lv:0,t:'',src:'',rec:''};   // 題目清單的篩選
 // 題目的狀態：需要修正（AI 判讀有問題或回報成立）／有人回報／通過／未判斷
+// AI 判讀通過就等於答案已經驗算過，不再顯示「答案由 AI 判斷」的警示
+const needAnsCheck=q=>!!q.ansByAI&&!(q.check&&q.check.s==='pass');
 function qStatus(q,key){
   const f=(FLAGS[key]&&FLAGS[key].f[q.id])||'';
   if(f==='issue'||(q.check&&q.check.s==='issue'))return 'issue';
@@ -1595,14 +1597,14 @@ function listPage(bank){
   const r=bank.rec;CUR_BANK_KEY=bank.id;
   const Q=bank.questions,key=bank.id;
   const rows=[
-    ['st','狀態',[['','全部'],['issue','⚠️ 需要修正'],['reported','🚩 有人回報'],['pass','✅ 判讀通過'],['none','⏳ 未判斷'],['aians','答案由 AI 判斷']]],
+    ['st','狀態',[['','全部'],['issue','⚠️ 需要修正'],['reported','🚩 有人回報'],['pass','✅ 判讀通過'],['none','⏳ 未判斷'],['aians','⚠️ 答案待確認']]],
     ['lv','難度',[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']]],
     ['t','題型',[['','全部'],['tf','是非題'],['mc','選擇題']]],
     ['src','來源',[['','全部'],['原題','原題'],['改寫','改寫'],['AI','AI 新題']]],
     ['rec','作答',[['','全部'],['wrong','答錯過'],['never','還沒練']]],
   ];
   const test={
-    st:(q,v)=>v==='aians'?!!q.ansByAI:qStatus(q,key)===v,
+    st:(q,v)=>v==='aians'?needAnsCheck(q):qStatus(q,key)===v,
     lv:(q,v)=>q.lv===v, t:(q,v)=>q.t===v, src:(q,v)=>q.src===v,
     rec:(q,v)=>v==='wrong'?!!(r[q.id]&&r[q.id].wrong):!(r[q.id]&&r[q.id].seen),
   };
