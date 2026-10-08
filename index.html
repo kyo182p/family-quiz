@@ -38,7 +38,7 @@ body{
   background-size:28px 28px;
   -webkit-tap-highlight-color:transparent;
 }
-main{max-width:720px;margin:0 auto;padding:16px 16px 48px}
+main{max-width:720px;margin:0 auto;padding:16px 16px 96px}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
 h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
@@ -154,7 +154,8 @@ h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
 .tour-chk input{width:20px;height:20px}
 .tour-btns{display:flex;gap:8px;margin-top:10px;align-items:center}
 .iconbtn.tour-next{background:var(--leaf);border-color:var(--leaf);color:#fff}
-.tour-help{position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:15;width:48px;height:48px;border-radius:50%;border:2px solid var(--line);background:var(--card);font-size:1.4rem;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.qbtns{display:flex;flex-direction:column;gap:8px}.speak.rp:disabled{opacity:.4}
+.tour-help{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:15;width:40px;height:40px;opacity:.75;border-radius:50%;border:2px solid var(--line);background:var(--card);font-size:1.4rem;box-shadow:0 4px 12px rgba(0,0,0,.15)}
 @media (prefers-reduced-motion:reduce){.tour-hole{transition:none}}
 .tipbox{margin-top:10px;background:var(--sun-soft);border-radius:14px;padding:12px 14px;font-size:1.05rem;line-height:1.6}.tipbox p{margin:2px 0}
 .bpic{text-align:center}.bicon{font-size:4rem;line-height:1.2}.bpic p{font-size:1.15rem;margin:6px 0 0;text-align:left}
@@ -476,7 +477,7 @@ function readQuestion(q,opts){
 
 /* ===== 流程 ===== */
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const PLANT_CTX={all:()=>ALL,origin:c=>ORIGIN[c],label:q=>UNITS[q.u],bump:(id,ok)=>bump(id,ok),rec:()=>rec,
+const PLANT_CTX={key:'__plant',all:()=>ALL,origin:c=>ORIGIN[c],label:q=>UNITS[q.u],bump:(id,ok)=>bump(id,ok),rec:()=>rec,
   pic:q=>renderPic(q.pic),home:()=>home(),restart:()=>start(pickRound(pool(),prefs.count))};
 let CTX=PLANT_CTX;
 const app=document.getElementById('app');
@@ -518,6 +519,7 @@ function buildWeakRound(concepts,all,r){
 
 function home(){
   CTX=PLANT_CTX;
+  loadFlags('__plant');
   if('speechSynthesis' in window)speechSynthesis.cancel();
   const counts={all:practice().length};Object.keys(UNITS).forEach(k=>counts[k]=practice().filter(q=>q.u===k).length);
   const wc=wrongConcepts();
@@ -548,7 +550,8 @@ function home(){
 }
 
 function start(qs){
-  if(!qs||!qs.length)return;
+  qs=(qs||[]).filter(q=>!isBlocked(q));
+  if(!qs.length){toast('目前沒有可以練習的題目');return}
   S={queue:qs.map(q=>({q,kind:'main'})),total:qs.length,pos:0,leaves:[],
      used:new Set(qs.map(q=>q.id)),cs:{},missed:[]};
   ask();
@@ -556,7 +559,7 @@ function start(qs){
 
 // 選同觀念、這一輪還沒出現過的問法
 function pickVariant(c,prevId){
-  const fam=CTX.all().filter(q=>q.c===c);
+  const fam=CTX.all().filter(q=>q.c===c&&!isBlocked(q));
   let cand=fam.filter(q=>!S.used.has(q.id));
   if(!cand.length)cand=fam.filter(q=>q.id!==prevId);
   if(!cand.length)cand=fam;
@@ -594,7 +597,8 @@ function ask(){
    ${vine()}
    <section class="card pop">
      <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
-     <div class="qrow"><p class="qtext">${esc(q.q)}</p><button class="speak" id="sp" aria-label="念題目">🔊</button></div>
+     ${flagOf(q)==='reported'?' <span class="tag warn">🚩 已有人回報，確認中</span>':''}
+     <div class="qrow"><p class="qtext">${esc(q.q)}</p><span class="qbtns"><button class="speak" id="sp" aria-label="念題目">🔊</button>${libCode()?`<button class="speak rp" id="rp" aria-label="回報題目有問題" ${flagOf(q)?'disabled':''}>🚩</button>`:''}</span></div>
      <div class="opts ${q.t==='tf'?'tf':''}" id="opts">
       ${q.t==='tf'?(Math.random()<.5?`<button class="opt" data-v="O"><span class="sym">⭕</span>對</button><button class="opt" data-v="X"><span class="sym">❌</span>錯</button>`:`<button class="opt" data-v="X"><span class="sym">❌</span>錯</button><button class="opt" data-v="O"><span class="sym">⭕</span>對</button>`)
         :opts.map((o,i)=>`<button class="opt" data-v="${esc(o)}"><span class="n">${i+1}</span>${esc(o)}</button>`).join('')}
@@ -604,6 +608,7 @@ function ask(){
   S.justAdded=false;
   document.getElementById('hm').onclick=()=>CTX.home();
   document.getElementById('sp').onclick=()=>readQuestion(q,opts||[]);
+  const rpb=document.getElementById('rp');if(rpb)rpb.onclick=()=>reportBox(q);
   document.getElementById('arq').onclick=e=>{prefs.autoRead=!prefs.autoRead;store.set('g3plants-prefs',prefs);e.currentTarget.textContent=prefs.autoRead?'🔊 自動念：開':'🔇 自動念：關';e.currentTarget.setAttribute('aria-pressed',prefs.autoRead);if(prefs.autoRead)readQuestion(q,opts||[]);else if('speechSynthesis' in window)speechSynthesis.cancel()};
   app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>answer(b));
   if(prefs.autoRead)setTimeout(()=>speak((rv?'複習題。':'')+(q.t==='tf'?q.q+'。對，還是錯？':q.q+'。'+opts.map((o,i)=>NUMS[i]+'，'+o).join('。'))),250);
@@ -671,7 +676,7 @@ function finish(){
   window.scrollTo(0,0);
 }
 // 再練一次時，挑這個觀念裡練習次數最少的問法
-function pickVariantFresh(c){const r=CTX.rec();return shuffle(CTX.all().filter(q=>q.c===c)).sort((a,b)=>((r[a.id]||{}).seen||0)-((r[b.id]||{}).seen||0))[0]}
+function pickVariantFresh(c){const r=CTX.rec();return shuffle(CTX.all().filter(q=>q.c===c&&!isBlocked(q))).sort((a,b)=>((r[a.id]||{}).seen||0)-((r[b.id]||{}).seen||0))[0]}
 function parent(){
   if('speechSynthesis' in window)speechSynthesis.cancel();
   const rows=ALL.filter(q=>rec[q.id]).sort((a,b)=>(rec[b.id].wrong-rec[a.id].wrong)||(rec[b.id].seen-rec[a.id].seen));
@@ -804,9 +809,9 @@ async function familyPage(back){
     const old=FAMILY; FAMILY={code,name:''};
     try{
       const j=await api('ping');
-      FAMILY={code,name:j.family||code,remaining:j.remaining,canPublish:!!j.canPublish};store.set('family',{code,name:FAMILY.name,canPublish:FAMILY.canPublish});
+      FAMILY={code,name:j.family||code,remaining:j.remaining,bonus:j.bonus||0,canPublish:!!j.canPublish};store.set('family',{code,name:FAMILY.name,canPublish:FAMILY.canPublish});
       SAMPLE=makeSample();SAMPLE_WHY='';aiState.blocked=false;BS.mode='cloud';BS.note='';
-      $('fmsg').textContent=`✅ 驗證成功：${FAMILY.name}（今天還可以使用 AI ${j.remaining} 次）`;
+      $('fmsg').textContent=`✅ 驗證成功：${FAMILY.name}（今天還可以使用 AI ${j.remaining} 次${j.bonus?`，另有回報獎勵 ${j.bonus} 次`:''}）`;
     }catch(e){
       FAMILY=old;
       $('fmsg').textContent=e.code==='bad_code'?'❌ 邀請碼不正確或已停用':e.code==='not_configured'?'❌ 網站尚未設定後端網址':'❌ 連不上後端，請稍後再試';
@@ -825,6 +830,8 @@ const AI_ERR={
   daily_limit:'今天的 AI 使用次數已經用完了，明天再試。',
   no_credit:'網站的 AI 額度用完了，請通知網站管理者儲值。',
   network:'連不上後端，請檢查網路後再試。',
+  already_reported:'這題已經有人回報了，正在確認中。',
+  report_limit:'今天的回報次數已經用完了，明天再試。',
   not_configured:'網站尚未設定後端網址。',
   server_error:'後端發生問題，請稍後再試。',
   not_granted:'這次沒有允許網站使用 Claude，所以無法產生新題目。重新整理頁面後可以再選一次。',
@@ -1241,6 +1248,7 @@ function bankForm(bank){
 /* --- 頁面：單一題庫 --- */
 function bankHome(bank){
   CTX=PLANT_CTX;
+  loadFlags(bank.id);
   if('speechSynthesis' in window)speechSynthesis.cancel();
   const n=bank.questions.length;
   const lvCount=l=>bank.questions.filter(q=>!l||q.lv===l).length;
@@ -1286,6 +1294,7 @@ function bankHome(bank){
 
 /* --- 練習：沿用植物小學堂的引擎（間隔複習、朗讀、音效） --- */
 function bankCtx(bank){return {
+  key:bank.id,
   all:()=>bank.questions,
   origin:c=>bank.questions.find(q=>q.c===c&&q.src==='原題')||bank.questions.find(q=>q.c===c),
   label:q=>LV[q.lv]||'基礎',
@@ -1489,8 +1498,13 @@ let editIdx=-1;
 function qView(q){
   const tags=`<span class="tag">${LV[q.lv]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span> <span class="tag">${q.src==='原題'?'原題':q.src==='改寫'?'由填空等改寫':'AI 新題'}</span>${q.ansByAI?' <span class="tag warn">⚠️ 答案由 AI 判斷，請確認</span>':''}`;
   const ans=q.t==='tf'?`答案：${q.a==='O'?'⭕ 對':'❌ 錯'}`:q.o.map(o=>o===q.a?`<b style="color:var(--leaf)">✔ ${esc(o)}</b>`:esc(o)).join('　');
-  return `${tags}<br><span style="font-size:1.15rem">${q.icon?esc(q.icon)+' ':''}${esc(q.q)}</span><br><small>${ans}</small><br><small style="color:var(--muted)">解說：${esc(q.why)}</small>${q.detail?`<br><small style="color:var(--muted)">📖 詳解：${esc(q.detail)}</small>`:''}`;
+  const ck=q.check?(q.check.s==='pass'?' <span class="tag">✅ AI 判讀通過</span>':` <span class="tag warn">⚠️ AI 判讀有問題</span>`):'';
+  const fl=FLAGS[CUR_BANK_KEY]&&FLAGS[CUR_BANK_KEY].f[q.id];
+  const flt=fl==='reported'?' <span class="tag warn">🚩 有人回報，等待判讀</span>':fl==='issue'?' <span class="tag warn">🚩 回報成立，已暫停出題</span>':'';
+  const note=q.check&&q.check.s==='issue'?`<br><small style="color:var(--coral)">判讀意見：${esc(q.check.note||'')}</small>`:'';
+  return `${tags}${ck}${flt}<br><span style="font-size:1.15rem">${q.icon?esc(q.icon)+' ':''}${esc(q.q)}</span><br><small>${ans}</small><br><small style="color:var(--muted)">解說：${esc(q.why)}</small>${q.detail?`<br><small style="color:var(--muted)">📖 詳解：${esc(q.detail)}</small>`:''}${note}`;
 }
+let CUR_BANK_KEY='';
 function qEditor(q){
   return `<div class="form">
     <label>題目<textarea id="e-q" rows="2">${esc(q.q)}</textarea></label>
@@ -1504,6 +1518,7 @@ function qEditor(q){
 function readEditor(q){
   const v=id=>document.getElementById(id).value.trim();
   const out={...q,q:v('e-q'),why:v('e-why'),detail:v('e-detail'),lv:+v('e-lv'),ansByAI:false};
+  delete out.check;
   if(!out.detail)delete out.detail;
   if(q.t==='tf')out.a=v('e-a');
   else{
@@ -1544,19 +1559,30 @@ function reviewPage(bank,msg){
 }
 
 /* --- 頁面：題目清單與紀錄 --- */
+let listEdit='';
 function listPage(bank){
-  const r=bank.rec;
+  const r=bank.rec;CUR_BANK_KEY=bank.id;
+  const issues=bank.questions.filter(q=>isBlocked(q,bank.id)).length;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
    <h1 style="font-size:1.8rem">題目清單</h1>
-   <p class="lead" style="font-size:1rem">依觀念分組；右邊是作答紀錄。</p>
+   <p class="lead" style="font-size:1rem">依觀念分組；右邊是作答紀錄。修改題目後會清除 AI 判讀，等下次掃題重新判讀。</p>
+   ${issues?`<p class="lead" style="color:var(--coral)">有 ${issues} 題被判定有問題、已暫停出題，請修改。</p>`:''}
    ${bank.concepts.map(con=>{const qs=bank.questions.filter(q=>q.c===con.id);if(!qs.length)return '';
-     return `<section class="card"><p style="margin:0;font-size:1.1rem">📌 ${esc(con.text)}</p><ul class="list">${qs.map(q=>`<li><span>${qView(q)}</span>
+     return `<section class="card"><p style="margin:0;font-size:1.1rem">📌 ${esc(con.text)}</p><ul class="list">${qs.map(q=>listEdit===q.id?`<li style="flex-direction:column;align-items:stretch">${qEditor(q)}</li>`:`<li><span>${qView(q)}${q.check&&q.check.fix?`<br><button class="iconbtn" data-fix="${esc(q.id)}" style="margin-top:6px">🛠 套用 AI 建議修正</button>`:''}</span>
        <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><span class="cnt">${r[q.id]?(r[q.id].wrong?`錯 ${r[q.id].wrong} / ${r[q.id].seen} 次`:`<span style="color:var(--leaf)">對 ${r[q.id].seen} 次</span>`):'<span style="color:var(--muted)">還沒練</span>'}</span>
-       <button class="iconbtn" data-qdel="${esc(q.id)}" aria-label="刪除">🗑</button></span></li>`).join('')}</ul></section>`}).join('')}
+       <button class="iconbtn" data-qed="${esc(q.id)}" aria-label="修改">✏️</button><button class="iconbtn" data-qdel="${esc(q.id)}" aria-label="刪除">🗑</button></span></li>`).join('')}</ul></section>`}).join('')}
    ${bank.questions.length?'':'<p class="lead">還沒有題目。</p>'}
    ${Object.keys(r).length?'<button class="ghost" id="clr">清除這個題庫的作答紀錄</button>':''}`;
-  document.getElementById('bk').onclick=()=>bankHome(bank);
+  document.getElementById('bk').onclick=()=>{listEdit='';bankHome(bank)};
+  const idx=id=>bank.questions.findIndex(q=>q.id===id);
+  app.querySelectorAll('[data-qed]').forEach(b=>b.onclick=()=>{listEdit=b.dataset.qed;listPage(bank)});
+  const es=document.getElementById('e-save');
+  if(es)es.onclick=async()=>{const i=idx(listEdit);const nq=readEditor(bank.questions[i]);if(!nq){toast('有欄位不完整：題目、答案都要有，選擇題至少兩個選項');return}bank.questions[i]=nq;listEdit='';await bsSave(bank);delete FLAGS[bank.id];loadFlags(bank.id);toast('已修改，會在下次掃題重新判讀');listPage(bank)};
+  const ec=document.getElementById('e-cancel');if(ec)ec.onclick=()=>{listEdit='';listPage(bank)};
+  app.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>{const q=bank.questions[idx(b.dataset.fix)],f=q.check.fix;
+    const nq={...q};['q','o','a','why','detail'].forEach(k=>{if(f[k]!=null&&f[k]!=='')nq[k]=f[k]});
+    bank.questions[idx(q.id)]=nq;listEdit=q.id;listPage(bank);toast('已帶入建議內容，請確認後按「儲存修改」')});
   app.querySelectorAll('[data-qdel]').forEach(b=>b.onclick=async()=>{if(!await confirmBox('確定要刪除這題嗎？'))return;bank.questions=bank.questions.filter(q=>q.id!==b.dataset.qdel);await bsSave(bank);listPage(bank)});
   const c=document.getElementById('clr'); if(c)c.onclick=async()=>{if(await confirmBox('確定要清除作答紀錄嗎？')){bank.rec={};await bsSave(bank);listPage(bank)}};
 }
@@ -1903,6 +1929,7 @@ async function openLib(id){
 }
 function libBankHome(bank){
   CTX=PLANT_CTX;
+  loadFlags(bank.id);
   if('speechSynthesis' in window)speechSynthesis.cancel();
   const n=bank.questions.length,lvCount=l=>bank.questions.filter(q=>!l||q.lv===l).length,weak=weakConcepts(bank).length;
   app.innerHTML=`
@@ -1969,6 +1996,47 @@ async function togglePublish(bank){
   catch(e){toast(e.code==='no_permission'?'這個家庭沒有發布權限':'設定失敗，請稍後再試')}
 }
 
+
+/* ===== 題目回報 ===== */
+const FLAGS={};   // bankKey -> {t:載入時間, f:{qid:'reported'|'issue'}}
+async function loadFlags(key){
+  if(!libCode()||!CONFIG.API_URL)return;
+  const c=FLAGS[key];if(c&&Date.now()-c.t<120000)return;
+  try{const j=await libApi('flags',{ids:[key]});FLAGS[key]={t:Date.now(),f:(j.flags||{})[key]||{}}}catch(e){}
+}
+const flagOf=(q,key)=>{const c=FLAGS[key||(CTX&&CTX.key)];return c?c.f[q.id]||'':''};
+// 回報成立或 AI 判定有問題的題目暫停出題
+const isBlocked=(q,key)=>flagOf(q,key)==='issue'||!!(q.check&&q.check.s==='issue');
+const REPORT_REASONS=['答案錯誤','題目缺條件或看不懂','兩個以上答案都對','錯字','其他'];
+function reportBox(q){
+  const key=CTX.key;
+  const d=document.createElement('div');d.className='modal';
+  d.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true">
+    <p style="margin:0 0 6px;font-size:1.25rem">🚩 回報題目有問題</p>
+    <p class="lead" style="font-size:.95rem;margin:0 0 10px">AI 會在下次檢查時判讀，確認有問題的題目會暫停出題。${FAMILY.code?'回報成立可以獲得 AI 使用次數獎勵（同一題只發給第一位回報者）。':''}</p>
+    <div class="chips">${REPORT_REASONS.map((r,i)=>`<button class="chip" data-r="${i}" aria-pressed="${i===0}">${r}</button>`).join('')}</div>
+    <div class="form"><label>說明（可不填）<textarea id="rp-note" rows="2" maxlength="200" placeholder="例如：310 元好像也對"></textarea></label></div>
+    <p class="lead" id="rp-msg" style="margin:8px 0 0;font-size:1rem"></p>
+    <div class="footer"><button class="iconbtn" data-k="0">取消</button><button class="iconbtn tour-next" data-k="1">送出回報</button></div></div>`;
+  document.body.appendChild(d);
+  let reason=REPORT_REASONS[0];
+  d.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{reason=REPORT_REASONS[+b.dataset.r];d.querySelectorAll('[data-r]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
+  d.querySelector('[data-k="0"]').onclick=()=>d.remove();
+  d.querySelector('[data-k="1"]').onclick=async e=>{
+    const btn=e.currentTarget;btn.disabled=true;d.querySelector('#rp-msg').textContent='送出中……';
+    try{
+      await libApi('report',{bankId:key,qId:q.id,reason,note:d.querySelector('#rp-note').value.trim(),
+        snapshot:JSON.stringify({q:q.q,o:q.o,a:q.a,why:q.why})});
+      (FLAGS[key]||(FLAGS[key]={t:Date.now(),f:{}})).f[q.id]='reported';
+      d.remove();toast('已送出回報，謝謝你！');
+      const rb=document.getElementById('rp');if(rb)rb.disabled=true;
+    }catch(err){
+      if(err.code==='already_reported'){(FLAGS[key]||(FLAGS[key]={t:Date.now(),f:{}})).f[q.id]='reported';const rb=document.getElementById('rp');if(rb)rb.disabled=true}
+      d.querySelector('#rp-msg').textContent=AI_ERR[err.code]||'送出失敗，請稍後再試。';btn.disabled=false;
+    }
+  };
+}
+
 /* ===== 第一次使用導覽：圈出畫面上的功能並說明，勾選「不再顯示」後就不會自動跳出 ===== */
 const $q=s=>document.querySelector(s);
 const parentOf=s=>()=>{const e=$q(s);return e&&e.parentElement};
@@ -2031,6 +2099,7 @@ const TOURS={
     {el:'#arq',title:'自動念開關',text:'要不要每題自動念題目，練習中隨時可以切換。'},
     {el:'#sp',title:'念題目',text:'按喇叭聽這一題的題目。'},
     {el:'#opts',title:'點選答案',text:'直接點答案。答完會馬上知道對不對，還有解說。'},
+    {el:'#rp',title:'回報題目有問題',text:'覺得題目怪怪的、答案好像不對，就按這裡回報。已經有人回報的題目不能重複回報。'},
   ],
   feedback:[
     {el:'.fb-head',title:'馬上知道對錯',text:'答錯會顯示正確答案和原因，這個觀念過幾題會換個問法再考一次。'},
