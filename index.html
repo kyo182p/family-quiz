@@ -1282,7 +1282,7 @@ function bankHome(bank){
      <button class="ghost" id="gen" ${bank.concepts.length?'':'disabled'}>✨ 用已有的觀念產生更多題目${bank.concepts.length?'':'（先上傳資料）'}</button>
      <button class="ghost" id="rv">✅ 待確認的題目（${bank.pending.length}）</button>
      <button class="ghost" id="an" ${n?'':'disabled'}>📊 學習分析</button>
-     <button class="ghost" id="det" ${needDetail(bank).length?'':'disabled'}>📝 補上詳細解題${needDetail(bank).length?`（${needDetail(bank).length} 題還沒有）`:'（都已完成）'}</button>
+     <button class="ghost" id="det" ${needDetail(bank).length?'':'disabled'}>📝 補上詳細解題${needDetail(bank).length?`（${needDetail(bank).length} 題還沒有）<br><small style="color:var(--muted)">判讀通過的題目，每天排程掃題時會自動補上，不花 AI 次數</small>`:'（都已完成）'}</button>
      ${listBtnHTML(bank)}
      ${FAMILY.canPublish?`<button class="ghost" id="pub">${bank.published?'🌐 已公開到題庫書架（按此取消公開）':'🌐 公開到題庫書架'}</button>`:''}
      <button class="ghost" id="ex">📤 匯出（分享給親友或備份）</button>

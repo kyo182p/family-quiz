@@ -349,7 +349,12 @@ function writeQuestionRows(fam, bank, title) {
     q.id, q.check ? (q.check.s === 'pass' ? '通過' : '有問題') : '未判斷', q.check ? (q.check.note || '') : '',
     q.check && q.check.at ? new Date(q.check.at) : '', flagMap[q.id] || '',
   ]);
-  if (rows.length) qsh.getRange(qsh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  if (rows.length) {
+    const rg = qsh.getRange(qsh.getLastRow() + 1, 1, rows.length, rows[0].length);
+    // 題目、選項、答案以純文字顯示，避免「0123」「3125」被試算表轉成數字
+    qsh.getRange(rg.getRow(), 6, rows.length, 3).setNumberFormat('@');
+    rg.setValues(rows);
+  }
 }
 function removeQuestionRows(fam, id) {
   const qsh = SpreadsheetApp.getActive().getSheetByName(SHEET_QUESTION);
@@ -518,7 +523,11 @@ function mergeChecks(old, bank) {
   (bank.questions || []).forEach(q => {
     const o = map[q.id];
     if (!o) return;
-    if (qSig(o) === qSig(q)) { if (o.check) q.check = o.check; else delete q.check; }
+    if (qSig(o) === qSig(q)) {
+      if (o.check) q.check = o.check; else delete q.check;
+      // 排程補上的詳解：用戶端的舊資料沒有詳解時沿用伺服器上的
+      if (!q.detail && o.detail && o.detailBy) { q.detail = o.detail; q.detailBy = o.detailBy; }
+    }
     else { delete q.check; changed.push(String(q.id)); }
   });
   return changed;
@@ -640,17 +649,23 @@ function adminPending(limit) {
     if (!q.check && questions.length < Math.max(0, limit - reports.length)) questions.push(pack(x, q));
   }));
   const total = banks.reduce((n, x) => n + (x.bank.questions || []).filter(q => !q.check).length, 0);
-  return { ok: true, reports, questions, unjudgedTotal: total };
+  // 已判讀通過、但還沒有詳細解題的題目（判讀完再補，避免替有問題的題目寫詳解）
+  const needDetail = [];
+  banks.forEach(x => (x.bank.questions || []).forEach(q => {
+    if (!q.detail && q.check && q.check.s === 'pass' && needDetail.length < limit) needDetail.push(pack(x, q));
+  }));
+  const detailTotal = banks.reduce((n, x) => n + (x.bank.questions || []).filter(q => !q.detail && q.check && q.check.s === 'pass').length, 0);
+  return { ok: true, reports, questions, unjudgedTotal: total, needDetail, needDetailTotal: detailTotal };
 }
 
 // 寫回判讀結果。items：題目判讀；reports：回報是否成立
 function adminVerdict(req) {
-  const items = [].concat(req.items || []), reps = [].concat(req.reports || []);
+  const items = [].concat(req.items || []), reps = [].concat(req.reports || []), details = [].concat(req.details || []);
   const model = String(req.model || '').slice(0, 40);
   const now = Date.now();
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
-  const result = { ok: true, judged: 0, reportsDone: 0, rewards: 0 };
+  const result = { ok: true, judged: 0, reportsDone: 0, rewards: 0, detailsAdded: 0 };
   try {
     const banks = allBanks();
     const byId = {};
@@ -666,6 +681,15 @@ function adminVerdict(req) {
       return true;
     };
     items.forEach(it => { if (setCheck(String(it.bankId), String(it.qId), it.status, it.note, it.fix)) result.judged++; });
+    // 補上詳細解題（只補還沒有詳解的題目，不覆蓋家長寫的）
+    details.forEach(d => {
+      const x = byId[String(d.bankId)];
+      const q = x && (x.bank.questions || []).filter(k => String(k.id) === String(d.qId))[0];
+      const text = String(d.detail || '').trim().slice(0, 400);
+      if (!q || q.detail || !text) return;
+      q.detail = text; q.detailBy = model || 'scan';
+      dirty[String(d.bankId)] = 1; result.detailsAdded++;
+    });
 
     const sh = reportSheet();
     const rows = sh.getDataRange().getValues();

@@ -13,7 +13,7 @@
 curl -sSL -H 'Content-Type: text/plain;charset=utf-8' --data @req.json '{{API_URL}}'
 ```
 
-## 流程（最多重複 5 輪，沒有待判讀項目就結束）
+## 流程（最多重複 8 輪，沒有待判讀項目、也沒有待補詳解就結束）
 
 1. 取得待判讀項目：`{"action":"adminPending","token":"{{ADMIN_TOKEN}}","limit":40}`
    - `reports`：待複審的回報（reason、note、snapshot 是回報當時的題目，current 是目前的題目；bankId 為 `__plant` 時只有 snapshot）
@@ -40,6 +40,22 @@ curl -sSL -H 'Content-Type: text/plain;charset=utf-8' --data @req.json '{{API_UR
    - 每輪判讀完就寫回一次，不要累積到最後
    - note 用繁體中文，一兩句，給家長看得懂
 
+## 補上詳細解題
+
+`adminPending` 回傳的 `needDetail` 是「已判讀通過、但還沒有詳細解題」的題目（`needDetailTotal` 是總數）。判讀完成後，每輪也幫這些題目寫詳細解題：
+
+- 每題 2 到 4 句、150 字以內，給該年級小朋友看得懂的話
+- 先說怎麼想出答案；選擇題簡單說明其他選項為什麼不對；是非題是「錯」的，要說出正確的說法
+- 有容易搞混的地方，最後提醒一句
+- 只能根據題目、答案、觀念和原本解說，不要加入其他知識，不可以改答案；數學題要寫出算法
+- 寫回時放在同一個 `adminVerdict` 請求的 `details`：
+
+```json
+"details":[{"bankId":"…","qId":"…","detail":"詳細解題內容"}]
+```
+
+後端只會替還沒有詳解的題目補上，不會覆蓋家長寫的詳解。`needDetail` 和待判讀項目都清空才結束。
+
 ## 結束時
 
-用 SendUserMessage 回報這次的摘要：判讀幾題、幾題有問題（列出題目與原因）、幾筆回報成立／不成立、發出幾次獎勵。沒有待判讀項目時只要說「沒有新題目需要判讀」。
+用 SendUserMessage 回報這次的摘要：判讀幾題、幾題有問題（列出題目與原因）、幾筆回報成立／不成立、發出幾次獎勵、補上幾題詳細解題。沒有待判讀項目時只要說「沒有新題目需要判讀」。
