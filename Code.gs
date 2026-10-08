@@ -523,10 +523,13 @@ function mergeChecks(old, bank) {
   (bank.questions || []).forEach(q => {
     const o = map[q.id];
     if (!o) return;
-    if (qSig(o) === qSig(q)) {
+    // 詳解也算題目內容：家長改了詳解就要重新判讀。
+    // 例外：用戶端的舊資料沒有詳解、伺服器上的詳解是排程補的，視為沒有修改。
+    const fromScan = !q.detail && o.detail && o.detailBy;
+    const detailSame = (q.detail || '') === (o.detail || '') || fromScan;
+    if (qSig(o) === qSig(q) && detailSame) {
       if (o.check) q.check = o.check; else delete q.check;
-      // 排程補上的詳解：用戶端的舊資料沒有詳解時沿用伺服器上的
-      if (!q.detail && o.detail && o.detailBy) { q.detail = o.detail; q.detailBy = o.detailBy; }
+      if (fromScan) { q.detail = o.detail; q.detailBy = o.detailBy; }
     }
     else { delete q.check; changed.push(String(q.id)); }
   });
