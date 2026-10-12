@@ -10,9 +10,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
 <style>
 :root{
-  --paper:#F1F7EA; --grid:#DCEBD2; --ink:#1E3A2B; --muted:#5A7464;
+  --paper:#F1F7EA; --grid:#DCEBD2; --ink:#1E3A2B; --muted:#506A5A;
   --card:#FFFFFF; --leaf:#3D8B4F; --leaf-soft:#D6EBCF; --sun:#F2B23A; --sun-soft:#FFF1CC;
   --coral:#E25D44; --coral-soft:#FBE0DA; --soil:#8B5E3C; --line:#C9DDBF;
+  --leaf-strong:#2E7340; --on-leaf:#fff; --coral-strong:#B83D27; --on-coral:#fff;
+  --leaf-ink:#2E7340; --sun-ink:#8A5A00; --coral-ink:#A93522; --press:#1F5530;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
@@ -21,12 +23,16 @@
     --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
     --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
     --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
+    --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75; --on-coral:#2A0E08;
+  --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
   }
 }
 :root[data-theme="dark"]{
   --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
   --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
   --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
+  --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75; --on-coral:#2A0E08;
+  --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
 }
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
@@ -42,6 +48,8 @@ main{max-width:720px;margin:0 auto;padding:16px 16px 96px}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
 h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
+h1.pg{font-size:1.85rem}
+h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .lead{color:var(--muted);font-size:1.1rem;margin:0 0 20px;line-height:1.6}
 .hero{display:flex;align-items:center;gap:16px}
 .hero svg{flex:0 0 96px;width:96px;height:96px}
@@ -51,14 +59,14 @@ h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
   border:2px solid var(--line);background:var(--card);border-radius:999px;
   padding:10px 18px;font-size:1.15rem;min-height:48px;
 }
-.chip[aria-pressed="true"]{background:var(--leaf);border-color:var(--leaf);color:#fff}
-.chip small{opacity:.75;margin-left:4px}
+.chip[aria-pressed="true"]{background:var(--leaf-strong);border-color:var(--leaf-strong);color:var(--on-leaf)}
+.chip small{opacity:.9;margin-left:4px}
 .big{
   display:block;width:100%;margin-top:26px;border:none;border-radius:20px;
-  background:var(--leaf);color:#fff;font-size:1.5rem;padding:18px;min-height:64px;
-  box-shadow:0 5px 0 #2a6438;
+  background:var(--leaf-strong);color:var(--on-leaf);font-size:1.5rem;padding:18px;min-height:64px;
+  box-shadow:0 5px 0 var(--press);
 }
-.big:active{transform:translateY(3px);box-shadow:0 2px 0 #2a6438}
+.big:active{transform:translateY(3px);box-shadow:0 2px 0 var(--press)}
 .ghost{
   display:block;width:100%;margin-top:12px;border:2px dashed var(--line);background:transparent;
   border-radius:16px;padding:14px;font-size:1.15rem;min-height:56px;color:var(--ink)
@@ -94,7 +102,8 @@ h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
 .feedback.bad{border-color:var(--coral);background:var(--coral-soft)}
 .fb-head{font-size:1.5rem;margin:0 0 8px;display:flex;align-items:center;gap:10px}
 .fb-why{font-size:1.25rem;line-height:1.7;margin:0}
-.pic{margin-top:14px;background:#FAFDF7;border-radius:14px;padding:10px;color:#1E3A2B;overflow-x:auto}
+.pic{margin-top:14px;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px;color:var(--ink);overflow-x:auto}
+.pic.illus{background:#FAFDF7;border-color:transparent;color:#1E3A2B}
 .pic svg{display:block;width:100%;height:auto;max-height:280px}
 .rows{display:grid;gap:8px}
 .r{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:10px;font-size:1.15rem;line-height:1.5}
@@ -110,7 +119,7 @@ h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
 .score{font-size:3.2rem;margin:6px 0}
 .list{margin:10px 0 0;padding:0;list-style:none}
 .list li{padding:12px 4px;border-bottom:1px dashed var(--line);font-size:1.1rem;line-height:1.5;display:flex;justify-content:space-between;gap:12px}
-.list .cnt{flex:0 0 auto;color:var(--coral)}
+.list .cnt{flex:0 0 auto;color:var(--coral-ink);white-space:nowrap}
 .toggle{display:flex;align-items:center;gap:10px;font-size:1.1rem;margin-top:18px}
 .toggle input{width:24px;height:24px}
 .footer{margin-top:28px;display:flex;gap:10px;flex-wrap:wrap}
@@ -126,7 +135,7 @@ h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
 .optrow input[type=radio]{width:24px;height:24px;flex:0 0 auto}
 .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .thumb{position:relative}.thumb img{width:84px;height:84px;object-fit:cover;border-radius:10px;border:2px solid var(--line)}
-.thumb button{position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;border:none;background:var(--coral);color:#fff}
+.thumb button{position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;border:none;background:var(--coral-strong);color:var(--on-coral)}
 .tag.warn{background:var(--coral-soft)}
 .pickbtn{display:inline-flex;align-items:center;gap:8px;border:2px solid var(--line);background:var(--paper);border-radius:14px;padding:12px 16px;font-size:1.1rem;cursor:pointer;min-height:52px}
 .pickbtn:focus-within{outline:3px solid var(--sun)}
@@ -153,19 +162,19 @@ h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
 .tour-chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:1rem;color:var(--muted)}
 .tour-chk input{width:20px;height:20px}
 .tour-btns{display:flex;gap:8px;margin-top:10px;align-items:center}
-.iconbtn.tour-next{background:var(--leaf);border-color:var(--leaf);color:#fff}
+.iconbtn.tour-next{background:var(--leaf-strong);border-color:var(--leaf-strong);color:var(--on-leaf)}
 .qbtns{display:flex;flex-direction:column;gap:8px}.speak.rp:disabled{opacity:.4}
-.tour-help{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:15;width:40px;height:40px;opacity:.75;border-radius:50%;border:2px solid var(--line);background:var(--card);font-size:1.4rem;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.tour-help{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:15;width:44px;height:44px;opacity:.85;border-radius:50%;border:2px solid var(--line);background:var(--card);font-size:1.4rem;box-shadow:0 4px 12px rgba(0,0,0,.15)}
 @media (prefers-reduced-motion:reduce){.tour-hole{transition:none}}
 
 .ghost.needfix{border-color:var(--coral);border-style:solid;background:var(--coral-soft);line-height:1.5}
-.ghost.needfix b{color:var(--coral);font-size:1rem}
+.ghost.needfix b{color:var(--coral-ink);font-size:1rem}
 .fixbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--coral-soft);border:2px solid var(--coral);border-radius:14px;padding:10px 14px;margin:8px 0;font-size:1.05rem}
 .filters .frow{display:flex;gap:10px;align-items:flex-start;margin-top:8px}
 .filters .flabel{flex:0 0 3em;color:var(--muted);padding-top:12px;font-size:.95rem}
-.filters .chip{font-size:1rem;padding:6px 12px;min-height:40px}
+.filters .chip{font-size:1rem;padding:6px 12px;min-height:44px}
 .chip.chip-warn{border-color:var(--coral)}
-.chip.chip-warn[aria-pressed="true"]{background:var(--coral);border-color:var(--coral)}
+.chip.chip-warn[aria-pressed="true"]{background:var(--coral-strong);border-color:var(--coral-strong);color:var(--on-coral)}
 .list li.qissue{background:var(--coral-soft);border-radius:12px;padding-left:10px;padding-right:10px}
 .list li.qreported{background:var(--sun-soft);border-radius:12px;padding-left:10px;padding-right:10px}
 .tipbox{margin-top:10px;background:var(--sun-soft);border-radius:14px;padding:12px 14px;font-size:1.05rem;line-height:1.6}.tipbox p{margin:2px 0}
@@ -176,9 +185,10 @@ h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:center;z-index:30;padding:20px}
 .modal-card{background:var(--card);color:var(--ink);border-radius:18px;padding:20px;max-width:420px;width:100%;font-size:1.15rem;line-height:1.6}
-.iconbtn.danger{background:var(--coral);border-color:var(--coral);color:#fff}
+.iconbtn.danger{background:var(--coral-strong);border-color:var(--coral-strong);color:var(--on-coral)}
 @media (max-width:480px){
   h1{font-size:1.9rem}
+  h1.pg{font-size:1.7rem}
   .qtext{font-size:1.35rem}
   .opt{font-size:1.2rem}
 }
@@ -614,7 +624,7 @@ function ask(){
       ${q.t==='tf'?(Math.random()<.5?`<button class="opt" data-v="O"><span class="sym">⭕</span>對</button><button class="opt" data-v="X"><span class="sym">❌</span>錯</button>`:`<button class="opt" data-v="X"><span class="sym">❌</span>錯</button><button class="opt" data-v="O"><span class="sym">⭕</span>對</button>`)
         :opts.map((o,i)=>`<button class="opt" data-v="${esc(o)}"><span class="n">${i+1}</span>${esc(o)}</button>`).join('')}
      </div>
-     <div id="fb"></div>
+     <div id="fb" role="status" aria-live="polite"></div>
    </section>`;
   S.justAdded=false;
   document.getElementById('hm').onclick=()=>CTX.home();
@@ -650,7 +660,7 @@ function answer(btn){
      <p class="fb-why">${esc(q.why)}</p>
      ${q.detail?`<details class="detail" id="det"><summary>📖 看詳細解題</summary><p>${esc(q.detail)}</p><button class="iconbtn" id="det-say">🔊 念詳解</button></details>`:''}
      ${note?`<p class="fb-why" style="margin-top:8px;color:var(--muted)">${note}</p>`:''}
-     ${(()=>{const ph=CTX.pic(q);return ph?`<div class="pic">${ph}</div>`:''})()}
+     ${(()=>{const ph=CTX.pic(q);return ph?`<div class="pic${CTX.key==='__plant'?' illus':''}">${ph}</div>`:''})()}
      <div class="footer"><button class="iconbtn" id="rw">🔊 聽解說</button></div>
      <button class="big" id="nx">${last?'看結果':'下一題'}</button>
    </div>`;
@@ -696,11 +706,11 @@ function parent(){
     return `<li><span>${n}</span><span>${s?`作答 ${s} 次・答對率 ${Math.round((s-w)/s*100)}%`:'還沒練'}</span></li>`}).join('');
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button></div>
-   <h1 style="font-size:1.8rem">學習紀錄</h1>
+   <h1 class="pg">學習紀錄</h1>
    <p class="lead">紀錄只存在這台裝置，🔁 是答錯後出現的複習題，🤖 是 AI 新題。累計作答 ${seen} 次，第一次就答對的比例 ${seen?Math.round((seen-wrong)/seen*100):0}%。</p>
-   <section class="card"><p style="margin:0;font-size:1.2rem">各單元</p><ul class="list">${byUnit}</ul></section>
-   <section class="card"><p style="margin:0;font-size:1.2rem">每一題（常錯的排前面）</p>
-   ${rows.length?`<ul class="list">${rows.map(q=>`<li><span>${q.review?'🔁 ':''}${q.ai?'🤖 ':''}${q.q}</span><span class="cnt">${rec[q.id].wrong?`錯 ${rec[q.id].wrong} 次`:'<span style="color:var(--leaf)">都答對</span>'} / ${rec[q.id].seen} 次</span></li>`).join('')}</ul>`:'<p class="lead" style="margin-top:10px">還沒有作答紀錄，先去練習吧。</p>'}</section>
+   <section class="card"><h2 class="ct">各單元</h2><ul class="list">${byUnit}</ul></section>
+   <section class="card"><h2 class="ct">每一題（常錯的排前面）</h2>
+   ${rows.length?`<ul class="list">${rows.map(q=>`<li><span>${q.review?'🔁 ':''}${q.ai?'🤖 ':''}${q.q}</span><span class="cnt">${rec[q.id].wrong?`錯 ${rec[q.id].wrong} 次`:'<span style="color:var(--leaf-ink)">都答對</span>'} / ${rec[q.id].seen} 次</span></li>`).join('')}</ul>`:'<p class="lead" style="margin-top:10px">還沒有作答紀錄，先去練習吧。</p>'}</section>
    <button class="ghost" id="clr">清除所有紀錄</button>`;
   document.getElementById('hm').onclick=home;
   document.getElementById('clr').onclick=async()=>{if(await confirmBox('確定要清除所有作答紀錄嗎？')){rec={};store.set('g3plants-rec',rec);parent()}};
@@ -803,9 +813,9 @@ async function familyPage(back){
   const b=back||home;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 返回</button></div>
-   <h1 style="font-size:1.8rem">⚙️ 家庭設定</h1>
+   <h1 class="pg">⚙️ 家庭設定</h1>
    <p class="lead">輸入網站管理者給你的「家庭邀請碼」，就能用 AI 產生題目，題庫也會存到雲端，換裝置輸入同一組邀請碼就看得到。</p>
-   ${CONFIG.API_URL?'':'<p class="lead" style="color:var(--coral)">網站尚未設定後端網址（CONFIG.API_URL），目前只能練習內建題目。</p>'}
+   ${CONFIG.API_URL?'':'<p class="lead" style="color:var(--coral-ink)">網站尚未設定後端網址（CONFIG.API_URL），目前只能練習內建題目。</p>'}
    <section class="card form">
      <label>家庭邀請碼 <input id="fc" value="${esc(FAMILY.code)}" autocomplete="off" autocapitalize="characters" placeholder="請輸入管理者提供的邀請碼"></label>
      <p class="lead" id="fmsg" style="margin:10px 0 0;font-size:1.05rem">${FAMILY.code?`目前使用：${esc(FAMILY.name||FAMILY.code)}`:'尚未設定'}</p>
@@ -908,7 +918,7 @@ function aiPage(){
   const pending=store.get(PENDING_KEY,[]).map(r=>normAI(r)).filter(Boolean);
   const unitChips=[['all','全部'],...Object.entries(UNITS)].map(([k,n])=>`<button class="chip" data-au="${k}" aria-pressed="${aiState.unit===k}">${n}</button>`).join('');
   const cntChips=[5,10].map(v=>`<button class="chip" data-ac="${v}" aria-pressed="${aiState.count===v}">${v} 題</button>`).join('');
-  const showAns=q=>q.t==='tf'?`答案：${q.a==='O'?'⭕ 對':'❌ 錯'}`:q.o.map(o=>o===q.a?`<b style="color:var(--leaf)">✔ ${o}</b>`:o).join('　');
+  const showAns=q=>q.t==='tf'?`答案：${q.a==='O'?'⭕ 對':'❌ 錯'}`:q.o.map(o=>o===q.a?`<b style="color:var(--leaf-ink)">✔ ${o}</b>`:o).join('　');
   let status='';
   if(SAMPLE===undefined)status='<p class="lead">正在確認能不能使用 AI 出題……</p>';
   else if(SAMPLE===null||aiState.blocked)status=`<p class="lead">${aiState.blocked?aiState.msg:'需要先輸入家庭邀請碼，才能用 AI 產生題目。'}</p>
@@ -927,19 +937,19 @@ function aiPage(){
 
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button></div>
-   <h1 style="font-size:1.8rem">用 AI 產生新題目</h1>
+   <h1 class="pg">用 AI 產生新題目</h1>
    <p class="lead">AI 只會用錄音裡教過的觀念出新的問法。產生後請大人先看過，按「收進題庫」的題目才會給小朋友練習。題目只存在這台裝置。</p>
    <div id="ai-status">
      <div class="section-title">哪一個單元？</div><div class="chips">${unitChips}</div>
      <div class="section-title">一次產生幾題？</div><div class="chips">${cntChips}</div>
      <div style="margin-top:18px">${status}</div>
    </div>
-   ${pending.length?`<section class="card"><p style="margin:0;font-size:1.2rem">等待確認（${pending.length} 題）</p>
+   ${pending.length?`<section class="card"><h2 class="ct">等待確認（${pending.length} 題）</h2>
      <ul class="list">${pending.map((q,i)=>`<li style="flex-direction:column;align-items:stretch">
        <span><span class="tag">${UNITS[q.u]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span><br>${q.q}<br><small>${showAns(q)}</small><br><small style="color:var(--muted)">解說：${q.why}</small></span>
        <span style="display:flex;gap:8px;margin-top:8px"><button class="iconbtn" data-acc="${i}">✅ 收進題庫</button><button class="iconbtn" data-rej="${i}">🗑 刪掉</button></span></li>`).join('')}</ul>
      <button class="ghost" id="ai-all">全部收進題庫</button></section>`:''}
-   <section class="card"><p style="margin:0;font-size:1.2rem">已收進的 AI 題目（${AIQ.length} 題）</p>
+   <section class="card"><h2 class="ct">已收進的 AI 題目（${AIQ.length} 題）</h2>
      ${AIQ.length?`<ul class="list">${AIQ.map(q=>`<li><span>${q.q}<br><small style="color:var(--muted)">${showAns(q)}</small></span><button class="iconbtn" data-del="${q.id}" aria-label="刪除這題">🗑</button></li>`).join('')}</ul>`:'<p class="lead" style="margin-top:10px">還沒有。</p>'}
    </section>`;
   document.getElementById('hm').onclick=home;
@@ -959,11 +969,35 @@ function aiPage(){
 }
 
 
+/* --- 對話框鍵盤操作：Esc 關閉、Tab 留在對話框內、關閉後焦點回到原本的按鈕 --- */
+const MODALS=[];
+function modalKeys(root,onEsc){
+  const prev=document.activeElement;MODALS.push(root);
+  const kd=e=>{
+    if(!root.isConnected){done(false);return}
+    if(MODALS[MODALS.length-1]!==root)return;
+    if(e.key==='Escape'){e.preventDefault();e.stopPropagation();onEsc();return}
+    if(e.key!=='Tab')return;
+    const f=[...root.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(x=>x.getClientRects().length);
+    if(!f.length)return;
+    const a=f[0],z=f[f.length-1],cur=document.activeElement;
+    if(!root.contains(cur)){e.preventDefault();a.focus()}
+    else if(e.shiftKey&&cur===a){e.preventDefault();z.focus()}
+    else if(!e.shiftKey&&cur===z){e.preventDefault();a.focus()}
+  };
+  const done=(refocus=true)=>{document.removeEventListener('keydown',kd,true);const i=MODALS.indexOf(root);if(i>=0)MODALS.splice(i,1);
+    if(refocus&&prev&&prev.isConnected&&typeof prev.focus==='function')prev.focus()};
+  document.addEventListener('keydown',kd,true);
+  return done;
+}
 /* --- 自製確認視窗（不依賴瀏覽器的 confirm） --- */
 function confirmBox(msg,okText){return new Promise(res=>{
   const d=document.createElement('div');d.className='modal';
-  d.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true"><p>${esc(msg)}</p><div class="footer"><button class="iconbtn" data-k="0">取消</button><button class="iconbtn danger" data-k="1">${esc(okText||'確定')}</button></div></div>`;
-  document.body.appendChild(d);d.querySelectorAll('button').forEach(x=>x.onclick=()=>{d.remove();res(x.dataset.k==='1')});
+  d.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true" aria-label="確認"><p>${esc(msg)}</p><div class="footer"><button class="iconbtn" data-k="0">取消</button><button class="iconbtn danger" data-k="1">${esc(okText||'確定')}</button></div></div>`;
+  document.body.appendChild(d);
+  const close=v=>{d.remove();keys();res(v)};const keys=modalKeys(d,()=>close(false));
+  d.querySelectorAll('button').forEach(x=>x.onclick=()=>close(x.dataset.k==='1'));
+  d.querySelector('[data-k="0"]').focus();
 })}
 /* ===== 自訂題庫（Beta） ===== */
 const LV={1:'基礎',2:'標準',3:'挑戰'};
@@ -1039,7 +1073,7 @@ function scheduleSave(bank){if(bank.__lib){libSaveLocal(bank);return}clearTimeou
 let toastTimer;
 function toast(msg){
   let t=document.getElementById('toast');
-  if(!t){t=document.createElement('div');t.id='toast';t.className='toast';document.body.appendChild(t)}
+  if(!t){t=document.createElement('div');t.id='toast';t.className='toast';t.setAttribute('role','status');t.setAttribute('aria-live','polite');document.body.appendChild(t)}
   t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
 }
 
@@ -1179,15 +1213,15 @@ const bindReload=(page,bank)=>bindFamilyBtn(()=>page==='gen'?genPage(bank):uploa
 /* --- 頁面：題庫列表 --- */
 async function betaHome(){
   if('speechSynthesis' in window)speechSynthesis.cancel();
-  app.innerHTML=`<div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div><h1 style="font-size:1.9rem">我的題庫</h1><p class="lead">載入中……</p>`;
+  app.innerHTML=`<div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div><h1 class="pg">我的題庫</h1><p class="lead">載入中……</p>`;
   document.getElementById('hm').onclick=libHome;
   await bsLoad();
   // 沒有邀請碼：不能建立或匯入題庫，只提示輸入邀請碼；這台裝置上已有的舊題庫仍可練習
   if(!FAMILY.code){
     app.innerHTML=`
      <div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div>
-     <h1 style="font-size:1.9rem">我的題庫</h1>
-     <section class="card"><p style="margin:0;font-size:1.2rem">🔒 需要家庭邀請碼</p>
+     <h1 class="pg">我的題庫</h1>
+     <section class="card"><h2 class="ct">🔒 需要家庭邀請碼</h2>
        <p class="lead" style="margin:8px 0 0">「我的題庫」可以上傳講義、用 AI 整理題目、產生親友閱讀碼，需要網站管理者提供的家庭邀請碼才能使用。</p>
        <p class="lead" style="margin:8px 0 0">只想練習的話，回到題庫書架輸入親友閱讀碼即可。</p>
        <button class="big" id="fam">⚙️ 輸入家庭邀請碼</button></section>
@@ -1202,13 +1236,13 @@ async function betaHome(){
   const where=`☁️ 題庫存在雲端（${esc(FAMILY.name||FAMILY.code)}），換裝置輸入同一組家庭邀請碼就看得到。`;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div>
-   <h1 style="font-size:1.9rem">我的題庫</h1>
+   <h1 class="pg">我的題庫</h1>
    <p class="lead">上傳孩子的講義、考卷照片或解題字幕，AI 會整理成點選作答的練習題。大人確認過的題目才會給孩子練習。</p>
    <p class="lead" style="font-size:1rem">${where}${BS.note?'<br>'+esc(BS.note):''}</p>
    ${BANKS.length?BANKS.map(b=>`<button class="bankcard" data-b="${esc(b.id)}">
       <span class="bk-title">${esc(b.title||bankInfo(b)||'未命名題庫')}</span>
       <span class="bk-meta">${esc(bankInfo(b))}</span>
-      <span class="bk-meta">${b.questions.length} 題${b.pending.length?`・<b style="color:var(--coral)">${b.pending.length} 題待確認</b>`:''}${b.questions.filter(q=>q.check&&q.check.s==='issue').length?`・<b style="color:var(--coral)">⚠️ ${b.questions.filter(q=>q.check&&q.check.s==='issue').length} 題需要修正</b>`:''}${b.published?'・🌐 已公開':''}</span></button>`).join('')
+      <span class="bk-meta">${b.questions.length} 題${b.pending.length?`・<b style="color:var(--coral-ink)">${b.pending.length} 題待確認</b>`:''}${b.questions.filter(q=>q.check&&q.check.s==='issue').length?`・<b style="color:var(--coral-ink)">⚠️ ${b.questions.filter(q=>q.check&&q.check.s==='issue').length} 題需要修正</b>`:''}${b.published?'・🌐 已公開':''}</span></button>`).join('')
      :'<div class="card"><p class="lead" style="margin:0">還沒有自訂題庫，先建立一個吧！</p></div>'}
    <button class="big" id="new">＋ 建立新題庫</button>
    <button class="ghost" id="imp">📥 匯入題庫檔（.json）</button>
@@ -1232,7 +1266,7 @@ function bankForm(bank){
   const sel=(id,list,val)=>`<select id="${id}">${list.map(x=>`<option${x===val?' selected':''}>${x}</option>`).join('')}</select>`;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 返回</button></div>
-   <h1 style="font-size:1.8rem">${bank?'編輯題庫資料':'建立新題庫'}</h1>
+   <h1 class="pg">${bank?'編輯題庫資料':'建立新題庫'}</h1>
    <div class="card form">
      <label>年級 ${sel('f-grade',GRADES,b.grade||'三年級')}</label>
      <label>學期 ${sel('f-term',['上','下'],b.term||'上')}</label>
@@ -1265,10 +1299,10 @@ function bankHome(bank){
   const lvCount=l=>bank.questions.filter(q=>!l||q.lv===l).length;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 題庫列表</button><button class="iconbtn" id="ed">✏️ 編輯資料</button></div>
-   <h1 style="font-size:1.8rem">${esc(bank.title||bankInfo(bank))}</h1>
+   <h1 class="pg">${esc(bank.title||bankInfo(bank))}</h1>
    <p class="lead">${esc(bankInfo(bank))}・${n} 題・${bank.concepts.length} 個觀念</p>
    ${n?`<section class="card">
-     <p style="margin:0;font-size:1.2rem">▶ 開始練習</p>
+     <h2 class="ct">▶ 開始練習</h2>
      <div class="section-title">難度</div>
      <div class="chips">${[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${bprefs.lv===l}" ${lvCount(l)?'':'disabled'}>${t}<small>${lvCount(l)}題</small></button>`).join('')}</div>
      <div class="section-title">題數</div>
@@ -1277,7 +1311,7 @@ function bankHome(bank){
      <button class="big" id="go">開始練習</button>
      ${weakConcepts(bank).length?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weakConcepts(bank).length} 個）</button>`:''}</section>`
     :'<div class="card"><p class="lead" style="margin:0">還沒有題目。先上傳資料，確認後就可以練習。</p></div>'}
-   <section class="card"><p style="margin:0;font-size:1.2rem">大人使用</p>
+   <section class="card"><h2 class="ct">大人使用</h2>
      <button class="ghost" id="up">📷 上傳資料產生題目（照片、字幕、文字）</button>
      <button class="ghost" id="gen" ${bank.concepts.length?'':'disabled'}>✨ 用已有的觀念產生更多題目${bank.concepts.length?'':'（先上傳資料）'}</button>
      <button class="ghost" id="rv">✅ 待確認的題目（${bank.pending.length}）</button>
@@ -1286,7 +1320,7 @@ function bankHome(bank){
      ${listBtnHTML(bank)}
      ${FAMILY.canPublish?`<button class="ghost" id="pub">${bank.published?'🌐 已公開到題庫書架（按此取消公開）':'🌐 公開到題庫書架'}</button>`:''}
      <button class="ghost" id="ex">📤 匯出（分享給親友或備份）</button>
-     <button class="ghost" id="del" style="color:var(--coral)">🗑 刪除這個題庫</button>
+     <button class="ghost" id="del" style="color:var(--coral-ink)">🗑 刪除這個題庫</button>
    </section>`;
   const $=id=>document.getElementById(id);
   $('bk').onclick=betaHome; $('ed').onclick=()=>bankForm(bank);
@@ -1364,7 +1398,7 @@ async function uploadPage(bank,keep){
   const busy=upState.phase==='working';
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
-   <h1 style="font-size:1.8rem">上傳資料產生題目</h1>
+   <h1 class="pg">上傳資料產生題目</h1>
    <p class="lead">可以只放照片、只貼文字，或兩個一起。照片上有答案（訂正過的考卷、解答頁）最準確。</p>
    ${sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
    <section class="card form">
@@ -1461,7 +1495,7 @@ let genState={lv:0,count:5,phase:'idle',msg:'',ctl:null};
 function genPage(bank){
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
-   <h1 style="font-size:1.8rem">產生更多題目</h1>
+   <h1 class="pg">產生更多題目</h1>
    <p class="lead">只用這個題庫已經整理好的 ${bank.concepts.length} 個觀念出新的問法，不會加入其他知識。</p>
    ${sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
    <div class="section-title">難度</div>
@@ -1508,11 +1542,11 @@ async function runGen(bank){
 let editIdx=-1;
 function qView(q){
   const tags=`<span class="tag">${LV[q.lv]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span> <span class="tag">${q.src==='原題'?'原題':q.src==='改寫'?'由填空等改寫':'AI 新題'}</span>${needAnsCheck(q)?' <span class="tag warn">⚠️ 答案由 AI 判斷，請確認</span>':''}`;
-  const ans=q.t==='tf'?`答案：${q.a==='O'?'⭕ 對':'❌ 錯'}`:q.o.map(o=>o===q.a?`<b style="color:var(--leaf)">✔ ${esc(o)}</b>`:esc(o)).join('　');
+  const ans=q.t==='tf'?`答案：${q.a==='O'?'⭕ 對':'❌ 錯'}`:q.o.map(o=>o===q.a?`<b style="color:var(--leaf-ink)">✔ ${esc(o)}</b>`:esc(o)).join('　');
   const ck=q.check?(q.check.s==='pass'?' <span class="tag">✅ AI 判讀通過</span>':` <span class="tag warn">⚠️ AI 判讀有問題</span>`):'';
   const fl=FLAGS[CUR_BANK_KEY]&&FLAGS[CUR_BANK_KEY].f[q.id];
   const flt=fl==='reported'?' <span class="tag warn">🚩 有人回報，等待判讀</span>':fl==='issue'?' <span class="tag warn">🚩 回報成立，已暫停出題</span>':'';
-  const note=q.check&&q.check.s==='issue'?`<br><small style="color:var(--coral)">判讀意見：${esc(q.check.note||'')}</small>`:'';
+  const note=q.check&&q.check.s==='issue'?`<br><small style="color:var(--coral-ink)">判讀意見：${esc(q.check.note||'')}</small>`:'';
   return `${tags}${ck}${flt}<br><span style="font-size:1.15rem">${q.icon?esc(q.icon)+' ':''}${esc(q.q)}</span><br><small>${ans}</small><br><small style="color:var(--muted)">解說：${esc(q.why)}</small>${q.detail?`<br><small style="color:var(--muted)">📖 詳解：${esc(q.detail)}</small>`:''}${note}`;
 }
 let CUR_BANK_KEY='';
@@ -1544,14 +1578,14 @@ function reviewPage(bank,msg){
   const P=bank.pending;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
-   <h1 style="font-size:1.8rem">待確認的題目（${P.length}）</h1>
+   <h1 class="pg">待確認的題目（${P.length}）</h1>
    ${msg?`<p class="lead">${esc(msg)}</p>`:''}
    <p class="lead" style="font-size:1rem">請確認題目和答案正確，按「收進題庫」才會給孩子練習。有 ⚠️ 的題目特別要檢查。</p>
    ${P.length?`<button class="big" id="all" style="margin-top:0">全部收進題庫</button>`:''}
    <ul class="list">${P.map((q,i)=>`<li style="flex-direction:column;align-items:stretch">
      ${editIdx===i?qEditor(q):`<span>${qView(q)}</span>
      <span class="footer" style="margin-top:8px"><button class="iconbtn" data-acc="${i}">✅ 收進題庫</button><button class="iconbtn" data-edit="${i}">✏️ 修改</button><button class="iconbtn" data-rej="${i}">🗑 刪掉</button></span>`}</li>`).join('')}</ul>
-   ${bank.skipped.length?`<section class="card"><p style="margin:0;font-size:1.15rem">不適合點選作答的題目（${bank.skipped.length}）</p>
+   ${bank.skipped.length?`<section class="card"><h2 class="ct">不適合點選作答的題目（${bank.skipped.length}）</h2>
      <ul class="list">${bank.skipped.map(s=>`<li><span>${esc(s.q)}<br><small style="color:var(--muted)">${esc(s.reason)}</small></span></li>`).join('')}</ul>
      <button class="ghost" id="clrsk">清除這份清單</button></section>`:''}`;
   const $=id=>document.getElementById(id);
@@ -1618,18 +1652,18 @@ function listPage(bank){
     if(listEdit===q.id)return `<li style="flex-direction:column;align-items:stretch">${qEditor(listDraft||q)}</li>`;
     const st=qStatus(q,key);
     return `<li class="${st==='issue'?'qissue':st==='reported'?'qreported':''}"><span>${qView(q)}${q.check&&q.check.fix&&st==='issue'?`<br><button class="iconbtn" data-fix="${esc(q.id)}" style="margin-top:6px">🛠 套用 AI 建議修正</button>`:''}</span>
-       <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><span class="cnt">${r[q.id]?(r[q.id].wrong?`錯 ${r[q.id].wrong} / ${r[q.id].seen} 次`:`<span style="color:var(--leaf)">對 ${r[q.id].seen} 次</span>`):'<span style="color:var(--muted)">還沒練</span>'}</span>
+       <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><span class="cnt">${r[q.id]?(r[q.id].wrong?`錯 ${r[q.id].wrong} / ${r[q.id].seen} 次`:`<span style="color:var(--leaf-ink)">對 ${r[q.id].seen} 次</span>`):'<span style="color:var(--muted)">還沒練</span>'}</span>
        <button class="iconbtn" data-qed="${esc(q.id)}" aria-label="修改">✏️</button><button class="iconbtn" data-qdel="${esc(q.id)}" aria-label="刪除">🗑</button></span></li>`;
   };
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
-   <h1 style="font-size:1.8rem">題目清單</h1>
+   <h1 class="pg">題目清單</h1>
    <p class="lead" style="font-size:1rem">依觀念分組；右邊是作答紀錄。修改題目後會清除 AI 判讀，等下次掃題重新判讀。</p>
    ${c.issue?`<div class="fixbar"><span>⚠️ 有 <b>${c.issue}</b> 題需要修正，已暫停出題。</span>${LF.st!=='issue'?'<button class="iconbtn" id="only-issue">只看需要修正的題目</button>':''}</div>`:''}
    <section class="card filters">${chips}
      <p class="lead" style="font-size:.95rem;margin:8px 0 0">顯示 ${shown.length} / ${Q.length} 題${Object.values(LF).some(Boolean)?'　<button class="iconbtn" id="lf-clr">清除篩選</button>':''}</p></section>
    ${bank.concepts.map(con=>{const qs=shown.filter(q=>q.c===con.id);if(!qs.length)return '';
-     return `<section class="card"><p style="margin:0;font-size:1.1rem">📌 ${esc(con.text)}</p><ul class="list">${qs.map(item).join('')}</ul></section>`}).join('')}
+     return `<section class="card"><h2 class="ct">📌 ${esc(con.text)}</h2><ul class="list">${qs.map(item).join('')}</ul></section>`}).join('')}
    ${Q.length?(shown.length?'':'<p class="lead">沒有符合篩選條件的題目。</p>'):'<p class="lead">還沒有題目。</p>'}
    ${Object.keys(r).length?'<button class="ghost" id="clr">清除這個題庫的作答紀錄</button>':''}`;
   const $=id=>document.getElementById(id);
@@ -1659,14 +1693,14 @@ const safeName=s=>String(s).replace(/[\\/:*?"<>|]/g,'').slice(0,60)||'題庫';
 function exportPage(bank){
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
-   <h1 style="font-size:1.8rem">匯出題庫</h1>
+   <h1 class="pg">匯出題庫</h1>
    <section class="card">
-     <p style="margin:0;font-size:1.15rem">📦 題庫檔（.json）</p>
+     <h2 class="ct">📦 題庫檔（.json）</h2>
      <p class="lead" style="font-size:1rem">傳給用同一個版本的親友，他們在「自訂題庫 → 匯入題庫檔」就能直接使用，不用再花額度產生。只包含已確認的題目，不含作答紀錄。</p>
      <button class="big" id="xj" style="margin-top:8px">下載題庫檔</button>
    </section>
    <section class="card">
-     <p style="margin:0;font-size:1.15rem">📊 表格（.csv）</p>
+     <h2 class="ct">📊 表格（.csv）</h2>
      <p class="lead" style="font-size:1rem">可以用 Excel 或 Google 試算表打開，方便查看、列印或備份。</p>
      <button class="ghost" id="xc">下載表格</button>
    </section>
@@ -1741,7 +1775,7 @@ function detailPage(bank){
   const busy=detState.phase==='working';
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
-   <h1 style="font-size:1.8rem">📝 補上詳細解題</h1>
+   <h1 class="pg">📝 補上詳細解題</h1>
    <p class="lead">AI 會幫每一題寫 2～4 句詳細解題：怎麼想出答案、其他選項為什麼不對、容易搞混的地方。寫好後存進題庫，孩子答題後可以點「📖 看詳細解題」，練習時不會再花費。</p>
    <p class="lead" style="font-size:1rem">還沒有詳解的題目：<b>${left}</b> 題（包含待確認的題目）。每 ${DETAIL_BATCH} 題一批，約 ${Math.max(1,Math.ceil(left/DETAIL_BATCH))} 次 AI 呼叫。</p>
    ${sampleBlocked()?aiUnavailableHTML():`<div id="d-act"></div>`}`;
@@ -1811,6 +1845,7 @@ function bankStats(bank){
   return {all:{...all,acc:acc(all)},practiced,total:bank.questions.length,levels,concepts,wrongQs,days};
 }
 const pct=a=>a==null?'—':Math.round(a*100)+'%';
+const STATUS_INK={'已熟練':'var(--leaf-ink)','練習中':'var(--sun-ink)','需要加強':'var(--coral-ink)','還沒練':'var(--muted)'};
 const STATUS_COLOR={'已熟練':'var(--leaf)','練習中':'var(--sun)','需要加強':'var(--coral)','還沒練':'var(--muted)'};
 let sumState={phase:'idle',msg:'',ctl:null};
 
@@ -1821,7 +1856,7 @@ function analysisPage(bank){
   const cnt=s=>st.concepts.filter(c=>c.status===s).length;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
-   <h1 style="font-size:1.8rem">📊 學習分析</h1>
+   <h1 class="pg">📊 學習分析</h1>
    ${!st.all.s?'<div class="card"><p class="lead" style="margin:0">還沒有作答紀錄，練習幾次之後再來看。</p></div>':`
    <section class="card">
      <div class="stats">
@@ -1829,29 +1864,29 @@ function analysisPage(bank){
        <div><b>${pct(st.all.acc)}</b><span>整體答對率</span></div>
        <div><b>${st.practiced} / ${st.total}</b><span>練過的題目</span></div>
      </div>
-     <p class="lead" style="font-size:1rem;margin:12px 0 0">觀念：<span style="color:var(--leaf)">已熟練 ${cnt('已熟練')}</span>・<span style="color:var(--sun)">練習中 ${cnt('練習中')}</span>・<span style="color:var(--coral)">需要加強 ${cnt('需要加強')}</span>・還沒練 ${cnt('還沒練')}</p>
+     <p class="lead" style="font-size:1rem;margin:12px 0 0">觀念：<span style="color:var(--leaf-ink)">已熟練 ${cnt('已熟練')}</span>・<span style="color:var(--sun-ink)">練習中 ${cnt('練習中')}</span>・<span style="color:var(--coral-ink)">需要加強 ${cnt('需要加強')}</span>・還沒練 ${cnt('還沒練')}</p>
    </section>
 
    ${bank.__lib&&!hasBackend()?'':`
-   <section class="card"><p style="margin:0;font-size:1.15rem">🤖 給家長的學習摘要</p>
+   <section class="card"><h2 class="ct">🤖 給家長的學習摘要</h2>
      <div id="sum-box">${bank.summary?`<p class="fb-why" style="margin-top:10px;white-space:pre-wrap">${esc(bank.summary.text)}</p><p class="lead" style="font-size:.9rem;margin:6px 0 0">產生時間：${esc(new Date(bank.summary.at).toLocaleString())}</p>`:'<p class="lead" style="font-size:1rem;margin:8px 0 0">依照下面的統計，請 AI 寫一段重點摘要和練習建議。</p>'}</div>
      <div id="sum-act"></div>
    </section>`}
 
-   <section class="card"><p style="margin:0;font-size:1.15rem">最近 14 天</p>
-     <div class="daychart">${st.days.map(d=>`<div class="day" title="${d.k}：作答 ${d.s} 次，答對率 ${pct(d.s?(d.s-d.w)/d.s:null)}"><span class="col" style="height:${Math.round(d.s/maxDay*100)}%;background:${!d.s?'transparent':(d.s-d.w)/d.s>=.8?'var(--leaf)':(d.s-d.w)/d.s>=.6?'var(--sun)':'var(--coral)'}"></span><small>${d.label}</small></div>`).join('')}</div>
+   <section class="card"><h2 class="ct">最近 14 天</h2>
+     <div class="daychart" tabindex="0" role="region" aria-label="最近 14 天作答次數">${st.days.map(d=>`<div class="day" title="${d.k}：作答 ${d.s} 次，答對率 ${pct(d.s?(d.s-d.w)/d.s:null)}"><span class="col" style="height:${Math.round(d.s/maxDay*100)}%;background:${!d.s?'transparent':(d.s-d.w)/d.s>=.8?'var(--leaf)':(d.s-d.w)/d.s>=.6?'var(--sun)':'var(--coral)'}"></span><small>${d.label}</small></div>`).join('')}</div>
      <p class="lead" style="font-size:.9rem;margin:6px 0 0">柱子高度是作答次數；顏色：綠色答對率 80% 以上、黃色 60～80%、紅色 60% 以下。每日紀錄從這次更新後開始累積。</p>
    </section>
 
-   <section class="card"><p style="margin:0;font-size:1.15rem">各難度答對率</p>
+   <section class="card"><h2 class="ct">各難度答對率</h2>
      ${st.levels.map(x=>`<div class="srow"><span class="sname">${LV[x.l]}（${x.n} 題）</span>${bar(x.acc)}<span class="sval">${pct(x.acc)}</span></div>`).join('')}
    </section>
 
-   <section class="card"><p style="margin:0;font-size:1.15rem">觀念掌握度</p>
-     ${st.concepts.map(c=>`<div class="srow"><span class="sname">${esc(c.text)}<br><small style="color:${STATUS_COLOR[c.status]}">${c.status}</small><small style="color:var(--muted)">・作答 ${c.s} 次</small></span>${bar(c.acc,STATUS_COLOR[c.status])}<span class="sval">${pct(c.acc)}</span></div>`).join('')}
+   <section class="card"><h2 class="ct">觀念掌握度</h2>
+     ${st.concepts.map(c=>`<div class="srow"><span class="sname">${esc(c.text)}<br><small style="color:${STATUS_INK[c.status]}">${c.status}</small><small style="color:var(--muted)">・作答 ${c.s} 次</small></span>${bar(c.acc,STATUS_COLOR[c.status])}<span class="sval">${pct(c.acc)}</span></div>`).join('')}
    </section>
 
-   ${st.wrongQs.length?`<section class="card"><p style="margin:0;font-size:1.15rem">最常答錯的題目</p>
+   ${st.wrongQs.length?`<section class="card"><h2 class="ct">最常答錯的題目</h2>
      <ul class="list">${st.wrongQs.map(q=>`<li><span>${esc(q.q)}<br><small style="color:var(--muted)">答案：${esc(ansStr(q))}</small></span><span class="cnt">錯 ${bank.rec[q.id].wrong} / ${bank.rec[q.id].seen} 次</span></li>`).join('')}</ul>
      <button class="ghost" id="weak2">🌱 練常錯的觀念</button></section>`:''}`}`;
   const $=id=>document.getElementById(id);
@@ -1923,7 +1958,7 @@ async function libHome(){
   CTX=PLANT_CTX;
   if('speechSynthesis' in window)speechSynthesis.cancel();
   if(libCode()&&!LIB&&!LIBERR){
-    app.innerHTML='<h1 style="font-size:1.9rem">📚 題庫書架</h1><p class="lead">載入中……</p>';
+    app.innerHTML='<h1 class="pg">📚 題庫書架</h1><p class="lead">載入中……</p>';
     try{LIB=(await libApi('libList')).banks||[]}
     catch(e){LIBERR=e.code==='bad_code'?'閱讀碼不正確或已停用，請重新輸入。':'目前連不上題庫，請稍後再試。';if(e.code==='bad_code'&&READER.code){READER={code:'',name:''};store.set('reader',READER)}}
   }
@@ -1936,12 +1971,12 @@ async function libHome(){
      <button class="iconbtn" id="codes">🔑 ${READER.code?'閱讀碼：'+esc(READER.code):FAMILY.code?'使用邀請碼':'輸入閱讀碼'}</button>
      <button class="iconbtn beta-btn" id="mine">🧪 我的題庫 <span class="tag" style="background:var(--sun-soft)">邀請碼</span></button>
    </div>
-   <h1 style="font-size:2rem">📚 題庫書架</h1>
+   <h1 class="pg">📚 題庫書架</h1>
    <p class="lead">選一本題庫開始練習。作答紀錄只存在這台裝置。</p>
-   ${!libCode()?`<section class="card form"><p style="margin:0;font-size:1.15rem">🔑 輸入親友閱讀碼，就能看到更多題庫</p>
+   ${!libCode()?`<section class="card form"><h2 class="ct">🔑 輸入親友閱讀碼，就能看到更多題庫</h2>
        <label><input id="rc" autocomplete="off" autocapitalize="characters" placeholder="請輸入親友給你的閱讀碼"></label>
        <button class="big" id="rcgo" style="margin-top:10px">確認</button><p class="lead" id="rcmsg" style="margin:8px 0 0"></p></section>`:''}
-   ${LIBERR?`<p class="lead" style="color:var(--coral)">${esc(LIBERR)}</p>`:''}
+   ${LIBERR?`<p class="lead" style="color:var(--coral-ink)">${esc(LIBERR)}</p>`:''}
    ${chipRow('g','年級',uniq(gradeTag))}${chipRow('s','科目',uniq(b=>b.subject))}${chipRow('p','版本',uniq(b=>b.publisher))}
    <div style="margin-top:8px">${shown.map(b=>`<button class="bankcard" data-lib="${esc(b.id)}">
       <span class="bk-title">${esc(b.title||bankInfo(b))}${b.builtin?' <span class="tag">內建</span>':''}</span>
@@ -1965,14 +2000,14 @@ async function verifyReader(code,msgEl){
 function codePage(){
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 題庫書架</button></div>
-   <h1 style="font-size:1.8rem">🔑 代碼設定</h1>
-   <section class="card form"><p style="margin:0;font-size:1.15rem">親友閱讀碼</p>
+   <h1 class="pg">🔑 代碼設定</h1>
+   <section class="card form"><h2 class="ct">親友閱讀碼</h2>
      <p class="lead" style="font-size:1rem;margin:6px 0 0">有閱讀碼就能練習題庫書架上的題庫，不能使用 AI。</p>
      <label><input id="rc" value="${esc(READER.code)}" autocomplete="off" autocapitalize="characters" placeholder="請輸入親友給你的閱讀碼"></label>
      <button class="big" id="rcgo" style="margin-top:10px">確認閱讀碼</button>
      ${READER.code?'<button class="ghost" id="rcclr">清除閱讀碼</button>':''}
      <p class="lead" id="rcmsg" style="margin:8px 0 0"></p></section>
-   <section class="card"><p style="margin:0;font-size:1.15rem">家庭邀請碼</p>
+   <section class="card"><h2 class="ct">家庭邀請碼</h2>
      <p class="lead" style="font-size:1rem;margin:6px 0 0">有邀請碼可以用 AI 建立自己的題庫、產生親友閱讀碼。${FAMILY.code?`目前使用：${esc(FAMILY.name||FAMILY.code)}`:''}</p>
      <button class="ghost" id="fam">⚙️ ${FAMILY.code?'變更':'輸入'}家庭邀請碼</button></section>`;
   const $=id=>document.getElementById(id);
@@ -1997,10 +2032,10 @@ function libBankHome(bank){
   const n=bank.questions.length,lvCount=l=>bank.questions.filter(q=>!l||q.lv===l).length,weak=weakConcepts(bank).length;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 題庫書架</button></div>
-   <h1 style="font-size:1.8rem">${esc(bank.title||bankInfo(bank))}</h1>
+   <h1 class="pg">${esc(bank.title||bankInfo(bank))}</h1>
    <p class="lead">${[gradeTag(bank),bank.subject,bank.publisher,bank.unit].filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')}　${n} 題・${bank.concepts.length} 個觀念</p>
    <section class="card">
-     <p style="margin:0;font-size:1.2rem">▶ 開始練習</p>
+     <h2 class="ct">▶ 開始練習</h2>
      <div class="section-title">難度</div>
      <div class="chips">${[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${bprefs.lv===l}" ${lvCount(l)?'':'disabled'}>${t}<small>${lvCount(l)}題</small></button>`).join('')}</div>
      <div class="section-title">題數</div>
@@ -2029,9 +2064,9 @@ async function readerAdminPage(){
   const active=list.filter(r=>r.enabled).length;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 我的題庫</button></div>
-   <h1 style="font-size:1.8rem">👥 親友閱讀碼</h1>
+   <h1 class="pg">👥 親友閱讀碼</h1>
    <p class="lead">把閱讀碼給親友，他們就能練習題庫書架上的題庫，不能使用 AI，也不會產生費用。每個家庭最多 ${limit} 組有效的閱讀碼。</p>
-   ${err?`<p class="lead" style="color:var(--coral)">${esc(err)}</p>`:''}
+   ${err?`<p class="lead" style="color:var(--coral-ink)">${esc(err)}</p>`:''}
    <section class="card form">
      <label>給誰用（備註） <input id="rn" placeholder="例如：表姊家"></label>
      <button class="big" id="rnew" ${active>=limit?'disabled':''} style="margin-top:10px">${active>=limit?`已達上限（${limit} 組）`:'產生新的閱讀碼'}</button>
@@ -2074,7 +2109,7 @@ const REPORT_REASONS=['答案錯誤','題目缺條件或看不懂','兩個以上
 function reportBox(q){
   const key=CTX.key;
   const d=document.createElement('div');d.className='modal';
-  d.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true">
+  d.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true" aria-label="回報題目有問題">
     <p style="margin:0 0 6px;font-size:1.25rem">🚩 回報題目有問題</p>
     <p class="lead" style="font-size:.95rem;margin:0 0 10px">AI 會在下次檢查時判讀，確認有問題的題目會暫停出題。${FAMILY.code?'回報成立可以獲得 AI 使用次數獎勵（同一題只發給第一位回報者）。':''}</p>
     <div class="chips">${REPORT_REASONS.map((r,i)=>`<button class="chip" data-r="${i}" aria-pressed="${i===0}">${r}</button>`).join('')}</div>
@@ -2082,16 +2117,18 @@ function reportBox(q){
     <p class="lead" id="rp-msg" style="margin:8px 0 0;font-size:1rem"></p>
     <div class="footer"><button class="iconbtn" data-k="0">取消</button><button class="iconbtn tour-next" data-k="1">送出回報</button></div></div>`;
   document.body.appendChild(d);
+  const close=()=>{d.remove();keys()};const keys=modalKeys(d,close);
+  d.querySelector('[data-r="0"]').focus();
   let reason=REPORT_REASONS[0];
   d.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{reason=REPORT_REASONS[+b.dataset.r];d.querySelectorAll('[data-r]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
-  d.querySelector('[data-k="0"]').onclick=()=>d.remove();
+  d.querySelector('[data-k="0"]').onclick=close;
   d.querySelector('[data-k="1"]').onclick=async e=>{
     const btn=e.currentTarget;btn.disabled=true;d.querySelector('#rp-msg').textContent='送出中……';
     try{
       await libApi('report',{bankId:key,qId:q.id,reason,note:d.querySelector('#rp-note').value.trim(),
         snapshot:JSON.stringify({q:q.q,o:q.o,a:q.a,why:q.why})});
       (FLAGS[key]||(FLAGS[key]={t:Date.now(),f:{}})).f[q.id]='reported';
-      d.remove();toast('已送出回報，謝謝你！');
+      close();toast('已送出回報，謝謝你！');
       const rb=document.getElementById('rp');if(rb)rb.disabled=true;
     }catch(err){
       if(err.code==='already_reported'){(FLAGS[key]||(FLAGS[key]={t:Date.now(),f:{}})).f[q.id]='reported';const rb=document.getElementById('rp');if(rb)rb.disabled=true}
@@ -2201,6 +2238,7 @@ function endTour(){
   const chk=document.getElementById('tour-skip');
   if(chk&&chk.checked){tourDone[tourState.key]=true;store.set('tour-done',tourDone)}
   ['tour-block','tour-hole','tour-tip'].forEach(id=>{const e=document.getElementById(id);if(e)e.remove()});
+  if(tourState.keys)tourState.keys();
   window.removeEventListener('resize',placeTour);window.removeEventListener('scroll',placeTour,true);
   tourState=null;
 }
@@ -2211,8 +2249,9 @@ function drawTour(){
   if(!block){
     block=document.createElement('div');block.id='tour-block';block.className='tour-block';
     hole=document.createElement('div');hole.id='tour-hole';hole.className='tour-hole';
-    tip=document.createElement('div');tip.id='tour-tip';tip.className='tour-tip';tip.setAttribute('role','dialog');tip.setAttribute('aria-modal','true');
+    tip=document.createElement('div');tip.id='tour-tip';tip.className='tour-tip';tip.setAttribute('role','dialog');tip.setAttribute('aria-modal','true');tip.setAttribute('aria-label','使用說明');
     document.body.append(block,hole,tip);
+    tourState.keys=modalKeys(tip,endTour);
     window.addEventListener('resize',placeTour);window.addEventListener('scroll',placeTour,true);
   }
   tip.innerHTML=`<p class="tour-step">${i+1} / ${steps.length}</p><p class="tour-title">${esc(s.title)}</p><p class="tour-text">${esc(s.text)}</p>
