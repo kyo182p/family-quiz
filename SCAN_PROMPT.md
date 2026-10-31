@@ -13,7 +13,7 @@
 curl -sSL -H 'Content-Type: text/plain;charset=utf-8' --data @req.json '{{API_URL}}'
 ```
 
-## 流程（最多重複 8 輪，沒有待判讀項目、也沒有待補詳解就結束）
+## 流程（最多重複 8 輪，沒有待判讀項目、待補詳解、待驗算講義就結束）
 
 1. 取得待判讀項目：`{"action":"adminPending","token":"{{ADMIN_TOKEN}}","limit":40}`
    - `reports`：待複審的回報（reason、note、snapshot 是回報當時的題目，current 是目前的題目；bankId 為 `__plant` 時只有 snapshot）
@@ -56,6 +56,33 @@ curl -sSL -H 'Content-Type: text/plain;charset=utf-8' --data @req.json '{{API_UR
 
 後端只會替還沒有詳解的題目補上，不會覆蓋家長寫的詳解。`needDetail` 和待判讀項目都清空才結束。
 
+## 驗算重點講義
+
+`adminPending` 回傳的 `handouts` 是「待驗算」的重點講義（每輪最多 2 份，`handoutsTotal` 是總數）。每份的 `handout` 內容：
+- `blocks`：每個觀念一段（title、why、rules、example{q,steps,answer}、mistake）
+- `intro`、`index`（卡題索引：left 題目表面句式、block 觀念編號）、`encourage`
+- `practice`：basic、advanced（字串陣列）、challenge（{q,hint} 陣列），題號依序 1、2、3… 連續編號
+- `answers`：每題詳解 {no,steps,answer}，no 對應練習題號
+
+驗算步驟（每一份都要做）：
+1. **數學題庫（`subject` 含「數學」）**：寫 Python 腳本，把每個例題和每一題練習題「照題目逐步」算一次，和講義寫的答案比對；分數用 `fractions.Fraction`，日期用 `datetime`，浮點數用容差比較。驗算失敗先檢查是題目錯還是檢核式寫錯。
+2. **其他科目**：逐題檢查答案和解說是否正確、是否和講義的觀念一致、有沒有超出年級的知識。
+3. 結構檢查：
+   - 練習題文字裡不可以出現「觀念一」「（觀念…）」之類的觀念標註
+   - `answers` 的題號要和練習題一一對應，沒有缺漏
+   - 例題、練習題的數字不要重複；答案要乾淨（或已註明四捨五入）
+   - 卡題索引的 block 編號不能超過觀念段數
+   - 通讀一遍：有沒有重複的句子、漏字、Markdown 符號
+4. 寫回（放在同一個 `adminVerdict` 請求的 `handouts`）：
+   - 沒有問題：`{"id":"…","note":"驗算 13 題全部正確"}`
+   - 有問題：在 `data` 放修正後的欄位（只放要換掉的欄位，例如整個 `answers` 陣列或整個 `practice`；欄位內容要完整，不是只放改的那一題），note 寫明修了什麼
+
+```json
+"handouts":[{"id":"h…","note":"第 7 題答案 36 應為 32，已修正詳解","data":{"answers":[{"no":1,"steps":["…"],"answer":"…"}]}}]
+```
+
+note 用繁體中文，一兩句，給家長看得懂。
+
 ## 結束時
 
-用 SendUserMessage 回報這次的摘要：判讀幾題、幾題有問題（列出題目與原因）、幾筆回報成立／不成立、發出幾次獎勵、補上幾題詳細解題。沒有待判讀項目時只要說「沒有新題目需要判讀」。
+用 SendUserMessage 回報這次的摘要：判讀幾題、幾題有問題（列出題目與原因）、幾筆回報成立／不成立、發出幾次獎勵、補上幾題詳細解題、驗算幾份講義（有修正的列出修了什麼）。沒有待判讀項目時只要說「沒有新題目需要判讀」。

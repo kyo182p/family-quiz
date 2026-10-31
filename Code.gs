@@ -21,6 +21,8 @@ const SHEET_PUBLIC = '公開題庫';
 const READER_LIMIT = 2;        // 每個家庭最多幾組有效的閱讀碼
 const LIB_CACHE_SEC = 600;     // 公開題庫清單快取秒數
 const SHEET_REPORT = '回報';
+const SHEET_HANDOUT = '講義';
+const MAX_HANDOUT_CHARS = 200000; // 單份講義 JSON 上限
 const REPORT_DAILY_LIMIT = 10; // 每組代碼每天最多回報幾題
 const REWARD_PER_REPORT = 3;   // 回報經 AI 確認成立，邀請碼家庭可得的 AI 次數
 
@@ -78,6 +80,20 @@ function doPost(e) {
       return out({ ok: false, code: 'server_error', message: String(err && err.message || err) });
     }
   }
+  // 公開題庫的重點講義：閱讀碼或邀請碼都可以看（不能產生）
+  if (req.action === 'libHandouts' || req.action === 'libHandoutGet') {
+    const famH = findFamily(req.code);
+    const readerH = famH ? null : findReader(req.code);
+    if (!famH && !readerH) return out({ ok: false, code: 'bad_code', message: '代碼不正確或已停用' });
+    try {
+      if (req.action === 'libHandouts') return out({ ok: true, handouts: libHandouts(String(req.bankId || '')) });
+      const h = libHandoutGet(String(req.id || ''));
+      return out(h ? { ok: true, handout: h } : { ok: false, code: 'not_found', message: '講義不存在' });
+    } catch (err) {
+      console.error(err);
+      return out({ ok: false, code: 'server_error', message: String(err && err.message || err) });
+    }
+  }
   if (req.action === 'libList' || req.action === 'libGet') {
     const fam0 = findFamily(req.code);
     const reader = fam0 ? null : findReader(req.code);
@@ -115,6 +131,16 @@ function doPost(e) {
         return out({ ok: true, banks: listBanks(fam) });
       case 'saveBank':
         return out(saveBank(fam, req.bank));
+      case 'handoutList':
+        return out({ ok: true, handouts: handoutList(fam, String(req.bankId || '')) });
+      case 'handoutGet': {
+        const h = handoutGet(String(req.id || ''), fam.code);
+        return out(h ? { ok: true, handout: h } : { ok: false, code: 'not_found', message: '講義不存在' });
+      }
+      case 'handoutSave':
+        return out(handoutSave(fam, req.handout));
+      case 'handoutDelete':
+        return out(handoutDelete(fam, String(req.id || '')));
       case 'deleteBank':
         deleteBank(fam, String(req.id || ''));
         return out({ ok: true });
@@ -155,6 +181,7 @@ function setup() {
   ensure(SHEET_REPORT, ['回報ID', '時間', '題庫ID', '題目ID', '題目快照', '回報者代碼', '身分', '原因', '說明', '狀態', 'AI 判讀意見', '判讀時間', '獎勵']);
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('ADMIN_TOKEN')) props.setProperty('ADMIN_TOKEN', Utilities.getUuid().replace(/-/g, ''));
+  ensure(SHEET_HANDOUT, ['講義ID', '邀請碼', '題庫ID', '標題', '觀念', '建立時間', '狀態', '驗算意見', '驗算時間', 'JSON 分段數', 'JSON1']);
   ensure(SHEET_USAGE, ['時間', '邀請碼', '家庭', '模型', '照片數', '輸入 token', '輸出 token', '估計美元']);
   if (fam.getLastRow() === 1) fam.appendRow(['TEST-0000', '測試家庭', 10, true, '測試用，可刪除', false]);
 }
@@ -618,6 +645,99 @@ function findQuestion(bankId, qId) {
   return null;
 }
 
+/* ===== 重點講義 =====
+   一份講義一列；內容 JSON 分段放在 K 欄之後。狀態：待驗算 → 已驗算／已修正（由定期掃題寫回） */
+function handoutSheet() { return SpreadsheetApp.getActive().getSheetByName(SHEET_HANDOUT); }
+function hoMeta(r, i) {
+  return { row: i + 1, id: String(r[0]), owner: String(r[1]), bankId: String(r[2]), title: String(r[3]), concepts: String(r[4]),
+    createdAt: r[5] instanceof Date ? r[5].getTime() : Number(r[5]) || 0, status: String(r[6] || '待驗算'), note: String(r[7] || ''),
+    verifiedAt: r[8] instanceof Date ? r[8].getTime() : 0 };
+}
+function hoRows() {
+  const sh = handoutSheet();
+  if (!sh) return [];
+  const rows = sh.getDataRange().getValues();
+  const list = [];
+  for (let i = 1; i < rows.length; i++) if (rows[i][0]) list.push({ meta: hoMeta(rows[i], i), raw: rows[i] });
+  return list;
+}
+function hoParse(x) {
+  const n = Number(x.raw[9]) || 1;
+  try {
+    const h = JSON.parse(x.raw.slice(10, 10 + n).join(''));
+    h.id = x.meta.id; h.bankId = x.meta.bankId; h.status = x.meta.status; h.note = x.meta.note; h.verifiedAt = x.meta.verifiedAt;
+    return h;
+  } catch (e) { return null; }
+}
+const hoPublic = m => ({ id: m.id, bankId: m.bankId, title: m.title, concepts: m.concepts, createdAt: m.createdAt, status: m.status });
+function handoutList(fam, bankId) {
+  return hoRows().filter(x => x.meta.owner === fam.code && x.meta.bankId === bankId).map(x => hoPublic(x.meta))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+function handoutGet(id, owner) {
+  const x = hoRows().filter(r => r.meta.id === id && (!owner || r.meta.owner === owner))[0];
+  return x ? hoParse(x) : null;
+}
+function hoWrite(rowIdx, meta, h) {
+  const body = Object.assign({}, h);
+  ['id', 'bankId', 'status', 'note', 'verifiedAt'].forEach(k => delete body[k]);
+  const json = JSON.stringify(body);
+  if (json.length > MAX_HANDOUT_CHARS) return { ok: false, code: 'too_large', message: '講義太大' };
+  const parts = [];
+  for (let i = 0; i < json.length; i += CHUNK) parts.push(json.slice(i, i + CHUNK));
+  const sh = handoutSheet();
+  const values = [meta.id, meta.owner, meta.bankId, meta.title, meta.concepts, meta.createdAt ? new Date(meta.createdAt) : new Date(),
+    meta.status, meta.note || '', meta.verifiedAt ? new Date(meta.verifiedAt) : '', parts.length].concat(parts);
+  const lastCol = sh.getLastColumn();
+  if (lastCol > values.length) sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent();
+  sh.getRange(rowIdx, 1, 1, values.length).setValues([values]);
+  return { ok: true };
+}
+function handoutSave(fam, h) {
+  if (!h || !h.id || !h.bankId) return { ok: false, code: 'bad_request', message: '缺少講義' };
+  if (!handoutSheet()) return { ok: false, code: 'server_error', message: '後端還沒建立「講義」工作表，請管理者執行一次 setup' };
+  if (!listBanks(fam).some(b => String(b.id) === String(h.bankId))) return { ok: false, code: 'not_found', message: '找不到題庫' };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const old = hoRows().filter(x => x.meta.id === String(h.id))[0];
+    if (old && old.meta.owner !== fam.code) return { ok: false, code: 'not_found', message: '找不到講義' };
+    const meta = { id: String(h.id), owner: fam.code, bankId: String(h.bankId), title: String(h.title || '重點講義').slice(0, 100),
+      concepts: [].concat(h.conceptTexts || []).join('、').slice(0, 300), createdAt: Number(h.createdAt) || Date.now(),
+      status: '待驗算', note: '', verifiedAt: 0 };
+    return hoWrite(old ? old.meta.row : handoutSheet().getLastRow() + 1, meta, h);
+  } finally {
+    lock.releaseLock();
+  }
+}
+function handoutDelete(fam, id) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const x = hoRows().filter(r => r.meta.id === id && r.meta.owner === fam.code)[0];
+    if (x) handoutSheet().deleteRow(x.meta.row);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function publicOwner(bankId) {
+  const rows = publicSheet().getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) if (String(rows[i][0]) === bankId) return String(rows[i][1]);
+  return '';
+}
+function libHandouts(bankId) {
+  const owner = publicOwner(bankId);
+  if (!owner) return [];
+  return hoRows().filter(x => x.meta.owner === owner && x.meta.bankId === bankId).map(x => hoPublic(x.meta))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+function libHandoutGet(id) {
+  const x = hoRows().filter(r => r.meta.id === id)[0];
+  if (!x || publicOwner(x.meta.bankId) !== x.meta.owner) return null;
+  return hoParse(x);
+}
+
 /* ===== 定期掃題（由排程工作呼叫） ===== */
 function allBanks() {
   const rows = bankSheet().getDataRange().getValues();
@@ -658,17 +778,27 @@ function adminPending(limit) {
     if (!q.detail && q.check && q.check.s === 'pass' && needDetail.length < limit) needDetail.push(pack(x, q));
   }));
   const detailTotal = banks.reduce((n, x) => n + (x.bank.questions || []).filter(q => !q.detail && q.check && q.check.s === 'pass').length, 0);
-  return { ok: true, reports, questions, unjudgedTotal: total, needDetail, needDetailTotal: detailTotal };
+  // 待驗算的重點講義（內容較大，每輪最多 2 份）
+  const hoAll = hoRows().filter(x => x.meta.status === '待驗算');
+  const handouts = hoAll.slice(0, 2).map(x => {
+    const h = hoParse(x);
+    const b = byId[x.meta.bankId];
+    return h && { id: x.meta.id, bankId: x.meta.bankId,
+      bankInfo: b ? [b.bank.grade, b.bank.term, b.bank.subject, b.bank.publisher, b.bank.unit].filter(Boolean).join(' ') : '',
+      subject: b ? String(b.bank.subject || '') : '', handout: h };
+  }).filter(Boolean);
+  return { ok: true, reports, questions, unjudgedTotal: total, needDetail, needDetailTotal: detailTotal, handouts, handoutsTotal: hoAll.length };
 }
 
 // 寫回判讀結果。items：題目判讀；reports：回報是否成立
 function adminVerdict(req) {
   const items = [].concat(req.items || []), reps = [].concat(req.reports || []), details = [].concat(req.details || []);
+  const hos = [].concat(req.handouts || []);
   const model = String(req.model || '').slice(0, 40);
   const now = Date.now();
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
-  const result = { ok: true, judged: 0, reportsDone: 0, rewards: 0, detailsAdded: 0 };
+  const result = { ok: true, judged: 0, reportsDone: 0, rewards: 0, detailsAdded: 0, handoutsDone: 0 };
   try {
     const banks = allBanks();
     const byId = {};
@@ -720,6 +850,21 @@ function adminVerdict(req) {
       }
     });
     Object.keys(dirty).forEach(id => { const x = byId[id]; putBank({ code: x.owner }, x.bank, true); });
+    // 講義驗算結果：data 有給就用修正後的內容取代
+    if (hos.length) {
+      const all = hoRows();
+      hos.forEach(v => {
+        const x = all.filter(r => r.meta.id === String(v.id))[0];
+        if (!x) return;
+        const cur = hoParse(x);
+        if (!cur) return;
+        const fixed = v.data && typeof v.data === 'object';
+        const h = fixed ? Object.assign({}, cur, v.data) : cur;
+        const meta = Object.assign({}, x.meta, { status: fixed ? '已修正' : '已驗算', note: String(v.note || '').slice(0, 500), verifiedAt: now });
+        h.verifiedBy = model || 'scan';
+        if (hoWrite(x.meta.row, meta, h).ok) result.handoutsDone++;
+      });
+    }
   } finally {
     lock.releaseLock();
   }
