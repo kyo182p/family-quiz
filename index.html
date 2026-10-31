@@ -7,41 +7,28 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --paper:#F1F7EA; --grid:#DCEBD2; --ink:#1E3A2B; --muted:#506A5A;
-  --card:#FFFFFF; --leaf:#3D8B4F; --leaf-soft:#D6EBCF; --sun:#F2B23A; --sun-soft:#FFF1CC;
-  --coral:#E25D44; --coral-soft:#FBE0DA; --soil:#8B5E3C; --line:#C9DDBF;
-  --leaf-strong:#2E7340; --on-leaf:#fff; --coral-strong:#B83D27; --on-coral:#fff;
-  --leaf-ink:#2E7340; --sun-ink:#8A5A00; --coral-ink:#A93522; --press:#1F5530;
+  --paper:#24352D; --grid:#2C4036; --ink:#ECEEE4; --muted:#B9C4B6;
+  --card:#2A3D34; --leaf:#9BE3A5; --leaf-soft:#2F4B3B; --sun:#F2D65F; --sun-soft:#45432A;
+  --coral:#F3A7B6; --coral-soft:#4A3038; --soil:#7A5434; --line:#6F8277;
+  --leaf-strong:#F2D65F; --on-leaf:#1E2B24; --coral-strong:#F3A7B6; --on-coral:#1E2B24;
+  --leaf-ink:#A8E6B1; --sun-ink:#F2D65F; --coral-ink:#F7B9C5; --press:#A8902F;
+  --chalk-r:255px 15px 225px 15px/15px 225px 15px 255px;
+  --chalk-r2:15px 225px 15px 255px/255px 15px 225px 15px;
+  color-scheme:dark;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
-    --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
-    --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
-    --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75; --on-coral:#2A0E08;
-  --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
-  }
-}
-:root[data-theme="dark"]{
-  --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
-  --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
-  --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
-  --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75; --on-coral:#2A0E08;
-  --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
-}
 *,*::before,*::after{box-sizing:inherit}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);background:var(--soil)}
 body{
-  margin:0; min-height:100%; color:var(--ink);
-  font-family:"Huninn","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  margin:0; min-height:100vh; color:var(--ink);
+  font-family:"LXGW WenKai TC","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
   background-color:var(--paper);
-  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
-  background-size:28px 28px;
+  background-image:radial-gradient(ellipse at 18% 22%,rgba(255,255,255,.07),transparent 55%),radial-gradient(ellipse at 82% 70%,rgba(255,255,255,.05),transparent 50%),radial-gradient(ellipse at 50% 100%,rgba(255,255,255,.04),transparent 40%);
+  background-attachment:fixed;
   -webkit-tap-highlight-color:transparent;
 }
 main{max-width:720px;margin:0 auto;padding:16px 16px 96px}
@@ -109,7 +96,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .r{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:10px;font-size:1.15rem;line-height:1.5}
 .r .e{font-size:2rem;flex:0 0 44px;text-align:center}
 .r b{flex:0 0 auto;min-width:4.5em}
-.r.hl{background:#FFF1CC;outline:2px solid #F2B23A}
+.r.hl{background:var(--sun-soft);outline:2px solid var(--sun)}
 .pop{animation:pop .35s ease-out}
 @keyframes pop{0%{transform:scale(.92)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
 .shake{animation:shake .35s}
@@ -195,6 +182,18 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
+/* --- 教室黑板：木頭框與粉筆手繪框 --- */
+body::after{content:"";position:fixed;inset:0;border:8px solid var(--soil);box-shadow:inset 0 0 0 2px #5E402A;pointer-events:none;z-index:60}
+.chip,.iconbtn,.ghost,.pickbtn{border-radius:var(--chalk-r)}
+.card,.bankcard,.detail,.feedback{border-radius:var(--chalk-r2)}
+.opt{border-radius:var(--chalk-r)}
+.opt:nth-child(even){border-radius:var(--chalk-r2)}
+.big{border-radius:var(--chalk-r2);font-weight:700}
+h1,.score{text-shadow:0 0 1px rgba(255,255,255,.5);letter-spacing:.06em}
+.opt.correct{color:var(--ink)}
+.toast{background:var(--ink);color:var(--paper)}
+.pic.illus{border-radius:6px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.pic.illus .r.hl{background:#FFF1CC;outline:2px solid #F2B23A}
 </style>
 </head>
 <body>
@@ -360,7 +359,7 @@ const BYID=Object.fromEntries(ALL.map(q=>[q.id,q]));
 const ORIGIN=Object.fromEntries(Q.filter(q=>q.c===q.id).map(q=>[q.c,q]));
 /* ===== 圖片 ===== */
 const C={leaf:'#3D8B4F',leaf2:'#6DB36F',dark:'#1E3A2B',soil:'#8B5E3C',sun:'#F2B23A',red:'#D7322B',pink:'#F28DB2',hl:'#FFF1CC'};
-const svg=(w,h,inner)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" font-family="Huninn,PingFang TC,Noto Sans TC,sans-serif">${inner}</svg>`;
+const svg=(w,h,inner)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" font-family="LXGW WenKai TC,PingFang TC,Noto Sans TC,sans-serif">${inner}</svg>`;
 const T=(x,y,t,s=16,c=C.dark,a='middle')=>`<text x="${x}" y="${y}" font-size="${s}" fill="${c}" text-anchor="${a}">${t}</text>`;
 const leafAt=(x,y,len,wid,ang,fill=C.leaf)=>`<g transform="translate(${x},${y}) rotate(${ang})"><path d="M0,0 C${wid},${-len*.3} ${wid*.6},${-len*.9} 0,${-len} C${-wid*.6},${-len*.9} ${-wid},${-len*.3} 0,0Z" fill="${fill}" stroke="${C.dark}" stroke-width="1.2"/><line x1="0" y1="0" x2="0" y2="${-len*.9}" stroke="#ffffff" stroke-opacity=".5"/></g>`;
 
@@ -1117,7 +1116,7 @@ function mergeResult(bank,res,defaultSrc){
     const rr={...r,c:idMap[r&&r.c]||(r&&r.c),src:(r&&r.src)||defaultSrc};
     const n=normQ(rr,ids);
     if(!n||seen.has(n.q)){dropped++;return}
-    seen.add(n.q); bank.pending.push({...n,id:newId(bank,'q')}); added++;
+    seen.add(n.q); bank.questions.push({...n,id:newId(bank,'q')}); added++;
   });
   const sk=Array.isArray(res&&res.skipped)?res.skipped:[];
   sk.forEach(x=>{const q=String(x&&x.q||'').trim().slice(0,160);if(q)bank.skipped.push({q,reason:String(x.reason||'').slice(0,80)})});
@@ -1291,16 +1290,18 @@ function bankForm(bank){
 }
 
 /* --- 頁面：單一題庫 --- */
-function bankHome(bank){
+function bankHome(bank,msg){
   CTX=PLANT_CTX;
   if(!FLAGS[bank.id])loadFlags(bank.id).then(()=>{const b=document.getElementById('ls');if(b&&b.isConnected){b.outerHTML=listBtnHTML(bank);const nb=document.getElementById('ls');if(nb)nb.onclick=()=>openList(bank)}});
   if('speechSynthesis' in window)speechSynthesis.cancel();
   const n=bank.questions.length;
   const lvCount=l=>bank.questions.filter(q=>!l||q.lv===l).length;
+  const answered=Object.values(bank.rec||{}).some(r=>r&&r.seen);
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 題庫列表</button><button class="iconbtn" id="ed">✏️ 編輯資料</button></div>
    <h1 class="pg">${esc(bank.title||bankInfo(bank))}</h1>
    <p class="lead">${esc(bankInfo(bank))}・${n} 題・${bank.concepts.length} 個觀念</p>
+   ${msg?`<div class="feedback good" role="status"><p class="fb-why" style="margin:0">${esc(msg)}</p></div>`:''}
    ${n?`<section class="card">
      <h2 class="ct">▶ 開始練習</h2>
      <div class="section-title">難度</div>
@@ -1312,11 +1313,9 @@ function bankHome(bank){
      ${weakConcepts(bank).length?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weakConcepts(bank).length} 個）</button>`:''}</section>`
     :'<div class="card"><p class="lead" style="margin:0">還沒有題目。先上傳資料，確認後就可以練習。</p></div>'}
    <section class="card"><h2 class="ct">大人使用</h2>
-     <button class="ghost" id="up">📷 上傳資料產生題目（照片、字幕、文字）</button>
-     <button class="ghost" id="gen" ${bank.concepts.length?'':'disabled'}>✨ 用已有的觀念產生更多題目${bank.concepts.length?'':'（先上傳資料）'}</button>
-     <button class="ghost" id="rv">✅ 待確認的題目（${bank.pending.length}）</button>
-     <button class="ghost" id="an" ${n?'':'disabled'}>📊 學習分析</button>
-     <button class="ghost" id="det" ${needDetail(bank).length?'':'disabled'}>📝 補上詳細解題${needDetail(bank).length?`（${needDetail(bank).length} 題還沒有）<br><small style="color:var(--muted)">判讀通過的題目，每天排程掃題時會自動補上，不花 AI 次數</small>`:'（都已完成）'}</button>
+     ${answered?`<button class="ghost" id="more">✨ 產生更多題目</button>`:`<button class="ghost" id="up">📷 上傳資料產生題目（照片、字幕、文字）</button>`}
+     ${bank.pending.length?`<button class="ghost" id="rv">✅ 待確認的題目（${bank.pending.length}）</button>`:''}
+     ${answered?`<button class="ghost" id="an">📊 學習分析</button>`:''}
      ${listBtnHTML(bank)}
      ${FAMILY.canPublish?`<button class="ghost" id="pub">${bank.published?'🌐 已公開到題庫書架（按此取消公開）':'🌐 公開到題庫書架'}</button>`:''}
      <button class="ghost" id="ex">📤 匯出（分享給親友或備份）</button>
@@ -1329,10 +1328,10 @@ function bankHome(bank){
   if($('ar'))$('ar').onchange=e=>{prefs.autoRead=e.target.checked;store.set('g3plants-prefs',prefs)};
   if($('go'))$('go').onclick=()=>startBank(bank);
   if($('weak'))$('weak').onclick=()=>startWeak(bank);
-  $('up').onclick=()=>uploadPage(bank); $('gen').onclick=()=>genPage(bank);
-  $('an').onclick=()=>{sumState.msg='';analysisPage(bank)}; $('det').onclick=()=>{detState.msg='';detailPage(bank)};
+  if($('up'))$('up').onclick=()=>uploadPage(bank); if($('more'))$('more').onclick=()=>morePage(bank);
+  if($('an'))$('an').onclick=()=>{sumState.msg='';analysisPage(bank)};
   if($('pub'))$('pub').onclick=()=>togglePublish(bank);
-  $('rv').onclick=()=>reviewPage(bank); $('ls').onclick=()=>openList(bank); $('ex').onclick=()=>exportPage(bank);
+  if($('rv'))$('rv').onclick=()=>reviewPage(bank); $('ls').onclick=()=>openList(bank); $('ex').onclick=()=>exportPage(bank);
   $('del').onclick=async()=>{if(await confirmBox('確定要刪除「'+(bank.title||bankInfo(bank))+'」嗎？題目和作答紀錄都會刪除。')){await bsDelete(bank);betaHome()}};
   window.scrollTo(0,0);
 }
@@ -1389,6 +1388,7 @@ async function toJpeg(file){
 /* --- 頁面：上傳資料 --- */
 let upState={files:[],text:'',note:'',phase:'idle',msg:'',ctl:null};
 let upLv=store.get('custom-up-lv',0); // AI 補充題的難度：0 由 AI 判斷
+let upCount=store.get('custom-up-count',20); // 目標題數：原題不夠時用觀念補足
 function cleanSubtitle(t){return t.split(/\r?\n/).filter(l=>!/^\s*\d+\s*$/.test(l)&&!/-->/.test(l)&&l.trim()).join(' ').replace(/\s+/g,' ').trim()}
 async function uploadPage(bank,keep){
   if(!keep)upState={files:[],text:'',note:'',phase:'idle',msg:'',ctl:null};
@@ -1426,6 +1426,9 @@ async function uploadPage(bank,keep){
      <p style="margin:16px 0 8px;font-size:1.15rem">🎯 AI 補充題的難度</p>
      <div class="chips">${[[0,'由 AI 判斷'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-ulv="${l}" aria-pressed="${upLv===l}" ${busy?'disabled':''}>${t}</button>`).join('')}</div>
      <p class="lead" style="font-size:.95rem;margin:6px 0 0">講義只有課文、沒有題目時，AI 會自己補出題目，這裡決定那些題目的難度。原題和改寫題維持講義原本的難度。</p>
+     <p style="margin:16px 0 8px;font-size:1.15rem">🔢 題數（至少）</p>
+     <div class="chips">${QCOUNTS.map(v=>`<button class="chip" data-ucn="${v}" aria-pressed="${upCount===v}" ${busy?'disabled':''}>${v} 題</button>`).join('')}</div>
+     <p class="lead" style="font-size:.95rem;margin:6px 0 0">資料裡的原題全部會收進來；不夠這個數量時，AI 會用同樣的觀念補題（每 ${GEN_PER_CALL} 題算一次 AI 使用次數）。</p>
    </section>
    <div id="u-act" style="margin-top:16px"></div>`}`;
   document.getElementById('bk').onclick=()=>{if(upState.ctl)upState.ctl.abort();bankHome(bank)};
@@ -1434,6 +1437,7 @@ async function uploadPage(bank,keep){
   const $=id=>document.getElementById(id);
   const sync=()=>{upState.text=$('u-text').value;upState.note=$('u-note').value};
   app.querySelectorAll('[data-ulv]').forEach(b=>b.onclick=()=>{sync();upLv=+b.dataset.ulv;store.set('custom-up-lv',upLv);uploadPage(bank,true)});
+  app.querySelectorAll('[data-ucn]').forEach(b=>b.onclick=()=>{sync();upCount=+b.dataset.ucn;store.set('custom-up-count',upCount);uploadPage(bank,true)});
   if($('u-img'))$('u-img').onchange=async e=>{
     sync();const list=[...e.target.files];let bad=0;
     toast('正在處理照片……');
@@ -1443,15 +1447,12 @@ async function uploadPage(bank,keep){
   app.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{sync();upState.files.splice(+b.dataset.rm,1);uploadPage(bank,true)});
   $('u-txt').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{sync();const t=String(r.result);upState.text=(upState.text?upState.text+'\n':'')+(/-->/.test(t)?cleanSubtitle(t):t);uploadPage(bank,true)};r.readAsText(f)};
   const act=$('u-act');
-  if(upState.phase==='confirm'){
-    act.innerHTML=quotaNote+'<button class="big" id="u-go">我知道了，開始分析</button><button class="ghost" id="u-cancel">取消</button>';
-    $('u-go').onclick=()=>{sync();runAnalyze(bank,maxN)}; $('u-cancel').onclick=()=>{sync();upState.phase='idle';uploadPage(bank,true)};
-  }else if(busy){
+  if(busy){
     act.innerHTML=`<div class="feedback"><p class="fb-head" id="u-prog">${esc(upState.msg||'Claude 正在看資料……')}</p><p class="fb-why">大約要等 10～60 秒，請不要關掉畫面。</p><button class="ghost" id="u-stop">停止</button></div>`;
     $('u-stop').onclick=()=>upState.ctl&&upState.ctl.abort();
   }else{
-    act.innerHTML=`<button class="big" id="u-start">🤖 開始分析</button>${upState.msg?`<p class="lead" style="margin-top:12px">${esc(upState.msg)}</p>`:''}`;
-    $('u-start').onclick=()=>{sync();if(!upState.files.length&&!upState.text.trim()){toast('請先放照片或貼上文字');return}upState.phase='confirm';upState.msg='';uploadPage(bank,true)};
+    act.innerHTML=quotaNote+`<button class="big" id="u-start">🤖 開始產生題目</button>${upState.msg?`<p class="lead" style="margin-top:12px">${esc(upState.msg)}</p>`:''}`;
+    $('u-start').onclick=()=>{sync();if(!upState.files.length&&!upState.text.trim()){toast('請先放照片或貼上文字');return}upState.msg='';runAnalyze(bank,maxN)};
   }
   window.scrollTo(0,0);
 }
@@ -1479,19 +1480,66 @@ async function runAnalyze(bank,maxN){
       err=e;tot.failed=(tot.failed||[]).concat(i+1);
     }
   }
+  // 原題不夠目標題數時，用整理出的觀念補題
+  let extra=0;
+  const stopped=err&&['cancelled','bad_code','daily_limit','no_credit','not_configured'].includes(err.code);
+  if(tot.added&&tot.added<upCount&&!stopped&&bank.concepts.length){
+    const ctl=new AbortController();upState.ctl=ctl;
+    const r=await genBatches(bank,upLv,upCount-tot.added,ctl,(a,t)=>{const p=document.getElementById('u-prog');if(p)p.textContent=`原題 ${tot.added} 題，AI 正在補題目……（${a} / ${t} 題）`});
+    extra=r.added;if(r.err)err=r.err;
+  }
   upState.ctl=null;upState.phase='idle';
   if(tot.added||tot.skipped){
     upState.files=[];upState.text='';upState.note='';
-    toast(`整理出 ${tot.added} 題，請到「待確認」檢查`);
-    reviewPage(bank,`整理出 ${tot.added} 題${tot.skipped?`，另有 ${tot.skipped} 題不適合點選作答`:''}${tot.dropped?`（${tot.dropped} 題格式不合格或重複，已略過）`:''}${tot.cut?`。有 ${tot.cut} 批內容太多，後段題目可能沒整理到，可以把那幾張照片再分析一次`:''}${tot.failed?`。第 ${tot.failed.join('、')} 批沒有成功（${aiErrMsg(err)}），可以把那幾張照片再上傳一次`:''}`);
+    const all=tot.added+extra;
+    bankHome(bank,`新增 ${all} 題，已收進題庫（資料原題 ${tot.added} 題${extra?`、AI 補題 ${extra} 題`:''}）${tot.skipped?`；另有 ${tot.skipped} 題不適合點選作答`:''}${tot.dropped?`；${tot.dropped} 題格式不合格或重複，已略過`:''}${tot.cut?`。有 ${tot.cut} 批內容太多，後段題目可能沒整理到，可以把那幾張照片再上傳一次`:''}${tot.failed?`。第 ${tot.failed.join('、')} 批沒有成功（${aiErrMsg(err)}），可以把那幾張照片再上傳一次`:''}${extra+tot.added<upCount&&err&&!tot.failed?`。補題沒有完成（${aiErrMsg(err)}）`:''}。詳細解題會在每天的排程自動補上。`);
     return;
   }
   upState.msg=err?aiErrMsg(err):'這次沒有整理出可以用的題目，請換清楚一點的照片，或補充說明再試一次。';
   uploadPage(bank,true);
 }
 
+/* --- 頁面：產生更多題目（選來源） --- */
+function morePage(bank){
+  const hasCon=bank.concepts.length>0;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
+   <h1 class="pg">產生更多題目</h1>
+   <p class="lead">選擇新題目要從哪裡來。產生的題目會直接收進題庫，詳細解題由每天的排程自動補上。</p>
+   <button class="ghost" id="m-up">📷 上傳新的資料<br><small style="color:var(--muted)">照片、字幕或文字，整理成題目</small></button>
+   <button class="ghost" id="m-gen" ${hasCon?'':'disabled'}>✨ 用已有的觀念出新題<br><small style="color:var(--muted)">${hasCon?`根據這個題庫的 ${bank.concepts.length} 個觀念換問法`:'還沒有觀念，請先上傳資料'}</small></button>`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=()=>bankHome(bank);
+  $('m-up').onclick=()=>uploadPage(bank);
+  if(hasCon)$('m-gen').onclick=()=>genPage(bank);
+  window.scrollTo(0,0);
+}
+
+/* --- 每次最多請 AI 出幾題（受單次輸出長度限制），題數多時分批 --- */
+const GEN_PER_CALL=15;
+const QCOUNTS=[20,30,50];
+const callsFor=n=>Math.ceil(n/GEN_PER_CALL);
+async function genBatches(bank,lv,target,ctl,onProg){
+  let added=0,dropped=0,rounds=0,err=null;
+  const maxRounds=callsFor(target)+1;
+  while(added<target&&rounds<maxRounds){
+    rounds++;
+    const want=Math.min(GEN_PER_CALL,target-added);
+    onProg&&onProg(added,target);
+    try{
+      const res=await SAMPLE.json(genPrompt(bank,lv,want),{signal:ctl.signal,cache:false,modelTier:'quick'});
+      const arr=(Array.isArray(res)?res:[]).map(r=>({...r,src:'AI',ansByAI:false,lv:lv||r.lv}));
+      const r=mergeResult(bank,{questions:arr},'AI');
+      added+=r.added;dropped+=r.dropped;
+      await bsSave(bank);
+      if(!r.added)break;
+    }catch(e){err=e;break}
+  }
+  return {added,dropped,err};
+}
+
 /* --- 頁面：用已有觀念產生更多題目 --- */
-let genState={lv:0,count:5,phase:'idle',msg:'',ctl:null};
+let genState={lv:0,count:20,phase:'idle',msg:'',ctl:null};
 function genPage(bank){
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
@@ -1502,39 +1550,32 @@ function genPage(bank){
    <div class="chips">${[[0,'混合'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-glv="${l}" aria-pressed="${genState.lv===l}">${t}</button>`).join('')}</div>
    <p class="lead" style="font-size:1rem;margin-top:8px">基礎：直接回想　標準：分辨相近觀念　挑戰：反過來問、結合兩個觀念</p>
    <div class="section-title">題數</div>
-   <div class="chips">${[5,10].map(v=>`<button class="chip" data-gc="${v}" aria-pressed="${genState.count===v}">${v} 題</button>`).join('')}</div>
+   <div class="chips">${QCOUNTS.map(v=>`<button class="chip" data-gc="${v}" aria-pressed="${genState.count===v}">${v} 題</button>`).join('')}</div>
+   <p class="lead" style="font-size:1rem;margin-top:8px">每 ${GEN_PER_CALL} 題算一次 AI 使用次數，${genState.count} 題大約用 ${callsFor(genState.count)} 次。</p>
    <div id="g-act" style="margin-top:16px"></div>`}`;
   const $=id=>document.getElementById(id);
-  $('bk').onclick=()=>{if(genState.ctl)genState.ctl.abort();bankHome(bank)};
+  $('bk').onclick=()=>{if(genState.ctl)genState.ctl.abort();morePage(bank)};
   bindReload('gen',bank);
   if(sampleBlocked()||SAMPLE===undefined){ if(SAMPLE===undefined)setTimeout(()=>genPage(bank),1500); return; }
   app.querySelectorAll('[data-glv]').forEach(b=>b.onclick=()=>{if(genState.phase==='working')return;genState.lv=+b.dataset.glv;genPage(bank)});
   app.querySelectorAll('[data-gc]').forEach(b=>b.onclick=()=>{if(genState.phase==='working')return;genState.count=+b.dataset.gc;genPage(bank)});
   const act=$('g-act');
-  if(genState.phase==='confirm'){
-    act.innerHTML=quotaNote+`<button class="big" id="g-go">我知道了，開始產生 ${genState.count} 題</button><button class="ghost" id="g-cancel">取消</button>`;
-    $('g-go').onclick=()=>runGen(bank); $('g-cancel').onclick=()=>{genState.phase='idle';genPage(bank)};
-  }else if(genState.phase==='working'){
+  if(genState.phase==='working'){
     act.innerHTML=`<div class="feedback"><p class="fb-head" id="g-prog">Claude 正在思考題目……</p><p class="fb-why">大約要等 10～60 秒，請不要關掉畫面。</p><button class="ghost" id="g-stop">停止</button></div>`;
     $('g-stop').onclick=()=>genState.ctl&&genState.ctl.abort();
   }else{
-    act.innerHTML=`<button class="big" id="g-start">✨ 產生新題目</button>${genState.msg?`<p class="lead" style="margin-top:12px">${esc(genState.msg)}</p>`:''}`;
-    $('g-start').onclick=()=>{genState.phase='confirm';genState.msg='';genPage(bank)};
+    act.innerHTML=quotaNote+`<button class="big" id="g-start">✨ 產生 ${genState.count} 題</button>${genState.msg?`<p class="lead" style="margin-top:12px">${esc(genState.msg)}</p>`:''}`;
+    $('g-start').onclick=()=>{genState.msg='';runGen(bank)};
   }
 }
 async function runGen(bank){
   genState.phase='working';genPage(bank);
   const ctl=new AbortController();genState.ctl=ctl;
-  try{
-    const res=await SAMPLE.json(genPrompt(bank,genState.lv,genState.count),{signal:ctl.signal,cache:false,modelTier:'quick',
-      onText:()=>{const p=document.getElementById('g-prog');if(p)p.textContent='Claude 正在寫題目……'}});
-    const arr=(Array.isArray(res)?res:[]).map(r=>({...r,src:'AI',ansByAI:false,lv:genState.lv||r.lv}));
-    const r=mergeResult(bank,{questions:arr},'AI');
-    await bsSave(bank);
-    genState.phase='idle';genState.ctl=null;
-    if(r.added){genState.msg='';reviewPage(bank,`產生了 ${r.added} 題${r.dropped?`（${r.dropped} 題格式不合格或重複，已略過）`:''}`);return}
-    genState.msg='這次產生的題目都不合格，請再試一次。';
-  }catch(e){genState.phase='idle';genState.ctl=null;genState.msg=aiErrMsg(e);}
+  const r=await genBatches(bank,genState.lv,genState.count,ctl,(a,t)=>{const p=document.getElementById('g-prog');if(p)p.textContent=`Claude 正在寫題目……（${a} / ${t} 題）`});
+  genState.phase='idle';genState.ctl=null;
+  if(r.added){genState.msg='';
+    bankHome(bank,`新增 ${r.added} 題，已收進題庫${r.added<genState.count&&r.err?`（${aiErrMsg(r.err)}）`:''}。詳細解題會在每天的排程自動補上。`);return}
+  genState.msg=r.err?aiErrMsg(r.err):'這次產生的題目都不合格，請再試一次。';
   genPage(bank);
 }
 
@@ -2168,10 +2209,9 @@ const TOURS={
     {el:parentOf('[data-lv]'),title:'選難度',text:'基礎是直接回想，標準要分辨相近的觀念，挑戰會反過來問或結合兩個觀念。'},
     {el:'#go',title:'開始練習',text:'答錯的觀念會在後面換個問法再出現，兩次都答對才算記住。'},
     {el:'#weak',title:'練常錯的觀念',text:'依照答錯次數，挑出常錯的觀念重新練習。'},
-    {el:'#up',title:'上傳資料產生題目',text:'拍講義、考卷照片，或貼上字幕、文字，AI 會整理成練習題。'},
-    {el:'#gen',title:'產生更多題目',text:'用已經整理好的觀念出新的問法，可以指定難度。'},
-    {el:'#det',title:'補上詳細解題',text:'AI 幫每題寫好詳解，孩子答題後可以點開看，練習時不會再花費。'},
-    {el:'#rv',title:'待確認的題目',text:'AI 整理的題目要大人看過、按「收進題庫」，才會給孩子練習。'},
+    {el:'#up',title:'上傳資料產生題目',text:'拍講義、考卷照片，或貼上字幕、文字，AI 會整理成練習題並直接收進題庫，詳細解題由每天的排程自動補上。'},
+    {el:'#more',title:'產生更多題目',text:'可以再上傳新的資料，或用已經整理好的觀念出新的問法。'},
+    {el:'#rv',title:'待確認的題目',text:'以前整理、還沒收進題庫的題目，看過後按「收進題庫」。'},
     {el:'#an',title:'學習分析',text:'看答對率、觀念掌握度、最近 14 天的練習狀況，也可以請 AI 寫學習摘要。'},
     {el:'#pub',title:'公開到題庫書架',text:'公開後，有閱讀碼的親友也能練習這本題庫，看不到你的作答紀錄。'},
     {el:'#ex',title:'匯出',text:'下載題庫檔分享給親友，或下載表格用 Excel、Google 試算表查看。'},
@@ -2181,7 +2221,7 @@ const TOURS={
     {el:'#u-text',title:'貼上文字',text:'也可以放字幕檔或直接貼文字，例如用「原況文字」拷貝的講義內容。'},
     {el:'#u-note',title:'補充說明',text:'告訴 AI 需要注意的地方，例如答案寫在哪裡、哪幾題老師說要背。'},
     {el:parentOf('[data-ulv]'),title:'AI 補充題的難度',text:'講義只有課文時，AI 會自己補題目，這裡決定那些題目的難度。'},
-    {el:'#u-start',title:'開始分析',text:'按下後會先提醒費用，確認後才開始。完成後會帶你到「待確認」頁。'},
+    {el:'#u-start',title:'開始產生題目',text:'按下後直接開始，題目會收進題庫，完成後回到題庫首頁。'},
   ],
   review:[
     {el:'.tag.warn',title:'⚠️ 要特別檢查',text:'照片上沒有答案、由 AI 判斷的題目會標這個記號，請特別確認答案。'},
