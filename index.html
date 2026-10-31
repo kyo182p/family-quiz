@@ -309,6 +309,15 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
   .ho h2{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .ho .box,.ho .ex,.ho .warn,.ho .ans,.ho .lead,.ho .enc,.ho th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+/* --- 讀取中畫面 --- */
+.busy{position:fixed;inset:0;z-index:90;display:none;place-items:center;background:rgba(0,0,0,.45);padding:20px}
+.busy.show{display:grid}
+.busy-card{background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:18px;padding:22px 28px;min-width:220px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.busy-card p{margin:12px 0 0;font-size:1.15rem}
+.spin{display:inline-block;width:42px;height:42px;border-radius:50%;border:5px solid var(--leaf-soft);border-top-color:var(--sun);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+[data-style="chalk"] .busy-card{border-radius:var(--chalk-r2)}
 </style>
 </head>
 <body>
@@ -990,7 +999,7 @@ async function familyPage(back){
     $('fmsg').textContent='驗證中……';
     const old=FAMILY; FAMILY={code,name:''};
     try{
-      const j=await api('ping');
+      const j=await busyRun('驗證邀請碼中……',()=>api('ping'));
       FAMILY={code,name:j.family||code,remaining:j.remaining,bonus:j.bonus||0,canPublish:!!j.canPublish};store.set('family',{code,name:FAMILY.name,canPublish:FAMILY.canPublish});
       SAMPLE=makeSample();SAMPLE_WHY='';aiState.blocked=false;BS.mode='cloud';BS.note='';
       $('fmsg').textContent=`✅ 驗證成功：${FAMILY.name}（今天還可以使用 AI ${j.remaining} 次${j.bonus?`，另有回報獎勵 ${j.bonus} 次`:''}）`;
@@ -1231,6 +1240,19 @@ async function bsDelete(bank){
 const recTimers={};
 function scheduleSave(bank){if(bank.__lib){libSaveLocal(bank);return}clearTimeout(recTimers[bank.id]);recTimers[bank.id]=setTimeout(()=>bsSave(bank),6000)}
 
+/* --- 讀取中畫面：等後端回應時蓋住整個畫面，避免重複按 --- */
+let busyN=0;
+function busy(msg){
+  let o=document.getElementById('busy');
+  if(!o){o=document.createElement('div');o.id='busy';o.className='busy';o.setAttribute('role','alert');o.setAttribute('aria-live','assertive');
+    o.innerHTML='<div class="busy-card"><span class="spin" aria-hidden="true"></span><p id="busy-msg"></p></div>';document.body.appendChild(o)}
+  busyN++;document.getElementById('busy-msg').textContent=msg||'處理中，請稍候……';o.classList.add('show');
+  if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
+  let done=false;
+  return ()=>{if(done)return;done=true;busyN=Math.max(0,busyN-1);if(!busyN)o.classList.remove('show')};
+}
+async function busyRun(msg,fn){const end=busy(msg);try{return await fn()}finally{end()}}
+
 let toastTimer;
 function toast(msg){
   let t=document.getElementById('toast');
@@ -1446,7 +1468,7 @@ function bankForm(bank){
     const nb=bank||fixBank({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),createdAt:Date.now()});
     Object.assign(nb,{grade:v('f-grade'),term:v('f-term'),subject:v('f-subject'),publisher:v('f-pub'),unit:v('f-unit'),title:v('f-title')});
     if(!bank)BANKS.unshift(nb);
-    await bsSave(nb);
+    await busyRun(bank?'儲存中……':'建立題庫中……',()=>bsSave(nb));
     bankHome(nb);
   };
 }
@@ -1498,7 +1520,7 @@ function bankHome(bank,msg){
   if($('ho'))$('ho').onclick=()=>handoutHome(bank);
   if($('pub'))$('pub').onclick=()=>togglePublish(bank);
   if($('rv'))$('rv').onclick=()=>reviewPage(bank); $('ls').onclick=()=>openList(bank); $('ex').onclick=()=>exportPage(bank);
-  $('del').onclick=async()=>{if(await confirmBox('確定要刪除「'+(bank.title||bankInfo(bank))+'」嗎？題目和作答紀錄都會刪除。')){await bsDelete(bank);betaHome()}};
+  $('del').onclick=async()=>{if(await confirmBox('確定要刪除「'+(bank.title||bankInfo(bank))+'」嗎？題目和作答紀錄都會刪除。')){await busyRun('刪除中……',()=>bsDelete(bank));betaHome()}};
   window.scrollTo(0,0);
 }
 
@@ -1831,13 +1853,13 @@ function reviewPage(bank,msg){
   if($('all'))$('all').onclick=async()=>{
     const warn=P.filter(q=>q.ansByAI).length;
     if(warn&&!await confirmBox(`有 ${warn} 題的答案是 AI 判斷的，確定都檢查過了嗎？`))return;
-    bank.questions.push(...P.splice(0));editIdx=-1;await bsSave(bank);toast('已全部收進題庫');reviewPage(bank)};
-  app.querySelectorAll('[data-acc]').forEach(b=>b.onclick=async()=>{accept(+b.dataset.acc);editIdx=-1;await bsSave(bank);reviewPage(bank)});
-  app.querySelectorAll('[data-rej]').forEach(b=>b.onclick=async()=>{P.splice(+b.dataset.rej,1);editIdx=-1;await bsSave(bank);reviewPage(bank)});
+    bank.questions.push(...P.splice(0));editIdx=-1;await busyRun('儲存中……',()=>bsSave(bank));toast('已全部收進題庫');reviewPage(bank)};
+  app.querySelectorAll('[data-acc]').forEach(b=>b.onclick=async()=>{accept(+b.dataset.acc);editIdx=-1;await busyRun('儲存中……',()=>bsSave(bank));reviewPage(bank)});
+  app.querySelectorAll('[data-rej]').forEach(b=>b.onclick=async()=>{P.splice(+b.dataset.rej,1);editIdx=-1;await busyRun('儲存中……',()=>bsSave(bank));reviewPage(bank)});
   app.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{editIdx=+b.dataset.edit;reviewPage(bank)});
-  if($('e-save'))$('e-save').onclick=async()=>{const nq=readEditor(P[editIdx]);if(!nq){toast('有欄位不完整：題目、答案都要有，選擇題至少兩個選項');return}P[editIdx]=nq;editIdx=-1;await bsSave(bank);reviewPage(bank)};
+  if($('e-save'))$('e-save').onclick=async()=>{const nq=readEditor(P[editIdx]);if(!nq){toast('有欄位不完整：題目、答案都要有，選擇題至少兩個選項');return}P[editIdx]=nq;editIdx=-1;await busyRun('儲存中……',()=>bsSave(bank));reviewPage(bank)};
   if($('e-cancel'))$('e-cancel').onclick=()=>{editIdx=-1;reviewPage(bank)};
-  if($('clrsk'))$('clrsk').onclick=async()=>{bank.skipped=[];await bsSave(bank);reviewPage(bank)};
+  if($('clrsk'))$('clrsk').onclick=async()=>{bank.skipped=[];await busyRun('儲存中……',()=>bsSave(bank));reviewPage(bank)};
 }
 
 /* --- 頁面：題目清單與紀錄 --- */
@@ -1911,13 +1933,13 @@ function listPage(bank){
   const idx=id=>Q.findIndex(q=>q.id===id);
   app.querySelectorAll('[data-qed]').forEach(b=>b.onclick=()=>{listEdit=b.dataset.qed;listDraft=null;listPage(bank)});
   if($('e-save'))$('e-save').onclick=async()=>{const i=idx(listEdit);const nq=readEditor(listDraft||Q[i]);if(!nq){toast('有欄位不完整：題目、答案都要有，選擇題至少兩個選項');return}
-    Q[i]=nq;listEdit='';listDraft=null;await bsSave(bank);delete FLAGS[bank.id];await loadFlags(bank.id);toast('已修改，會在下次掃題重新判讀');listPage(bank)};
+    Q[i]=nq;listEdit='';listDraft=null;await busyRun('儲存中……',async()=>{await bsSave(bank);delete FLAGS[bank.id];await loadFlags(bank.id)});toast('已修改，會在下次掃題重新判讀');listPage(bank)};
   if($('e-cancel'))$('e-cancel').onclick=()=>{listEdit='';listDraft=null;listPage(bank)};
   app.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>{const q=Q[idx(b.dataset.fix)],f=q.check.fix;
     const d={...q};['q','o','a','why','detail'].forEach(k=>{if(f[k]!=null&&f[k]!=='')d[k]=f[k]});
     listDraft=d;listEdit=q.id;listPage(bank);toast('已帶入建議內容，請確認後按「儲存修改」')});
-  app.querySelectorAll('[data-qdel]').forEach(b=>b.onclick=async()=>{if(!await confirmBox('確定要刪除這題嗎？'))return;bank.questions=bank.questions.filter(q=>q.id!==b.dataset.qdel);await bsSave(bank);listPage(bank)});
-  if($('clr'))$('clr').onclick=async()=>{if(await confirmBox('確定要清除作答紀錄嗎？')){bank.rec={};await bsSave(bank);listPage(bank)}};
+  app.querySelectorAll('[data-qdel]').forEach(b=>b.onclick=async()=>{if(!await confirmBox('確定要刪除這題嗎？'))return;bank.questions=bank.questions.filter(q=>q.id!==b.dataset.qdel);await busyRun('儲存中……',()=>bsSave(bank));listPage(bank)});
+  if($('clr'))$('clr').onclick=async()=>{if(await confirmBox('確定要清除作答紀錄嗎？')){bank.rec={};await busyRun('儲存中……',()=>bsSave(bank));listPage(bank)}};
   if(!FLAGS[bank.id])loadFlags(bank.id).then(()=>{if(CUR_BANK_KEY===bank.id&&!listEdit&&document.querySelector('.filters'))listPage(bank)});
 }
 
@@ -2231,7 +2253,7 @@ async function verifyReader(code,msgEl){
   if(!code){msgEl.textContent='請輸入閱讀碼';return}
   msgEl.textContent='確認中……';
   const old=READER;READER={code,name:''};
-  try{LIB=(await libApi('libList')).banks||[];LIBERR='';store.set('reader',READER);libHome()}
+  try{LIB=(await busyRun('確認閱讀碼中……',()=>libApi('libList'))).banks||[];LIBERR='';store.set('reader',READER);libHome()}
   catch(e){READER=old;msgEl.textContent=e.code==='bad_code'?'❌ 閱讀碼不正確或已停用':e.code==='not_configured'?'❌ 網站尚未設定後端網址':'❌ 連不上後端，請稍後再試'}
 }
 function codePage(){
@@ -2257,7 +2279,7 @@ async function openLib(id){
   let b=LIBBANKS[id];
   if(!b){
     app.innerHTML='<p class="lead">載入題庫中……</p>';
-    try{const j=await libApi('libGet',{id});b=fixBank({...j.bank,__lib:true});libLoadLocal(b);LIBBANKS[id]=b}
+    try{const j=await busyRun('載入題庫中……',()=>libApi('libGet',{id}));b=fixBank({...j.bank,__lib:true});libLoadLocal(b);LIBBANKS[id]=b}
     catch(e){toast(e.code==='not_found'?'這本題庫已經不公開了':'載入失敗，請稍後再試');LIB=null;return libHome()}
   }
   libBankHome(b);
@@ -2594,7 +2616,7 @@ async function handoutHome(bank,preset,keep){
   app.querySelectorAll('[data-hopen]').forEach(b=>b.onclick=()=>hoOpen(bank,b.dataset.hopen));
   app.querySelectorAll('[data-hdel]').forEach(b=>b.onclick=async()=>{
     if(!await confirmBox('確定要刪除這份講義嗎？'))return;
-    try{await api('handoutDelete',{id:b.dataset.hdel});hoList[bank.id]=(hoList[bank.id]||[]).filter(h=>h.id!==b.dataset.hdel);handoutHome(bank,null,true)}catch(e){toast(aiErrMsg(e))}});
+    try{await busyRun('刪除中……',()=>api('handoutDelete',{id:b.dataset.hdel}));hoList[bank.id]=(hoList[bank.id]||[]).filter(h=>h.id!==b.dataset.hdel);handoutHome(bank,null,true)}catch(e){toast(aiErrMsg(e))}});
   const est=()=>{const e=$('ho-est');if(e)e.textContent=hoSel.size?`已選 ${hoSel.size} 個觀念。${hoSel.size>1?'AI 會先找出這些題目答錯的共同原因，再整理成幾個根本觀念來寫，':''}大約使用 ${hoCallsText(hoSel.size)} 次 AI，需要 1～3 分鐘。`:'請至少選一個觀念。'};
   if($('ho-cp')){bindConceptPicker($('ho-cp'),hoSel,est);est()}
   if($('ho-go'))$('ho-go').onclick=()=>{if(!hoSel.size){toast('請至少選一個觀念');return}hoStart(bank,hoSel);handoutHome(bank,null,true);toast('已送出，講義產生中，完成後會通知你')};
@@ -2609,9 +2631,8 @@ async function handoutHome(bank,preset,keep){
   }
 }
 async function hoOpen(bank,id){
-  toast('正在打開講義……');
   if(HJ&&HJ.phase==='done'&&HJ.hid===id){HJ=null;hjSave();hoPill()}
-  try{const j=await hoApi(bank,bank.__lib?'libHandoutGet':'handoutGet',{id});handoutView(bank,j.handout)}
+  try{const j=await busyRun('打開講義中……',()=>hoApi(bank,bank.__lib?'libHandoutGet':'handoutGet',{id}));handoutView(bank,j.handout)}
   catch(e){toast(e&&e.code==='not_found'?'找不到這份講義':'打不開講義，請稍後再試')}
 }
 
@@ -2723,11 +2744,11 @@ async function readerAdminPage(){
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>betaHome();
   $('rnew').onclick=async()=>{$('rmsg').textContent='產生中……';
-    try{const j=await api('readerCreate',{note:$('rn').value.trim().slice(0,40)});toast('已產生閱讀碼 '+j.reader);readerAdminPage()}
+    try{const j=await busyRun('產生閱讀碼中……',()=>api('readerCreate',{note:$('rn').value.trim().slice(0,40)}));toast('已產生閱讀碼 '+j.reader);readerAdminPage()}
     catch(e){$('rmsg').textContent=e.code==='reader_limit'?'已達上限，請先停用一組舊的閱讀碼。':(AI_ERR[e.code]||'產生失敗')}};
   app.querySelectorAll('[data-off]').forEach(b=>b.onclick=async()=>{
     if(!await confirmBox(`停用閱讀碼 ${b.dataset.off}？使用這組碼的親友將無法再看到題庫書架。`,'停用'))return;
-    try{await api('readerDisable',{reader:b.dataset.off});readerAdminPage()}catch(e){toast('停用失敗')}});
+    try{await busyRun('停用中……',()=>api('readerDisable',{reader:b.dataset.off}));readerAdminPage()}catch(e){toast('停用失敗')}});
 }
 
 /* --- 公開到題庫書架（家庭工作表「可發布」為 TRUE 才能使用） --- */
@@ -2735,7 +2756,7 @@ async function togglePublish(bank){
   const to=!bank.published;
   if(to&&!bank.questions.length){toast('題庫還沒有題目');return}
   if(!await confirmBox(to?'公開後，有閱讀碼或邀請碼的人都能練習這本題庫（看不到你的作答紀錄和待確認題目）。確定公開？':'取消公開後，這本題庫會從題庫書架移除。確定取消？',to?'公開':'取消公開'))return;
-  try{await bsSave(bank);await api('setPublish',{id:bank.id,published:to});bank.published=to;await bsSave(bank);LIB=null;toast(to?'已公開到題庫書架':'已取消公開');bankHome(bank)}
+  try{await busyRun(to?'公開中……':'取消公開中……',async()=>{await bsSave(bank);await api('setPublish',{id:bank.id,published:to});bank.published=to;await bsSave(bank)});LIB=null;toast(to?'已公開到題庫書架':'已取消公開');bankHome(bank)}
   catch(e){toast(e.code==='no_permission'?'這個家庭沒有發布權限':'設定失敗，請稍後再試')}
 }
 
