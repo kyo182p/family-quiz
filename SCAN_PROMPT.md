@@ -59,7 +59,7 @@ curl -sSL -H 'Content-Type: text/plain;charset=utf-8' --data @req.json '{{API_UR
 ## 驗算重點講義
 
 `adminPending` 回傳的 `handouts` 是「待驗算」的重點講義（每輪最多 2 份，`handoutsTotal` 是總數）。每份的 `handout` 內容：
-- `blocks`：每個觀念一段（title、why、rules、example{q,steps,answer}、mistake）
+- `diagnosis`：答錯的共同原因；`blocks`：每個根本觀念一段（title、link 對孩子說為什麼會錯、why、rules、example{q,steps,answer}、mistake）
 - `intro`、`index`（卡題索引：left 題目表面句式、block 觀念編號）、`encourage`
 - `practice`：basic、advanced（字串陣列）、challenge（{q,hint} 陣列），題號依序 1、2、3… 連續編號
 - `answers`：每題詳解 {no,steps,answer}，no 對應練習題號
@@ -67,6 +67,7 @@ curl -sSL -H 'Content-Type: text/plain;charset=utf-8' --data @req.json '{{API_UR
 驗算步驟（每一份都要做）：
 1. **數學題庫（`subject` 含「數學」）**：寫 Python 腳本，把每個例題和每一題練習題「照題目逐步」算一次，和講義寫的答案比對；分數用 `fractions.Fraction`，日期用 `datetime`，浮點數用容差比較。驗算失敗先檢查是題目錯還是檢核式寫錯。
 2. **其他科目**：逐題檢查答案和解說是否正確、是否和講義的觀念一致、有沒有超出年級的知識。
+   - 所有科目都要檢查：diagnosis、link 的說法是否正確、是否用該年級孩子聽得懂的話。
 3. 結構檢查：
    - 練習題文字裡不可以出現「觀念一」「（觀念…）」之類的觀念標註
    - `answers` 的題號要和練習題一一對應，沒有缺漏

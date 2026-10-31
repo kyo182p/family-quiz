@@ -280,6 +280,9 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .ho ol.probs{padding-left:0;list-style:none}.ho ol.probs li{margin:9px 0}
 .ho .hint{color:#666;font-size:.9rem}
 .ho .ans{background:#f7f7f7;border:1.5px dashed #999}
+.ho .diag{background:#f5f0fb;border:1.5px solid #7b5ea7;border-radius:8px;padding:10px 14px;margin:10px 0;break-inside:avoid;page-break-inside:avoid}
+.ho .diag .tag{color:#5b3f86;font-weight:bold;background:none;padding:0}
+.ho .link{color:#5b3f86;font-weight:bold}
 .ho .enc{background:#eef3fa;border-radius:8px;padding:10px 14px;margin-top:14px}
 .ho .lead,.ho .box,.ho .ex,.ho .warn,.ho .ans,.ho table,.ho .enc{break-inside:avoid;page-break-inside:avoid}
 .ho p,.ho li{orphans:3;widows:3}
@@ -561,7 +564,9 @@ let rec=store.get('g3plants-rec',{});
 let prefs=store.get('g3plants-prefs',{autoRead:false,unit:'all',count:10});
 // 舊版預設自動朗讀全部開啟，這版改為預設關閉、由每題自己選擇
 if(prefs.v!==2){prefs.autoRead=false;prefs.v=2;store.set('g3plants-prefs',prefs)}
-function bump(id,correct){const r=rec[id]||{seen:0,wrong:0};r.seen++;if(!correct)r.wrong++;r.st=correct?(r.st||0)+1:0;rec[id]=r;store.set('g3plants-rec',rec)}
+// picks：答錯時選了哪個答案（各選了幾次），給重點講義診斷答錯原因用
+function notePick(r,pick){if(pick==null)return;const k=String(pick).slice(0,40);r.picks=r.picks||{};if(!(k in r.picks)&&Object.keys(r.picks).length>=4)return;r.picks[k]=(r.picks[k]||0)+1}
+function bump(id,correct,pick){const r=rec[id]||{seen:0,wrong:0};r.seen++;if(!correct){r.wrong++;notePick(r,pick)}r.st=correct?(r.st||0)+1:0;rec[id]=r;store.set('g3plants-rec',rec)}
 
 /* ===== 聲音 ===== */
 let ac=null;
@@ -595,7 +600,7 @@ function readQuestion(q,opts){
 
 /* ===== 流程 ===== */
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const PLANT_CTX={key:'__plant',all:()=>ALL,origin:c=>ORIGIN[c],label:q=>UNITS[q.u],bump:(id,ok)=>bump(id,ok),rec:()=>rec,
+const PLANT_CTX={key:'__plant',all:()=>ALL,origin:c=>ORIGIN[c],label:q=>UNITS[q.u],bump:(id,ok,pick)=>bump(id,ok,pick),rec:()=>rec,
   pic:q=>renderPic(q.pic),home:()=>home(),restart:()=>start(pickRound(pool(),prefs.count))};
 let CTX=PLANT_CTX;
 const app=document.getElementById('app');
@@ -777,7 +782,7 @@ function answer(btn){
   const {q,kind,stage}=S.cur, v=btn.dataset.v, ok=v===q.a, c=q.c;
   app.querySelectorAll('.opt').forEach(b=>{b.disabled=true;if(b.dataset.v===q.a)b.classList.add('correct')});
   if(!ok)btn.classList.add('wrong','shake'); else btn.classList.add('pop');
-  CTX.bump(q.id,ok);
+  CTX.bump(q.id,ok,ok?null:v);
   let note='';
   if(kind==='main'){
     S.leaves.push(ok);S.justAdded=true;
@@ -1489,7 +1494,7 @@ function bankCtx(bank){return {
   all:()=>bank.questions,
   origin:c=>bank.questions.find(q=>q.c===c&&q.src==='原題')||bank.questions.find(q=>q.c===c),
   label:q=>LV[q.lv]||'基礎',
-  bump:(id,ok)=>{const r=bank.rec[id]||{seen:0,wrong:0};r.seen++;if(!ok)r.wrong++;r.st=ok?(r.st||0)+1:0;bank.rec[id]=r;logDay(bank,ok);scheduleSave(bank)},
+  bump:(id,ok,pick)=>{const r=bank.rec[id]||{seen:0,wrong:0};r.seen++;if(!ok){r.wrong++;notePick(r,pick)}r.st=ok?(r.st||0)+1:0;bank.rec[id]=r;logDay(bank,ok);scheduleSave(bank)},
   rec:()=>bank.rec,
   pic:q=>{const con=(bank.concepts.find(x=>x.id===q.c)||{}).text;
     return (q.icon||con)?`<div class="bpic">${q.icon?`<div class="bicon">${esc(q.icon)}</div>`:''}${con?`<p>📌 觀念：${esc(con)}</p>`:''}</div>`:''},
@@ -2289,7 +2294,9 @@ let HJ=store.get(HJ_KEY,null);      // 目前的講義工作（只保留一份�
 let HJ_CTL=null;
 const isMathBank=b=>/數學|算術|math/i.test(String(b.subject||''));
 const hoLevels=n=>n<=2?[4,3,2]:[5,5,3];
-const hoCalls=n=>n+2;
+// AI 次數：單一觀念＝寫一段＋練習＋詳解；多個觀念＝診斷＋每個根本觀念一段＋練習＋詳解（根本觀念最多 4 個）
+const hoCalls=n=>n<=1?3:1+Math.min(4,n)+2;
+const hoCallsText=n=>{const lo=n<=1?3:1+Math.min(2,n)+2,hi=hoCalls(n);return lo===hi?String(hi):`${lo}～${hi}`};
 const hoList={};                    // 各題庫的講義清單快取
 const hoApi=(bank,action,data)=>bank.__lib?libApi(action,data):api(action,data);
 function hjSave(){if(!HJ){try{localStorage.removeItem(HJ_KEY)}catch(e){}return}const {ctl,...x}=HJ;store.set(HJ_KEY,x)}
@@ -2304,46 +2311,81 @@ function hoRules(bank){
 - 自己設計的題目要和題庫題目同型、同難度，但數字或情境至少換一項，不可以照抄原題。
 ${isMathBank(bank)?'- 數學：數字要挑得乾淨，答案盡量是整數或一位小數；圓周率用 3.14。每一題寫完都要自己重算一次確認答案正確。\n':''}- 不要使用 Markdown 符號（*、#、|），只寫純文字。`;
 }
-function hoQs(bank,ids){
-  return bank.questions.filter(q=>!ids||ids.includes(q.c)).slice(0,30)
-    .map(q=>`- ${q.q}${q.t==='mc'?`（選項：${q.o.join('／')}）`:''}（答案：${ansStr(q)}）`).join('\n')||'（沒有題目）';
+const pickStr=(q,k)=>q.t==='tf'?(k==='O'?'對':k==='X'?'錯':k):k;
+function hoQs(bank,ids,withRec){
+  return bank.questions.filter(q=>!ids||ids.includes(q.c)).slice(0,30).map(q=>{
+    const r=bank.rec[q.id];
+    const recTxt=withRec&&r&&r.seen?`；作答 ${r.seen} 次、答錯 ${r.wrong||0} 次${r.picks?`，選錯的答案：${Object.entries(r.picks).map(([k,n])=>pickStr(q,k)+'×'+n).join('、')}`:''}`:'';
+    return `- ${q.q}${q.t==='mc'?`（選項：${q.o.join('／')}）`:''}（答案：${ansStr(q)}${recTxt}）`;
+  }).join('\n')||'（沒有題目）';
 }
-function hoBlockPrompt(bank,con){
-  return `你是台灣的國小老師，要為「${bankInfo(bank)}」寫一份給孩子看的重點講義。這一次只寫其中一個觀念的段落。
+// 診斷：這些觀念答錯，背後是哪幾個共同的根本觀念不清楚
+function hoDiagPrompt(bank,cons){
+  return `你是台灣的國小老師。題庫：${bankInfo(bank)}（${bank.grade||'國小'}）。
+家長選了下面幾個觀念，要做一份重點講義。請先診斷：孩子答錯這些題目，背後是哪幾個「共同的根本觀念」不清楚？
 
-觀念：${con.text}
+${cons.map(c=>`【${c.id}】${c.text}\n${hoQs(bank,[c.id],true)}`).join('\n\n')}
 
-這個觀念在題庫裡的題目（讓你了解考法，不可以照抄）：
-${hoQs(bank,[con.id])}
+診斷規則：
+- 根本觀念 1～${Math.min(4,cons.length)} 個。看起來不同、但其實是同一件事沒弄懂的觀念，要歸在同一個根本觀念（例如互生、對生、輪生都是「要看一個節長幾片葉子」）。
+- 有「選錯的答案」時要拿來判斷孩子搞混了什麼；沒有作答紀錄的觀念，就依內容歸到最相關的根本觀念。
+- 每個觀念代號都要歸到一個根本觀念，不能漏。
+- 根本觀念的名稱和說明要用${bank.grade||'國小'}孩子聽得懂的話，只能根據上面的內容，不要加入超出年級或題庫範圍的知識。
+
+只回傳一個 JSON 物件，不要其他文字：
+{"summary":"兩三句話：這些題目會錯，主要是因為哪幾個觀念還不清楚","roots":[{"title":"根本觀念（不超過 20 字）","explain":"一兩句：孩子可能搞混了什麼，所以這幾題會錯","cids":["k1","k2"]}]}`;
+}
+function hoNormDiag(r,cons){
+  if(!r||typeof r!=='object'||!Array.isArray(r.roots))return null;
+  const valid=new Set(cons.map(c=>c.id)),used=new Set();
+  const roots=r.roots.slice(0,4).map(x=>({title:hoStr(x&&x.title,40),explain:hoStr(x&&x.explain,300),
+    cids:[].concat(x&&x.cids||[]).map(String).filter(id=>valid.has(id)&&!used.has(id)&&used.add(id))})).filter(x=>x.title&&x.cids.length);
+  if(!roots.length)return null;
+  // 沒被歸到的觀念，放進第一個根本觀念
+  cons.forEach(c=>{if(!used.has(c.id))roots[0].cids.push(c.id)});
+  return {summary:hoStr(r.summary,500),roots};
+}
+function hoBlockPrompt(bank,root){
+  const cons=root.cids.map(id=>bank.concepts.find(c=>c.id===id)).filter(Boolean);
+  return `你是台灣的國小老師，要為「${bankInfo(bank)}」寫一份給孩子看的重點講義。這一次只寫其中一段，這一段要把下面這個「根本觀念」講清楚。
+
+根本觀念：${root.title}
+${root.explain?`診斷（孩子可能搞混的地方）：${root.explain}\n`:''}這個根本觀念包含的觀念：
+${cons.map(c=>'- '+c.text).join('\n')}
+
+這些觀念在題庫裡的題目與孩子的作答（讓你了解考法和孩子卡在哪，不可以照抄題目）：
+${hoQs(bank,root.cids,true)}
 
 這一段要寫：
-1. title：白話標題，一句話說出這個觀念在做什麼（不超過 20 字）。
-2. why：一兩句說明「為什麼」，不要只丟結論。
-3. rules：重點 2～4 條（招式、口訣或公式），每條一句。
-4. example：自己設計一題例題，分步驟寫（最多 6 步，每步寫成「第一步（做什麼）：內容」），最後給答案。
-5. mistake：這個觀念最常錯的地方，一兩句。
+1. title：白話標題，一句話說出這個根本觀念在做什麼（不超過 20 字）。
+2. link：一兩句，直接對孩子說「為什麼你會在這些題目答錯」，點出搞混的地方；沒有答錯紀錄時，改寫「這幾個觀念其實在講同一件事」。
+3. why：一兩句說明這個觀念「為什麼」是這樣，不要只丟結論。
+4. rules：重點 2～4 條（招式、口訣、分辨方法），要能一次涵蓋上面所有觀念；容易搞混的觀念要寫出怎麼分辨。
+5. example：自己設計一題例題，最好是能分辨容易搞混觀念的題目，分步驟寫（最多 6 步，每步寫成「第一步（做什麼）：內容」），最後給答案。
+6. mistake：最常錯的地方，一兩句。
 
 ${hoRules(bank)}
 
 只回傳一個 JSON 物件，不要其他文字：
-{"title":"…","why":"…","rules":["…"],"example":{"q":"…","steps":["第一步（…）：…"],"answer":"…"},"mistake":"…"}`;
+{"title":"…","link":"…","why":"…","rules":["…"],"example":{"q":"…","steps":["第一步（…）：…"],"answer":"…"},"mistake":"…"}`;
 }
 function hoOutline(blocks){return blocks.map((b,i)=>`觀念${CN_NUM[i]}：${b.title}｜重點：${b.rules.join('；')}`).join('\n')}
-function hoPracticePrompt(bank,blocks,ids,lv){
+function hoPracticePrompt(bank,blocks,ids,lv,diag){
   return `你是台灣的國小老師，正在為「${bankInfo(bank)}」寫重點講義。觀念段落已經寫好：
 ${hoOutline(blocks)}
-
+${diag&&diag.summary?`\n診斷（孩子答錯的共同原因）：${diag.summary}\n`:''}
 題庫題目（讓你了解考法，不可以照抄）：
 ${hoQs(bank,ids)}
 
 請寫：
-1. intro：導讀，3～4 句，用一段話串起上面所有觀念，並給學習建議。
+1. intro：導讀，3～4 句，用一段話串起上面所有觀念，並給學習建議；有診斷時先用孩子聽得懂的話說出「這些題目會錯，是因為…」。
 2. index：卡題索引 3～8 列。left 寫「題目表面看起來的樣子」（孩子眼睛看得到的字眼或句式，例如「…哪一個不是…？」），不可以寫觀念名稱；block 寫對應的觀念編號（數字，從 1 開始）。
 3. practice：分層練習，題目旁不可以寫是哪個觀念（判斷用哪一招是孩子的練習）。
    - basic：${lv[0]} 題，只用一個觀念就能回答。
    - advanced：${lv[1]} 題，要多想一步或反過來想。
    - challenge：${lv[2]} 題，要結合兩個觀念或多步推理，每題附一句 hint 提示。
    題目可以是填空、簡答或選擇，讓孩子寫在紙上；不要和例題重複。
+   觀念不只一個時，題目要混著出，並安排幾題「容易搞混的觀念放在一起比較」的題目，練習分辨。
 4. encourage：結尾一兩句鼓勵，提醒可以回去練習題庫。
 
 ${hoRules(bank)}
@@ -2367,10 +2409,10 @@ ${isMathBank(bank)?'每一題都要自己重新計算一次，確認答案正確
 只回傳一個 JSON 陣列，題號要和上面一致：
 [{"no":1,"steps":["…"],"answer":"…"}]`;
 }
-function hoNormBlock(r,con){
+function hoNormBlock(r,con){ // con：根本觀念 {title,cids}
   if(!r||typeof r!=='object')return null;
   const ex=r.example||{};
-  const b={cid:con.id,title:hoStr(r.title,60)||con.text,why:hoStr(r.why,400),rules:hoArr(r.rules,6,200),
+  const b={cids:con.cids,title:hoStr(r.title,60)||con.title,link:hoStr(r.link,400),why:hoStr(r.why,400),rules:hoArr(r.rules,6,200),
     example:{q:hoStr(ex.q,400),steps:hoArr(ex.steps,8,300),answer:hoStr(ex.answer,200)},mistake:hoStr(r.mistake,400)};
   return b.why||b.rules.length?b:null;
 }
@@ -2392,6 +2434,7 @@ function hoStart(bank,ids){
   if(HJ&&HJ.phase==='running'){toast('另一份講義還在產生中，請等它完成');return}
   const cons=bank.concepts.filter(c=>ids.has(c.id));
   HJ={bankId:bank.id,bankTitle:bank.title||bankInfo(bank),cids:cons.map(c=>c.id),blocks:[],extra:null,answers:null,
+      diag:cons.length===1?{summary:'',roots:[{title:cons[0].text,explain:'',cids:[cons[0].id]}]}:null,
       step:0,total:hoCalls(cons.length),phase:'running',msg:'',all:cons.length===bank.concepts.length,t:Date.now()};
   hjSave();hoRun(bank);
 }
@@ -2401,26 +2444,35 @@ async function hoRun(bank){
   const ctl=new AbortController();HJ_CTL=ctl;
   const cons=HJ.cids.map(id=>bank.concepts.find(c=>c.id===id)).filter(Boolean);
   const opt={signal:ctl.signal,cache:false,modelTier:'default'};
+  const base=cons.length>1?1:0;   // 有診斷時多一步
+  if(!HJ.diag&&HJ.blocks.length){HJ.blocks=[];HJ.extra=null;HJ.answers=null}  // 舊版工作沒有診斷，重新開始
   try{
-    while(HJ.blocks.length<cons.length){
-      const con=cons[HJ.blocks.length];
-      const b=hoNormBlock(await SAMPLE.json(hoBlockPrompt(bank,con),opt),con);
+    if(!HJ.diag){
+      const dg=hoNormDiag(await SAMPLE.json(hoDiagPrompt(bank,cons),opt),cons);
+      if(!dg)throw {code:'invalid_json'};
+      HJ.diag=dg;HJ.step=1;HJ.total=1+dg.roots.length+2;hjSave();hoPill();hoRefresh(bank);
+    }
+    const roots=HJ.diag.roots;
+    while(HJ.blocks.length<roots.length){
+      const root=roots[HJ.blocks.length];
+      const b=hoNormBlock(await SAMPLE.json(hoBlockPrompt(bank,root),opt),root);
       if(!b)throw {code:'invalid_json'};
-      HJ.blocks.push(b);HJ.step=HJ.blocks.length;hjSave();hoPill();hoRefresh(bank);
+      HJ.blocks.push(b);HJ.step=base+HJ.blocks.length;hjSave();hoPill();hoRefresh(bank);
     }
     if(!HJ.extra){
-      const x=hoNormPractice(await SAMPLE.json(hoPracticePrompt(bank,HJ.blocks,HJ.cids,hoLevels(cons.length)),opt));
+      const x=hoNormPractice(await SAMPLE.json(hoPracticePrompt(bank,HJ.blocks,HJ.cids,hoLevels(cons.length),HJ.diag),opt));
       if(!x)throw {code:'invalid_json'};
-      HJ.extra=x;HJ.step=cons.length+1;hjSave();hoPill();hoRefresh(bank);
+      HJ.extra=x;HJ.step=base+roots.length+1;hjSave();hoPill();hoRefresh(bank);
     }
     if(!HJ.answers){
       HJ.answers=hoNormAnswers(await SAMPLE.json(hoAnswerPrompt(bank,HJ.blocks,HJ.extra.practice),opt));
-      HJ.step=cons.length+2;hjSave();
+      HJ.step=base+roots.length+2;hjSave();
     }
     const conTexts=cons.map(c=>c.text);
     const h={id:'h'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),bankId:bank.id,
       title:HJ.all&&cons.length>1?'整個題庫':cons.length===1?conTexts[0].slice(0,30):`${cons.length} 個觀念`,
-      conceptIds:HJ.cids,conceptTexts:conTexts,createdAt:Date.now(),bankInfo:bankInfo(bank),bankTitle:bank.title||'',
+      conceptIds:HJ.cids,conceptTexts:conTexts,createdAt:Date.now(),bankInfo:bankInfo(bank),bankTitle:bank.title||'',grade:bank.grade||'',
+      diagnosis:HJ.diag.summary||'',
       blocks:HJ.blocks,...HJ.extra,answers:HJ.answers};
     await api('handoutSave',{handout:h});
     delete hoList[bank.id];
@@ -2477,11 +2529,11 @@ async function handoutHome(bank,preset,keep){
        :'<p class="lead" style="margin:8px 0 0">還沒有講義。</p>'):'<p class="lead" style="margin:8px 0 0">讀取中……</p>'}
    </section>
    ${canGen?`<section class="card" id="ho-gen" data-bank="${esc(bank.id)}"><h2 class="ct">產生新的重點講義</h2>
-     ${job?`<div class="feedback"><p class="fb-head">${job.phase==='running'?`講義產生中（${job.step} / ${job.total}）`:job.phase==='paused'?`講義暫停在 ${job.step} / ${job.total}`:'講義沒有完成'}</p>
+     ${job?`<div class="feedback"><p class="fb-head">${job.phase==='running'?`講義產生中（${job.step} / ${job.total}）${!job.diag?'：正在找答錯的共同原因':''}`:job.phase==='paused'?`講義暫停在 ${job.step} / ${job.total}`:'講義沒有完成'}</p>
         <p class="fb-why">${job.phase==='running'?'可以先去練習或做別的事，完成後左下角會出現提示。':esc(job.msg||'')}</p>
         <div class="footer">${job.phase==='running'?'<button class="ghost" id="ho-stop">暫停</button>':'<button class="big" id="ho-cont" style="margin-top:0">繼續產生</button><button class="ghost" id="ho-drop">放棄這份</button>'}</div></div>`
      :sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
-     <p class="lead" style="font-size:1rem;margin:6px 0">選一個觀念做單一觀念講義，或選多個、全選做整個題庫的講義。</p>
+     <p class="lead" style="font-size:1rem;margin:6px 0">選一個觀念做單一觀念講義；選多個時，AI 會先判斷這些題目為什麼都錯、是哪幾個共同觀念不清楚，再整理成一份講義。內容依題庫的年級（${esc(bank.grade||'未設定')}）和範圍撰寫。</p>
      <div id="ho-cp">${conceptPickerHTML(bank,hoSel)}</div>
      <p class="lead" style="font-size:1rem" id="ho-est"></p>
      ${quotaNote}
@@ -2493,7 +2545,7 @@ async function handoutHome(bank,preset,keep){
   app.querySelectorAll('[data-hdel]').forEach(b=>b.onclick=async()=>{
     if(!await confirmBox('確定要刪除這份講義嗎？'))return;
     try{await api('handoutDelete',{id:b.dataset.hdel});hoList[bank.id]=(hoList[bank.id]||[]).filter(h=>h.id!==b.dataset.hdel);handoutHome(bank,null,true)}catch(e){toast(aiErrMsg(e))}});
-  const est=()=>{const e=$('ho-est');if(e)e.textContent=hoSel.size?`已選 ${hoSel.size} 個觀念，大約使用 ${hoCalls(hoSel.size)} 次 AI，需要 1～3 分鐘。`:'請至少選一個觀念。'};
+  const est=()=>{const e=$('ho-est');if(e)e.textContent=hoSel.size?`已選 ${hoSel.size} 個觀念。${hoSel.size>1?'AI 會先找出這些題目答錯的共同原因，再整理成幾個根本觀念來寫，':''}大約使用 ${hoCallsText(hoSel.size)} 次 AI，需要 1～3 分鐘。`:'請至少選一個觀念。'};
   if($('ho-cp')){bindConceptPicker($('ho-cp'),hoSel,est);est()}
   if($('ho-go'))$('ho-go').onclick=()=>{if(!hoSel.size){toast('請至少選一個觀念');return}hoStart(bank,hoSel);handoutHome(bank,null,true);toast('已送出，講義產生中，完成後會通知你')};
   if($('ho-stop'))$('ho-stop').onclick=()=>{if(HJ_CTL)HJ_CTL.abort()};
@@ -2525,9 +2577,11 @@ function hoHTML(h){
     <h1>${esc(h.bankTitle||'')}　重點講義</h1>
     <div class="sub">${esc(h.bankInfo||'')}・${esc(h.title||'')}</div>
     ${h.intro?`<div class="lead">${esc(h.intro)}</div>`:''}
+    ${h.diagnosis?`<div class="diag"><span class="tag">🔍 答錯的共同原因</span>　${esc(h.diagnosis)}</div>`:''}
     ${h.index&&h.index.length?`<h2>卡題索引</h2><p class="hint">寫題目卡住時，看看題目長得像哪一列，再去看那個觀念。</p>
       <table><tr><th>題目長這樣</th><th>去看</th></tr>${h.index.map(x=>`<tr><td>${esc(x.left)}</td><td>觀念${CN_NUM[x.block-1]||x.block}</td></tr>`).join('')}</table>`:''}
     ${(h.blocks||[]).map((b,i)=>`<h2>觀念${CN_NUM[i]}　${esc(b.title)}</h2>
+      ${b.link?`<p class="link">🧩 ${esc(b.link)}</p>`:''}
       ${b.why?`<p>${esc(b.why)}</p>`:''}
       ${b.rules.length?`<div class="box"><span class="tag">🔑 重點</span><ul>${b.rules.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></div>`:''}
       ${b.example&&b.example.q?`<div class="ex"><span class="tag">例題</span><p>${esc(b.example.q)}</p>${b.example.steps.map(s=>`<p>${hoStep(s)}</p>`).join('')}${b.example.answer?`<p><b>答案：<span class="red">${esc(b.example.answer)}</span></b></p>`:''}</div>`:''}
