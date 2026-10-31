@@ -283,6 +283,20 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .ho .diag{background:#f5f0fb;border:1.5px solid #7b5ea7;border-radius:8px;padding:10px 14px;margin:10px 0;break-inside:avoid;page-break-inside:avoid}
 .ho .diag .tag{color:#5b3f86;font-weight:bold;background:none;padding:0}
 .ho .link{color:#5b3f86;font-weight:bold}
+.ho .ho-pic{margin:10px 0;border:1.5px solid #dfe8d8;border-radius:8px;break-inside:avoid;page-break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.ho .ho-pic svg{max-width:100%;height:auto;display:block;margin:0 auto;max-height:260px}
+.ho-cards,.ho-flow{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;align-items:stretch;break-inside:avoid;page-break-inside:avoid}
+.ho-flow{align-items:center}
+.ho-card{flex:1 1 120px;min-width:110px;border:2px solid #c9dcf0;background:#f6faff;border-radius:12px;padding:8px 10px;text-align:center;display:flex;flex-direction:column;gap:2px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.ho-flow .ho-card{flex:0 1 auto}
+.ho-card .ic{font-size:2rem;line-height:1.2}.ho-card b{color:#1a4d8f}.ho-card span{font-size:.9rem;color:#444}
+.ho-flow .arr{font-size:1.4rem;color:#1a4d8f}
+.ho.kid{font-size:1.15rem;line-height:1.8}
+.ho.kid h2{font-size:1.25rem}
+.ho.kid .kblock{break-inside:avoid;page-break-inside:avoid}
+.ho.kid .kans{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;background:#f7f7f7;border:1.5px dashed #999;border-radius:8px;padding:10px 14px}
+.ho.kid .kans small{color:#555}
+@media print{.ho.kid{font-size:12.5pt}}
 .ho .enc{background:#eef3fa;border-radius:8px;padding:10px 14px;margin-top:14px}
 .ho .lead,.ho .box,.ho .ex,.ho .warn,.ho .ans,.ho table,.ho .enc{break-inside:avoid;page-break-inside:avoid}
 .ho p,.ho li{orphans:3;widows:3}
@@ -2293,7 +2307,22 @@ const HJ_KEY='handout-job';
 let HJ=store.get(HJ_KEY,null);      // 目前的講義工作（只保留一份）
 let HJ_CTL=null;
 const isMathBank=b=>/數學|算術|math/i.test(String(b.subject||''));
-const hoLevels=n=>n<=2?[4,3,2]:[5,5,3];
+// 低、中年級（一～四年級）用「圖多字少」的簡單版；五、六年級用完整版
+const hoKid=b=>/[一二三四1-4]\s*年級/.test(String(b.grade||''));
+const hoLevels=(n,kid)=>kid?[4,2,1]:n<=2?[4,3,2]:[5,5,3];
+// 可以直接用的插圖（植物小學堂內建的圖）
+const PIC_CATALOG=[
+  ['colors','葉子有綠色、紅色、黃色'],['heart','菩提樹的葉子像愛心'],['net','網狀脈（葉脈像一張網）'],['margins','葉緣：平滑、波浪、鋸齒'],
+  ['arr','葉序：互生、對生、輪生、叢生（可寫 arr:互生 只強調一種）'],['node','莖上的節會長葉子、花、果實'],
+  ['stems','莖的種類：草本莖、木本莖、藤本莖（可寫 stems:木本莖）'],['roots','根：軸根和鬚根'],['transport','根吸收水分養分、莖運送'],
+  ['furniture','樹（木本莖）可以做家具'],['food','我們吃植物的哪個部位（可寫 food:根、food:莖、food:莖和葉、food:果實、food:種子）'],
+  ['life','植物和生活：桑葉、小鳥、中藥、幼苗（可寫 life:桑葉）'],['flower','花的構造：花萼、花瓣、雄蕊、雌蕊'],['loofah','絲瓜的雄花和雌花'],
+  ['rose','玫瑰花瓣很多層'],['apple','蘋果切開裡面有種子'],['seed','種子發芽長成植物'],['tools','觀察植物的方法：放大鏡、尺、手摸'],['autumn','秋天葉子變色']];
+const hoPicRule=()=>`pic：能用圖說明就給圖，三種格式選一種：
+   - 內建插圖：{"type":"svg","key":"代號"}，只有內容真的符合時才用，代號：${PIC_CATALOG.map(([k,d])=>k+'＝'+d).join('；')}
+   - 比較或分類的圖卡：{"type":"cards","items":[{"icon":"一個 emoji","label":"名稱（6 字內）","note":"一句說明（12 字內）"}]}，2～4 張
+   - 先後順序或變化：{"type":"flow","items":[{"icon":"emoji","label":"6 字內"}]}，2～5 步
+   不適合用圖就給 null。`;
 // AI 次數：單一觀念＝寫一段＋練習＋詳解；多個觀念＝診斷＋每個根本觀念一段＋練習＋詳解（根本觀念最多 4 個）
 const hoCalls=n=>n<=1?3:1+Math.min(4,n)+2;
 const hoCallsText=n=>{const lo=n<=1?3:1+Math.min(2,n)+2,hi=hoCalls(n);return lo===hi?String(hi):`${lo}～${hi}`};
@@ -2304,7 +2333,9 @@ const hoStr=(v,n)=>String(v==null?'':v).trim().slice(0,n||600);
 const hoArr=(v,n,m)=>(Array.isArray(v)?v:[]).map(x=>hoStr(x,m)).filter(Boolean).slice(0,n);
 
 function hoRules(bank){
-  return `寫作規則：
+  const kid=hoKid(bank);
+  return `寫作規則：${kid?`
+- 【最重要】讀者是${bank.grade}的小朋友：字越少越好，每句不超過 20 個字，用${bank.grade}認得的字，不用成語和抽象的詞；能用圖就不要用字說明。`:''}
 - 對象是${bank.grade||'國小'}的孩子。口語、親切，像老師在旁邊講，用「你」稱呼；多用生活裡的比喻。
 - 台灣用語、繁體中文，名詞用台灣課本的說法；不要用孩子看不懂的術語，用到就順便解釋。
 - 只能根據提供的觀念和題目範圍，不要加入超出年級或範圍的內容。
@@ -2333,7 +2364,7 @@ ${cons.map(c=>`【${c.id}】${c.text}\n${hoQs(bank,[c.id],true)}`).join('\n\n')}
 - 根本觀念的名稱和說明要用${bank.grade||'國小'}孩子聽得懂的話，只能根據上面的內容，不要加入超出年級或題庫範圍的知識。
 
 只回傳一個 JSON 物件，不要其他文字：
-{"summary":"兩三句話：這些題目會錯，主要是因為哪幾個觀念還不清楚","roots":[{"title":"根本觀念（不超過 20 字）","explain":"一兩句：孩子可能搞混了什麼，所以這幾題會錯","cids":["k1","k2"]}]}`;
+{"summary":"${hoKid(bank)?'一兩句、40 字以內，小朋友看得懂':'兩三句話'}：這些題目會錯，主要是因為哪幾個觀念還不清楚","roots":[{"title":"根本觀念（不超過 20 字）","explain":"一兩句：孩子可能搞混了什麼，所以這幾題會錯","cids":["k1","k2"]}]}`;
 }
 function hoNormDiag(r,cons){
   if(!r||typeof r!=='object'||!Array.isArray(r.roots))return null;
@@ -2357,17 +2388,25 @@ ${cons.map(c=>'- '+c.text).join('\n')}
 ${hoQs(bank,root.cids,true)}
 
 這一段要寫：
-1. title：白話標題，一句話說出這個根本觀念在做什麼（不超過 20 字）。
+${hoKid(bank)?`1. title：標題，12 字以內，小朋友一看就懂。
+2. link：一句話（25 字以內）對小朋友說「你會答錯，是因為…」；沒有答錯紀錄時寫「這幾個其實在講同一件事」。
+3. ${hoPicRule()}
+4. rules：「記住」1～3 條，每條 15 字以內，像口訣一樣好記；容易搞混的要寫出怎麼分辨。
+5. why：一句話（20 字以內）說為什麼；沒必要就給空字串。
+6. example：一題簡單的例題（40 字以內），steps 最多 3 步、每步 20 字以內（寫成「先…」「再…」），最後給答案。
+7. mistake：最容易錯的地方，一句話 20 字以內。`
+:`1. title：白話標題，一句話說出這個根本觀念在做什麼（不超過 20 字）。
 2. link：一兩句，直接對孩子說「為什麼你會在這些題目答錯」，點出搞混的地方；沒有答錯紀錄時，改寫「這幾個觀念其實在講同一件事」。
 3. why：一兩句說明這個觀念「為什麼」是這樣，不要只丟結論。
 4. rules：重點 2～4 條（招式、口訣、分辨方法），要能一次涵蓋上面所有觀念；容易搞混的觀念要寫出怎麼分辨。
 5. example：自己設計一題例題，最好是能分辨容易搞混觀念的題目，分步驟寫（最多 6 步，每步寫成「第一步（做什麼）：內容」），最後給答案。
 6. mistake：最常錯的地方，一兩句。
+7. ${hoPicRule()}`}
 
 ${hoRules(bank)}
 
 只回傳一個 JSON 物件，不要其他文字：
-{"title":"…","link":"…","why":"…","rules":["…"],"example":{"q":"…","steps":["第一步（…）：…"],"answer":"…"},"mistake":"…"}`;
+{"title":"…","link":"…","pic":{"type":"cards","items":[{"icon":"🌿","label":"…","note":"…"}]},"why":"…","rules":["…"],"example":{"q":"…","steps":["…"],"answer":"…"},"mistake":"…"}`;
 }
 function hoOutline(blocks){return blocks.map((b,i)=>`觀念${CN_NUM[i]}：${b.title}｜重點：${b.rules.join('；')}`).join('\n')}
 function hoPracticePrompt(bank,blocks,ids,lv,diag){
@@ -2378,15 +2417,17 @@ ${diag&&diag.summary?`\n診斷（孩子答錯的共同原因）：${diag.summary
 ${hoQs(bank,ids)}
 
 請寫：
-1. intro：導讀，3～4 句，用一段話串起上面所有觀念，並給學習建議；有診斷時先用孩子聽得懂的話說出「這些題目會錯，是因為…」。
+${hoKid(bank)?`1. intro：一句話（30 字以內）告訴小朋友這份講義要學什麼。
+2. index：給空陣列 []。
+3. practice：每題 35 字以內，用小朋友容易作答的形式（圈圈看、是非、選一選、填一個詞），`:`1. intro：導讀，3～4 句，用一段話串起上面所有觀念，並給學習建議；有診斷時先用孩子聽得懂的話說出「這些題目會錯，是因為…」。
 2. index：卡題索引 3～8 列。left 寫「題目表面看起來的樣子」（孩子眼睛看得到的字眼或句式，例如「…哪一個不是…？」），不可以寫觀念名稱；block 寫對應的觀念編號（數字，從 1 開始）。
-3. practice：分層練習，題目旁不可以寫是哪個觀念（判斷用哪一招是孩子的練習）。
+3. practice：`}分層練習，題目旁不可以寫是哪個觀念（判斷用哪一招是孩子的練習）。
    - basic：${lv[0]} 題，只用一個觀念就能回答。
    - advanced：${lv[1]} 題，要多想一步或反過來想。
    - challenge：${lv[2]} 題，要結合兩個觀念或多步推理，每題附一句 hint 提示。
    題目可以是填空、簡答或選擇，讓孩子寫在紙上；不要和例題重複。
    觀念不只一個時，題目要混著出，並安排幾題「容易搞混的觀念放在一起比較」的題目，練習分辨。
-4. encourage：結尾一兩句鼓勵，提醒可以回去練習題庫。
+4. encourage：${hoKid(bank)?'一句鼓勵，15 字以內。':'結尾一兩句鼓勵，提醒可以回去練習題庫。'}
 
 ${hoRules(bank)}
 
@@ -2402,17 +2443,26 @@ ${hoOutline(blocks)}
 練習題：
 ${list}
 
-請為每一題寫完整詳解：steps 分步驟寫出過程（孩子看得懂每一步），answer 寫最後答案。適時補一句「驗證」或「提醒」。
+${hoKid(bank)?'請為每一題寫答案：answer 寫答案；steps 最多 1 句、20 字以內，簡單說為什麼（很明顯就給空陣列）。':'請為每一題寫完整詳解：steps 分步驟寫出過程（孩子看得懂每一步），answer 寫最後答案。適時補一句「驗證」或「提醒」。'}
 ${isMathBank(bank)?'每一題都要自己重新計算一次，確認答案正確。':''}
 不要使用 Markdown 符號，只寫純文字。
 
 只回傳一個 JSON 陣列，題號要和上面一致：
 [{"no":1,"steps":["…"],"answer":"…"}]`;
 }
+function hoNormPic(p){
+  if(!p||typeof p!=='object')return null;
+  if(p.type==='svg'){const k=hoStr(p.key,30);return PICS[k.split(':')[0]]?{type:'svg',key:k}:null}
+  if(p.type==='cards'||p.type==='flow'){
+    const items=(Array.isArray(p.items)?p.items:[]).map(x=>({icon:hoStr(x&&x.icon,8),label:hoStr(x&&x.label,12),note:hoStr(x&&x.note,24)})).filter(x=>x.label).slice(0,p.type==='flow'?5:4);
+    return items.length>=2?{type:p.type,items}:null;
+  }
+  return null;
+}
 function hoNormBlock(r,con){ // con：根本觀念 {title,cids}
   if(!r||typeof r!=='object')return null;
   const ex=r.example||{};
-  const b={cids:con.cids,title:hoStr(r.title,60)||con.title,link:hoStr(r.link,400),why:hoStr(r.why,400),rules:hoArr(r.rules,6,200),
+  const b={cids:con.cids,title:hoStr(r.title,60)||con.title,link:hoStr(r.link,400),pic:hoNormPic(r.pic),why:hoStr(r.why,400),rules:hoArr(r.rules,6,200),
     example:{q:hoStr(ex.q,400),steps:hoArr(ex.steps,8,300),answer:hoStr(ex.answer,200)},mistake:hoStr(r.mistake,400)};
   return b.why||b.rules.length?b:null;
 }
@@ -2460,7 +2510,7 @@ async function hoRun(bank){
       HJ.blocks.push(b);HJ.step=base+HJ.blocks.length;hjSave();hoPill();hoRefresh(bank);
     }
     if(!HJ.extra){
-      const x=hoNormPractice(await SAMPLE.json(hoPracticePrompt(bank,HJ.blocks,HJ.cids,hoLevels(cons.length),HJ.diag),opt));
+      const x=hoNormPractice(await SAMPLE.json(hoPracticePrompt(bank,HJ.blocks,HJ.cids,hoLevels(cons.length,hoKid(bank)),HJ.diag),opt));
       if(!x)throw {code:'invalid_json'};
       HJ.extra=x;HJ.step=base+roots.length+1;hjSave();hoPill();hoRefresh(bank);
     }
@@ -2471,7 +2521,7 @@ async function hoRun(bank){
     const conTexts=cons.map(c=>c.text);
     const h={id:'h'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),bankId:bank.id,
       title:HJ.all&&cons.length>1?'整個題庫':cons.length===1?conTexts[0].slice(0,30):`${cons.length} 個觀念`,
-      conceptIds:HJ.cids,conceptTexts:conTexts,createdAt:Date.now(),bankInfo:bankInfo(bank),bankTitle:bank.title||'',grade:bank.grade||'',
+      conceptIds:HJ.cids,conceptTexts:conTexts,createdAt:Date.now(),bankInfo:bankInfo(bank),bankTitle:bank.title||'',grade:bank.grade||'',kid:hoKid(bank),
       diagnosis:HJ.diag.summary||'',
       blocks:HJ.blocks,...HJ.extra,answers:HJ.answers};
     await api('handoutSave',{handout:h});
@@ -2567,7 +2617,40 @@ async function hoOpen(bank,id){
 
 /* --- 頁面：看講義（可列印、存成 PDF） --- */
 function hoStep(t){const i=t.indexOf('：');return i>0&&i<24?`<b>${esc(t.slice(0,i))}</b>：${esc(t.slice(i+1))}`:esc(t)}
+function hoPicHTML(p){
+  if(!p)return '';
+  if(p.type==='svg'){const x=renderPic(p.key);return x?`<div class="pic illus ho-pic">${x}</div>`:''}
+  if(p.type==='cards')return `<div class="ho-cards">${p.items.map(c=>`<div class="ho-card"><div class="ic">${esc(c.icon)}</div><b>${esc(c.label)}</b>${c.note?`<span>${esc(c.note)}</span>`:''}</div>`).join('')}</div>`;
+  if(p.type==='flow')return `<div class="ho-flow">${p.items.map(c=>`<div class="ho-card"><div class="ic">${esc(c.icon)}</div><b>${esc(c.label)}</b></div>`).join('<span class="arr">➜</span>')}</div>`;
+  return '';
+}
+const CIRCLED=['①','②','③','④','⑤','⑥'];
+function hoKidHTML(h){
+  const n=h.practice||{basic:[],advanced:[],challenge:[]};
+  let k=0;
+  const li=q=>`<li><b>${++k}.</b>　${esc(q)}</li>`;
+  const b1=n.basic.map(li).join(''),b2=n.advanced.map(li).join('');
+  const b3=n.challenge.map(c=>`<li><b>${++k}.</b>　${esc(c.q)}${c.hint?`<br><span class="hint">💡 ${esc(c.hint)}</span>`:''}</li>`).join('');
+  return `<article class="ho kid">
+    <h1>${esc(h.bankTitle||'')}　重點整理</h1>
+    <div class="sub">${esc(h.bankInfo||'')}</div>
+    ${h.diagnosis?`<div class="diag"><span class="tag">🔍 為什麼會錯</span>　${esc(h.diagnosis)}</div>`:h.intro?`<div class="lead">${esc(h.intro)}</div>`:''}
+    ${(h.blocks||[]).map((b,i)=>`<section class="kblock"><h2>${CIRCLED[i]||i+1}　${esc(b.title)}</h2>
+      ${b.link?`<p class="link">🧩 ${esc(b.link)}</p>`:''}
+      ${hoPicHTML(b.pic)}
+      ${b.rules.length?`<div class="box"><span class="tag">🔑 記住</span><ul>${b.rules.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></div>`:''}
+      ${b.example&&b.example.q?`<div class="ex"><span class="tag">試試看</span><p>${esc(b.example.q)}</p>${b.example.steps.map(x=>`<p>👉 ${esc(x)}</p>`).join('')}${b.example.answer?`<p><b>答案：<span class="red">${esc(b.example.answer)}</span></b></p>`:''}</div>`:''}
+      ${b.mistake?`<div class="warn"><span class="tag">⚠️ 小心</span>　${esc(b.mistake)}</div>`:''}</section>`).join('')}
+    <h2>練習</h2>
+    ${b1?`<h3>⭐ 暖身</h3><ol class="probs">${b1}</ol>`:''}
+    ${b2?`<h3>⭐⭐ 動動腦</h3><ol class="probs">${b2}</ol>`:''}
+    ${b3?`<h3>⭐⭐⭐ 挑戰</h3><ol class="probs">${b3}</ol>`:''}
+    ${h.answers&&h.answers.length?`<h2>答案</h2><div class="kans">${h.answers.map(a=>`<div><b>${a.no}.</b> <span class="red">${esc(a.answer)}</span>${a.steps.length?`<br><small>${esc(a.steps.join(' '))}</small>`:''}</div>`).join('')}</div>`:''}
+    ${h.encourage?`<div class="enc">🌟 ${esc(h.encourage)}</div>`:''}
+  </article>`;
+}
 function hoHTML(h){
+  if(h.kid)return hoKidHTML(h);
   const n=h.practice||{basic:[],advanced:[],challenge:[]};
   let k=0;
   const li=q=>`<li><b>${++k}.</b>　${esc(q)}</li>`;
@@ -2582,6 +2665,7 @@ function hoHTML(h){
       <table><tr><th>題目長這樣</th><th>去看</th></tr>${h.index.map(x=>`<tr><td>${esc(x.left)}</td><td>觀念${CN_NUM[x.block-1]||x.block}</td></tr>`).join('')}</table>`:''}
     ${(h.blocks||[]).map((b,i)=>`<h2>觀念${CN_NUM[i]}　${esc(b.title)}</h2>
       ${b.link?`<p class="link">🧩 ${esc(b.link)}</p>`:''}
+      ${hoPicHTML(b.pic)}
       ${b.why?`<p>${esc(b.why)}</p>`:''}
       ${b.rules.length?`<div class="box"><span class="tag">🔑 重點</span><ul>${b.rules.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></div>`:''}
       ${b.example&&b.example.q?`<div class="ex"><span class="tag">例題</span><p>${esc(b.example.q)}</p>${b.example.steps.map(s=>`<p>${hoStep(s)}</p>`).join('')}${b.example.answer?`<p><b>答案：<span class="red">${esc(b.example.answer)}</span></b></p>`:''}</div>`:''}

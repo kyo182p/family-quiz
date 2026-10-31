@@ -63,6 +63,8 @@ curl -sSL -H 'Content-Type: text/plain;charset=utf-8' --data @req.json '{{API_UR
 - `intro`、`index`（卡題索引：left 題目表面句式、block 觀念編號）、`encourage`
 - `practice`：basic、advanced（字串陣列）、challenge（{q,hint} 陣列），題號依序 1、2、3… 連續編號
 - `answers`：每題詳解 {no,steps,answer}，no 對應練習題號
+- `pic`（每段可能有）：圖，{type:svg,key} 內建插圖、{type:cards|flow,items} 圖卡；圖的內容也要檢查是否正確
+- `kid` 為 true：給一～四年級的簡單版，修正時要保持字少、句短（每句 20 字以內），不要擴寫，也不要刪掉圖
 
 驗算步驟（每一份都要做）：
 1. **數學題庫（`subject` 含「數學」）**：寫 Python 腳本，把每個例題和每一題練習題「照題目逐步」算一次，和講義寫的答案比對；分數用 `fractions.Fraction`，日期用 `datetime`，浮點數用容差比較。驗算失敗先檢查是題目錯還是檢核式寫錯。
