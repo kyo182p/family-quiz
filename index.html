@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant-TW">
+<html lang="zh-Hant-TW" data-style="chalk">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,32 +7,48 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Huninn&family=LXGW+WenKai+TC:wght@400;700&display=swap" rel="stylesheet">
+<script>/* 介面風格：在畫面出現前套用，避免閃一下 */
+try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAttribute('data-style',st)}catch(e){}</script>
 <style>
 :root{
-  --paper:#24352D; --grid:#2C4036; --ink:#ECEEE4; --muted:#B9C4B6;
-  --card:#2A3D34; --leaf:#9BE3A5; --leaf-soft:#2F4B3B; --sun:#F2D65F; --sun-soft:#45432A;
-  --coral:#F3A7B6; --coral-soft:#4A3038; --soil:#7A5434; --line:#6F8277;
-  --leaf-strong:#F2D65F; --on-leaf:#1E2B24; --coral-strong:#F3A7B6; --on-coral:#1E2B24;
-  --leaf-ink:#A8E6B1; --sun-ink:#F2D65F; --coral-ink:#F7B9C5; --press:#A8902F;
-  --chalk-r:255px 15px 225px 15px/15px 225px 15px 255px;
-  --chalk-r2:15px 225px 15px 255px/255px 15px 225px 15px;
-  color-scheme:dark;
+  --paper:#F1F7EA; --grid:#DCEBD2; --ink:#1E3A2B; --muted:#506A5A;
+  --card:#FFFFFF; --leaf:#3D8B4F; --leaf-soft:#D6EBCF; --sun:#F2B23A; --sun-soft:#FFF1CC;
+  --coral:#E25D44; --coral-soft:#FBE0DA; --soil:#8B5E3C; --line:#C9DDBF;
+  --leaf-strong:#2E7340; --on-leaf:#fff; --coral-strong:#B83D27; --on-coral:#fff;
+  --leaf-ink:#2E7340; --sun-ink:#8A5A00; --coral-ink:#A93522; --press:#1F5530;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
+    --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
+    --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
+    --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75; --on-coral:#2A0E08;
+  --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
+  --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
+  --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
+  --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75; --on-coral:#2A0E08;
+  --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
+}
 *,*::before,*::after{box-sizing:inherit}
-html{scroll-padding-top:env(safe-area-inset-top,0px);background:var(--soil)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{
-  margin:0; min-height:100vh; color:var(--ink);
-  font-family:"LXGW WenKai TC","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  margin:0; min-height:100%; color:var(--ink);
+  font-family:var(--font,"Huninn","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif);
   background-color:var(--paper);
-  background-image:radial-gradient(ellipse at 18% 22%,rgba(255,255,255,.07),transparent 55%),radial-gradient(ellipse at 82% 70%,rgba(255,255,255,.05),transparent 50%),radial-gradient(ellipse at 50% 100%,rgba(255,255,255,.04),transparent 40%);
-  background-attachment:fixed;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;
   -webkit-tap-highlight-color:transparent;
 }
 main{max-width:720px;margin:0 auto;padding:16px 16px 96px}
 button{font:inherit;color:inherit;cursor:pointer}
+.pic svg{font-family:var(--font-svg,"Huninn","PingFang TC","Noto Sans TC",sans-serif)}
 button:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
 h1{font-size:2.4rem;margin:8px 0 4px;letter-spacing:.04em}
 h1.pg{font-size:1.85rem}
@@ -96,7 +112,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .r{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:10px;font-size:1.15rem;line-height:1.5}
 .r .e{font-size:2rem;flex:0 0 44px;text-align:center}
 .r b{flex:0 0 auto;min-width:4.5em}
-.r.hl{background:var(--sun-soft);outline:2px solid var(--sun)}
+.r.hl{background:#FFF1CC;outline:2px solid #F2B23A}
 .pop{animation:pop .35s ease-out}
 @keyframes pop{0%{transform:scale(.92)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
 .shake{animation:shake .35s}
@@ -182,18 +198,100 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
-/* --- 教室黑板：木頭框與粉筆手繪框 --- */
-body::after{content:"";position:fixed;inset:0;border:8px solid var(--soil);box-shadow:inset 0 0 0 2px #5E402A;pointer-events:none;z-index:60}
-.chip,.iconbtn,.ghost,.pickbtn{border-radius:var(--chalk-r)}
-.card,.bankcard,.detail,.feedback{border-radius:var(--chalk-r2)}
-.opt{border-radius:var(--chalk-r)}
-.opt:nth-child(even){border-radius:var(--chalk-r2)}
-.big{border-radius:var(--chalk-r2);font-weight:700}
-h1,.score{text-shadow:0 0 1px rgba(255,255,255,.5);letter-spacing:.06em}
-.opt.correct{color:var(--ink)}
-.toast{background:var(--ink);color:var(--paper)}
-.pic.illus{border-radius:6px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
-.pic.illus .r.hl{background:#FFF1CC;outline:2px solid #F2B23A}
+/* --- 風格切換按鈕 --- */
+.style-btn{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(62px + env(safe-area-inset-bottom,0px));z-index:15;width:44px;height:44px;opacity:.85;border-radius:50%;border:2px solid var(--line);background:var(--card);font-size:1.3rem;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.style-list{display:grid;gap:10px;margin:10px 0}
+.style-list button{display:flex;align-items:center;gap:12px;text-align:left;padding:10px 12px;border:2px solid var(--line);border-radius:14px;background:var(--card);min-height:56px}
+.style-list button[aria-pressed="true"]{border-color:var(--sun);box-shadow:0 0 0 2px var(--sun) inset}
+.style-list .sw{flex:0 0 auto;width:40px;height:40px;border-radius:10px;border:2px solid rgba(0,0,0,.25)}
+.style-list small{display:block;color:var(--muted);font-size:.9rem}
+
+/* ===== 風格：教室黑板（預設） =====
+   要新增風格：在 STYLES 加一筆，並寫一段 :root[data-style="名稱"] 的變數與覆寫 */
+:root[data-style="chalk"]{
+  --paper:#24352D; --grid:#2C4036; --ink:#ECEEE4; --muted:#B9C4B6;
+  --card:#2A3D34; --leaf:#9BE3A5; --leaf-soft:#2F4B3B; --sun:#F2D65F; --sun-soft:#45432A;
+  --coral:#F3A7B6; --coral-soft:#4A3038; --soil:#7A5434; --line:#6F8277;
+  --leaf-strong:#F2D65F; --on-leaf:#1E2B24; --coral-strong:#F3A7B6; --on-coral:#1E2B24;
+  --leaf-ink:#A8E6B1; --sun-ink:#F2D65F; --coral-ink:#F7B9C5; --press:#A8902F;
+  --chalk-r:255px 15px 225px 15px/15px 225px 15px 255px;
+  --chalk-r2:15px 225px 15px 255px/255px 15px 225px 15px;
+  --font:"LXGW WenKai TC","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  --font-svg:"LXGW WenKai TC","PingFang TC","Noto Sans TC",sans-serif;
+  color-scheme:dark;
+  background:var(--soil);
+}
+[data-style="chalk"] body{
+  min-height:100vh;
+  background-color:var(--paper);
+  background-image:radial-gradient(ellipse at 18% 22%,rgba(255,255,255,.07),transparent 55%),radial-gradient(ellipse at 82% 70%,rgba(255,255,255,.05),transparent 50%),radial-gradient(ellipse at 50% 100%,rgba(255,255,255,.04),transparent 40%);
+  background-size:auto;
+  background-attachment:fixed;
+}
+[data-style="chalk"] body::after{content:"";position:fixed;inset:0;border:8px solid var(--soil);box-shadow:inset 0 0 0 2px #5E402A;pointer-events:none;z-index:60}
+[data-style="chalk"] .tour-help,[data-style="chalk"] .style-btn{right:calc(16px + env(safe-area-inset-right,0px))}
+[data-style="chalk"] .tour-help{bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+[data-style="chalk"] .style-btn{bottom:calc(68px + env(safe-area-inset-bottom,0px))}
+[data-style="chalk"] .r.hl{background:var(--sun-soft);outline:2px solid var(--sun)}
+[data-style="chalk"] :is(.chip,.iconbtn,.ghost,.pickbtn){border-radius:var(--chalk-r)}
+[data-style="chalk"] :is(.card,.bankcard,.detail,.feedback){border-radius:var(--chalk-r2)}
+[data-style="chalk"] .opt{border-radius:var(--chalk-r)}
+[data-style="chalk"] .opt:nth-child(even){border-radius:var(--chalk-r2)}
+[data-style="chalk"] .big{border-radius:var(--chalk-r2);font-weight:700}
+[data-style="chalk"] :is(h1,.score){text-shadow:0 0 1px rgba(255,255,255,.5);letter-spacing:.06em}
+[data-style="chalk"] .opt.correct{color:var(--ink)}
+[data-style="chalk"] .toast{background:var(--ink);color:var(--paper)}
+[data-style="chalk"] .pic.illus{border-radius:6px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+[data-style="chalk"] .pic.illus .r.hl{background:#FFF1CC;outline:2px solid #F2B23A}
+/* --- 觀念複選 --- */
+.cp-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 6px}
+.cp-n{color:var(--muted);font-size:1rem}
+.cpick{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;margin:8px 0;border:2px solid var(--line);border-radius:14px;background:var(--card);min-height:48px;font-size:1.1rem;line-height:1.5;cursor:pointer}
+.cpick input{width:22px;height:22px;margin-top:2px;flex:0 0 auto;accent-color:var(--leaf-strong)}
+.cpick small{display:block;color:var(--coral-ink);font-size:.95rem}
+.cpick:has(input:checked){border-color:var(--sun)}
+[data-style="chalk"] .cpick{border-radius:var(--chalk-r)}
+/* ===== 重點講義（白紙版面，不跟著介面風格變色；列印成 A4） ===== */
+.ho-pill{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:16;max-width:calc(100vw - 90px);
+  padding:10px 16px;min-height:44px;border-radius:22px;border:2px solid var(--sun);background:var(--card);color:var(--ink);font-size:1rem;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.ho-pill.done{background:var(--sun);color:var(--on-leaf);border-color:var(--sun)}
+[data-style="chalk"] .ho-pill{left:calc(18px + env(safe-area-inset-left,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+.ho-status{margin:8px 0 14px;padding:12px 14px;border-radius:14px;border:2px solid var(--leaf);background:var(--leaf-soft);font-size:1.05rem;line-height:1.6}
+.ho-status.pending{border-color:var(--sun);background:var(--sun-soft)}
+.ho{background:#fff;color:#2b2b2b;border-radius:6px;padding:22px 20px;box-shadow:0 2px 0 rgba(0,0,0,.25);
+  font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;font-size:1.02rem;line-height:1.75;overflow-wrap:anywhere}
+.ho h1{color:#1a4d8f;font-size:1.6rem;border-bottom:3px solid #1a4d8f;padding-bottom:6px;margin:0 0 2px;text-shadow:none;letter-spacing:normal}
+.ho .sub{color:#666;font-size:.9rem;margin-bottom:14px}
+.ho h2{color:#fff;background:#1a4d8f;font-size:1.15rem;padding:5px 12px;border-radius:4px;margin:20px 0 10px;break-after:avoid;page-break-after:avoid}
+.ho h3{color:#1a4d8f;font-size:1.05rem;margin:14px 0 6px;break-after:avoid;page-break-after:avoid}
+.ho p{margin:6px 0}
+.ho .lead{background:#eef3fa;border-left:4px solid #1a4d8f;padding:10px 14px;border-radius:0 6px 6px 0;color:#2b2b2b;font-size:inherit}
+.ho .box,.ho .ex,.ho .warn,.ho .ans{border-radius:8px;padding:10px 14px;margin:10px 0}
+.ho .box{background:#fff8e8;border:1.5px solid #f0a500}.ho .box .tag{color:#8a5a00;font-weight:bold;background:none;padding:0}
+.ho .box ul{margin:4px 0;padding-left:1.3em}
+.ho .ex{background:#f2f9f2;border:1.5px solid #3f8f3f}.ho .ex .tag{display:inline-block;background:#2f7a2f;color:#fff;font-size:.85rem;padding:1px 10px;border-radius:10px;margin-bottom:4px}
+.ho .warn{background:#fdf2f2;border:1.5px solid #d9534f}.ho .warn .tag{color:#b52b27;font-weight:bold;background:none;padding:0}
+.ho .red{color:#b52b27;font-weight:bold}
+.ho table{border-collapse:collapse;width:100%;margin:8px 0}
+.ho th,.ho td{border:1px solid #b8c6dc;padding:5px 10px;text-align:left;font-size:.95rem}
+.ho th{background:#eef3fa;color:#1a4d8f}
+.ho td:last-child,.ho th:last-child{white-space:nowrap;width:1%}
+@media (max-width:480px){.ho{padding:16px 14px}.ho h1{font-size:1.35rem}}
+.ho ol.probs{padding-left:0;list-style:none}.ho ol.probs li{margin:9px 0}
+.ho .hint{color:#666;font-size:.9rem}
+.ho .ans{background:#f7f7f7;border:1.5px dashed #999}
+.ho .enc{background:#eef3fa;border-radius:8px;padding:10px 14px;margin-top:14px}
+.ho .lead,.ho .box,.ho .ex,.ho .warn,.ho .ans,.ho table,.ho .enc{break-inside:avoid;page-break-inside:avoid}
+.ho p,.ho li{orphans:3;widows:3}
+@media print{
+  html,body,[data-style] body{background:#fff!important;color:#2b2b2b}
+  body::after{display:none!important}
+  main:has(.ho)>:not(.ho),.noprint,.style-btn,.tour-help,.ho-pill,.toast,.modal{display:none!important}
+  main{max-width:none!important;padding:0!important}
+  .ho{box-shadow:none;padding:0;border-radius:0;font-size:10.5pt}
+  .ho h2{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .ho .box,.ho .ex,.ho .warn,.ho .ans,.ho .lead,.ho .enc,.ho th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 </head>
 <body>
@@ -359,7 +457,7 @@ const BYID=Object.fromEntries(ALL.map(q=>[q.id,q]));
 const ORIGIN=Object.fromEntries(Q.filter(q=>q.c===q.id).map(q=>[q.c,q]));
 /* ===== 圖片 ===== */
 const C={leaf:'#3D8B4F',leaf2:'#6DB36F',dark:'#1E3A2B',soil:'#8B5E3C',sun:'#F2B23A',red:'#D7322B',pink:'#F28DB2',hl:'#FFF1CC'};
-const svg=(w,h,inner)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" font-family="LXGW WenKai TC,PingFang TC,Noto Sans TC,sans-serif">${inner}</svg>`;
+const svg=(w,h,inner)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" font-family="Huninn,PingFang TC,Noto Sans TC,sans-serif">${inner}</svg>`;
 const T=(x,y,t,s=16,c=C.dark,a='middle')=>`<text x="${x}" y="${y}" font-size="${s}" fill="${c}" text-anchor="${a}">${t}</text>`;
 const leafAt=(x,y,len,wid,ang,fill=C.leaf)=>`<g transform="translate(${x},${y}) rotate(${ang})"><path d="M0,0 C${wid},${-len*.3} ${wid*.6},${-len*.9} 0,${-len} C${-wid*.6},${-len*.9} ${-wid},${-len*.3} 0,0Z" fill="${fill}" stroke="${C.dark}" stroke-width="1.2"/><line x1="0" y1="0" x2="0" y2="${-len*.9}" stroke="#ffffff" stroke-opacity=".5"/></g>`;
 
@@ -463,7 +561,7 @@ let rec=store.get('g3plants-rec',{});
 let prefs=store.get('g3plants-prefs',{autoRead:false,unit:'all',count:10});
 // 舊版預設自動朗讀全部開啟，這版改為預設關閉、由每題自己選擇
 if(prefs.v!==2){prefs.autoRead=false;prefs.v=2;store.set('g3plants-prefs',prefs)}
-function bump(id,correct){const r=rec[id]||{seen:0,wrong:0};r.seen++;if(!correct)r.wrong++;rec[id]=r;store.set('g3plants-rec',rec)}
+function bump(id,correct){const r=rec[id]||{seen:0,wrong:0};r.seen++;if(!correct)r.wrong++;r.st=correct?(r.st||0)+1:0;rec[id]=r;store.set('g3plants-rec',rec)}
 
 /* ===== 聲音 ===== */
 let ac=null;
@@ -505,8 +603,19 @@ let S=null;
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
 const practice=()=>Q.concat(AIQ);
 const pool=()=>prefs.unit==='all'?practice():practice().filter(q=>q.u===prefs.unit);
-// 練習次數少的題目優先，多輪下來可以輪過整份題庫
-const pickRound=(qs,n,r)=>{r=r||rec;const s=shuffle(qs).sort((a,b)=>((r[a.id]||{}).seen||0)-((r[b.id]||{}).seen||0));return spreadShuffle(n?s.slice(0,n):s)};
+// 出題權重：沒練過的新題最高；答錯比例高的較高；連續答對多次的題目大幅降低
+// st＝連續答對次數；舊紀錄沒有 st，從沒錯過就把作答次數當成連續答對
+function qWeight(v){
+  if(!v||!v.seen)return 4;
+  const st=v.st!=null?v.st:(v.wrong?0:v.seen);
+  if(st>=3)return 0.15;
+  if(st>=2)return 0.4;
+  return 1+2*(v.wrong||0)/v.seen;
+}
+// 依權重不重複抽題（權重越高越容易被抽到、排在前面）
+const pickRound=(qs,n,r)=>{r=r||rec;
+  const s=qs.map(q=>({q,k:Math.pow(Math.random(),1/qWeight(r[q.id]))})).sort((a,b)=>b.k-a.k).map(x=>x.q);
+  return spreadShuffle(n?s.slice(0,n):s)};
 // 常錯的觀念：該觀念（原題＋複習題）累計答錯次數
 const conceptWrong=c=>ALL.filter(q=>q.c===c).reduce((s,q)=>s+((rec[q.id]||{}).wrong||0),0);
 const wrongConcepts=()=>Object.keys(ORIGIN).filter(c=>conceptWrong(c)>0).sort((a,b)=>conceptWrong(b)-conceptWrong(a));
@@ -552,7 +661,8 @@ function home(){
    <div class="section-title">這次要做幾題？</div>
    <div class="chips" id="cnt">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,n])=>`<button class="chip" data-c="${v}" aria-pressed="${prefs.count===v}">${n}</button>`).join('')}</div>
    <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
-   <button class="big" id="go">開始練習</button>
+   ${resumeHTML(PLANT_CTX)}
+   <button class="${getProgress(PLANT_CTX)?'ghost':'big'}" id="go">${getProgress(PLANT_CTX)?'重新開始新的練習':'開始練習'}</button>
    ${wc.length?`<button class="ghost" id="gw">🌱 練常錯的觀念（${wc.length} 個）</button>`:''}
    <button class="ghost" id="gp">📒 學習紀錄（給爸爸媽媽看）</button>
    <button class="ghost" id="gai">🤖 用 AI 產生新題目（大人使用）</button>`;
@@ -560,6 +670,7 @@ function home(){
   app.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{prefs.count=+b.dataset.c;store.set('g3plants-prefs',prefs);home()});
   document.getElementById('ar').onchange=e=>{prefs.autoRead=e.target.checked;store.set('g3plants-prefs',prefs)};
   document.getElementById('go').onclick=()=>start(pickRound(pool(),prefs.count));
+  if(document.getElementById('resume'))document.getElementById('resume').onclick=()=>resumeRound(PLANT_CTX);
   const gw=document.getElementById('gw');
   // 常錯觀念：每個觀念出一題，優先用這個孩子還沒練過的問法
   if(gw)gw.onclick=()=>start(buildWeakRound(shuffle(wc.slice(0,10)),ALL,rec));
@@ -569,7 +680,34 @@ function home(){
   window.scrollTo(0,0);
 }
 
+/* --- 練習進度：每答一題存一次，中途離開可以接著做 --- */
+const progKey=ctx=>'progress-'+(ctx.pkey||ctx.key);
+function saveProgress(){
+  if(!S||!CTX)return;
+  store.set(progKey(CTX),{queue:S.queue.slice(S.pos+1).map(x=>({id:x.q.id,kind:x.kind,stage:x.stage||0})),
+    total:S.total,leaves:S.leaves,used:[...S.used],cs:S.cs,missed:S.missed,t:Date.now()});
+}
+function clearProgress(ctx){try{localStorage.removeItem(progKey(ctx))}catch(e){}}
+function getProgress(ctx){
+  const p=store.get(progKey(ctx),null);
+  if(!p||!Array.isArray(p.queue))return null;
+  const byId={};ctx.all().forEach(q=>byId[q.id]=q);
+  const queue=p.queue.map(x=>byId[x.id]&&!isBlocked(byId[x.id])?{q:byId[x.id],kind:x.kind,stage:x.stage||undefined}:null).filter(Boolean);
+  if(!queue.length){clearProgress(ctx);return null}
+  return {...p,queue};
+}
+function resumeHTML(ctx){
+  const p=getProgress(ctx);if(!p)return '';
+  return `<button class="big" id="resume">▶ 繼續上次的練習（已完成 ${p.leaves.length} / ${p.total} 題）</button>`;
+}
+function resumeRound(ctx){
+  const p=getProgress(ctx);if(!p)return;
+  CTX=ctx;
+  S={queue:p.queue,total:p.total,pos:0,leaves:p.leaves||[],used:new Set(p.used||[]),cs:p.cs||{},missed:p.missed||[]};
+  ask();
+}
 function start(qs){
+  clearProgress(CTX);
   qs=(qs||[]).filter(q=>!isBlocked(q));
   if(!qs.length){toast('目前沒有可以練習的題目');return}
   S={queue:qs.map(q=>({q,kind:'main'})),total:qs.length,pos:0,leaves:[],
@@ -667,11 +805,13 @@ function answer(btn){
   const say=()=>speak((ok?'答對了！':'正確答案是'+ansText.replace(/[⭕❌]/g,'')+'。')+q.why+(note?note.replace('🌟',''):''));
   document.getElementById('rw').onclick=say;
   const ds=document.getElementById('det-say');if(ds)ds.onclick=()=>speak(q.detail);
+  saveProgress();
   document.getElementById('nx').onclick=()=>{S.pos++;ask()};
   fb.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 function finish(){
+  clearProgress(CTX);
   const first=S.leaves.filter(Boolean).length, total=S.total;
   const mastered=S.missed.filter(c=>S.cs[c]&&S.cs[c].mastered), notyet=S.missed.filter(c=>!(S.cs[c]&&S.cs[c].mastered));
   sndBloom();
@@ -688,11 +828,14 @@ function finish(){
    ${mastered.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌟 錯了之後，複習到記住的觀念：</p><ul class="list">${mastered.map(li).join('')}</ul></section>`:''}
    ${notyet.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌱 還要再加油的觀念：</p><ul class="list">${notyet.map(li).join('')}</ul></section>`:''}
    <button class="big" id="again">${S.missed.length?'把錯的觀念再練一次':'再玩一次'}</button>
+   ${CTX.bank&&!CTX.bank.__lib&&hasBackend()?`<button class="ghost" id="hob">📘 ${S.missed.length?'把錯的觀念做成重點講義':'重點講義'}</button>`:''}
    <button class="ghost" id="hm">🏠 回首頁</button>`;
   document.getElementById('again').onclick=()=>S.missed.length
     ?start(shuffle(S.missed.map(c=>pickVariantFresh(c))))
     :CTX.restart();
   document.getElementById('hm').onclick=()=>CTX.home();
+  const hob=document.getElementById('hob');
+  if(hob){const bk=CTX.bank,miss=S.missed.slice();hob.onclick=()=>{bsSave(bk);hoSel=null;handoutHome(bk,miss)}}
   window.scrollTo(0,0);
 }
 // 再練一次時，挑這個觀念裡練習次數最少的問法
@@ -1162,8 +1305,8 @@ ${cons}
 ${text?'\n文字資料：\n'+text:''}`;
 }
 
-function genPrompt(bank,lv,count){
-  const cons=bank.concepts.map(x=>{
+function genPrompt(bank,lv,count,only){
+  const cons=bank.concepts.filter(x=>!only||only.has(x.id)).map(x=>{
     const ex=bank.questions.filter(q=>q.c===x.id).slice(0,3).map(q=>`    例題：${q.q}（答案：${ansStr(q)}）`).join('\n');
     return `【${x.id}】${x.text}${ex?'\n'+ex:''}`;}).join('\n');
   const exist=bank.questions.concat(bank.pending).map(q=>'- '+q.q).join('\n');
@@ -1309,10 +1452,12 @@ function bankHome(bank,msg){
      <div class="section-title">題數</div>
      <div class="chips">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,t])=>`<button class="chip" data-cn="${v}" aria-pressed="${bprefs.count===v}">${t}</button>`).join('')}</div>
      <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
-     <button class="big" id="go">開始練習</button>
+     ${resumeHTML(bankCtx(bank))}
+     <button class="${getProgress(bankCtx(bank))?'ghost':'big'}" id="go">${getProgress(bankCtx(bank))?'重新開始新的練習':'開始練習'}</button>
      ${weakConcepts(bank).length?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weakConcepts(bank).length} 個）</button>`:''}</section>`
     :'<div class="card"><p class="lead" style="margin:0">還沒有題目。先上傳資料，確認後就可以練習。</p></div>'}
    <section class="card"><h2 class="ct">大人使用</h2>
+     ${bank.concepts.length?`<button class="ghost" id="ho">📘 重點講義</button>`:''}
      ${answered?`<button class="ghost" id="more">✨ 產生更多題目</button>`:`<button class="ghost" id="up">📷 上傳資料產生題目（照片、字幕、文字）</button>`}
      ${bank.pending.length?`<button class="ghost" id="rv">✅ 待確認的題目（${bank.pending.length}）</button>`:''}
      ${answered?`<button class="ghost" id="an">📊 學習分析</button>`:''}
@@ -1327,9 +1472,11 @@ function bankHome(bank,msg){
   app.querySelectorAll('[data-cn]').forEach(b=>b.onclick=()=>{bprefs.count=+b.dataset.cn;store.set('custom-prefs',bprefs);bankHome(bank)});
   if($('ar'))$('ar').onchange=e=>{prefs.autoRead=e.target.checked;store.set('g3plants-prefs',prefs)};
   if($('go'))$('go').onclick=()=>startBank(bank);
+  if($('resume'))$('resume').onclick=()=>resumeRound(bankCtx(bank));
   if($('weak'))$('weak').onclick=()=>startWeak(bank);
   if($('up'))$('up').onclick=()=>uploadPage(bank); if($('more'))$('more').onclick=()=>morePage(bank);
   if($('an'))$('an').onclick=()=>{sumState.msg='';analysisPage(bank)};
+  if($('ho'))$('ho').onclick=()=>handoutHome(bank);
   if($('pub'))$('pub').onclick=()=>togglePublish(bank);
   if($('rv'))$('rv').onclick=()=>reviewPage(bank); $('ls').onclick=()=>openList(bank); $('ex').onclick=()=>exportPage(bank);
   $('del').onclick=async()=>{if(await confirmBox('確定要刪除「'+(bank.title||bankInfo(bank))+'」嗎？題目和作答紀錄都會刪除。')){await bsDelete(bank);betaHome()}};
@@ -1338,11 +1485,11 @@ function bankHome(bank,msg){
 
 /* --- 練習：沿用植物小學堂的引擎（間隔複習、朗讀、音效） --- */
 function bankCtx(bank){return {
-  key:bank.id,
+  key:bank.id, pkey:(bank.__lib?'lib-':'')+bank.id, bank,
   all:()=>bank.questions,
   origin:c=>bank.questions.find(q=>q.c===c&&q.src==='原題')||bank.questions.find(q=>q.c===c),
   label:q=>LV[q.lv]||'基礎',
-  bump:(id,ok)=>{const r=bank.rec[id]||{seen:0,wrong:0};r.seen++;if(!ok)r.wrong++;bank.rec[id]=r;logDay(bank,ok);scheduleSave(bank)},
+  bump:(id,ok)=>{const r=bank.rec[id]||{seen:0,wrong:0};r.seen++;if(!ok)r.wrong++;r.st=ok?(r.st||0)+1:0;bank.rec[id]=r;logDay(bank,ok);scheduleSave(bank)},
   rec:()=>bank.rec,
   pic:q=>{const con=(bank.concepts.find(x=>x.id===q.c)||{}).text;
     return (q.icon||con)?`<div class="bpic">${q.icon?`<div class="bicon">${esc(q.icon)}</div>`:''}${con?`<p>📌 觀念：${esc(con)}</p>`:''}</div>`:''},
@@ -1519,7 +1666,7 @@ function morePage(bank){
 const GEN_PER_CALL=15;
 const QCOUNTS=[20,30,50];
 const callsFor=n=>Math.ceil(n/GEN_PER_CALL);
-async function genBatches(bank,lv,target,ctl,onProg){
+async function genBatches(bank,lv,target,ctl,onProg,only){
   let added=0,dropped=0,rounds=0,err=null;
   const maxRounds=callsFor(target)+1;
   while(added<target&&rounds<maxRounds){
@@ -1527,7 +1674,7 @@ async function genBatches(bank,lv,target,ctl,onProg){
     const want=Math.min(GEN_PER_CALL,target-added);
     onProg&&onProg(added,target);
     try{
-      const res=await SAMPLE.json(genPrompt(bank,lv,want),{signal:ctl.signal,cache:false,modelTier:'quick'});
+      const res=await SAMPLE.json(genPrompt(bank,lv,want,only),{signal:ctl.signal,cache:false,modelTier:'quick'});
       const arr=(Array.isArray(res)?res:[]).map(r=>({...r,src:'AI',ansByAI:false,lv:lv||r.lv}));
       const r=mergeResult(bank,{questions:arr},'AI');
       added+=r.added;dropped+=r.dropped;
@@ -1538,17 +1685,45 @@ async function genBatches(bank,lv,target,ctl,onProg){
   return {added,dropped,err};
 }
 
+/* --- 觀念複選：答錯過的觀念排前面並預設勾選，也可以選其他觀念或整個題庫 --- */
+function conceptWrongCount(bank){const w={};bank.questions.forEach(q=>{const r=bank.rec[q.id];if(r&&r.wrong)w[q.c]=(w[q.c]||0)+r.wrong});return w}
+function defaultConcepts(bank,extra){
+  const w=conceptWrongCount(bank);
+  const s=new Set([...(extra||[]),...Object.keys(w)].filter(id=>bank.concepts.some(c=>c.id===id)));
+  return s.size?s:new Set(bank.concepts.map(c=>c.id));
+}
+function conceptPickerHTML(bank,sel){
+  const w=conceptWrongCount(bank);
+  const weak=bank.concepts.filter(c=>w[c.id]).sort((a,b)=>w[b.id]-w[a.id]);
+  const rest=bank.concepts.filter(c=>!w[c.id]);
+  const row=c=>`<label class="cpick"><input type="checkbox" data-cp="${esc(c.id)}" ${sel.has(c.id)?'checked':''}><span>${esc(c.text)}${w[c.id]?`<small>答錯 ${w[c.id]} 次</small>`:''}</span></label>`;
+  return `<div class="cpicker">
+    <div class="cp-tools"><button class="iconbtn" data-cpall="1">全選（整個題庫）</button><button class="iconbtn" data-cpall="0">全部取消</button><span class="cp-n" aria-live="polite">已選 ${sel.size} 個</span></div>
+    ${weak.length?`<div class="section-title">答錯過的觀念（建議）</div>${weak.map(row).join('')}`:''}
+    ${rest.length?`<div class="section-title">${weak.length?'其他觀念':'觀念'}</div>${rest.map(row).join('')}`:''}
+  </div>`;
+}
+function bindConceptPicker(root,sel,onChange){
+  const upd=()=>{const n=root.querySelector('.cp-n');if(n)n.textContent=`已選 ${sel.size} 個`;onChange&&onChange()};
+  root.querySelectorAll('[data-cp]').forEach(i=>i.onchange=()=>{i.checked?sel.add(i.dataset.cp):sel.delete(i.dataset.cp);upd()});
+  root.querySelectorAll('[data-cpall]').forEach(b=>b.onclick=()=>{const on=b.dataset.cpall==='1';
+    root.querySelectorAll('[data-cp]').forEach(i=>{i.checked=on;on?sel.add(i.dataset.cp):sel.delete(i.dataset.cp)});upd()});
+}
+
 /* --- 頁面：用已有觀念產生更多題目 --- */
 let genState={lv:0,count:20,phase:'idle',msg:'',ctl:null};
 function genPage(bank){
+  if(!genState.cons||genState.bid!==bank.id){genState.cons=defaultConcepts(bank);genState.bid=bank.id}
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
    <h1 class="pg">產生更多題目</h1>
-   <p class="lead">只用這個題庫已經整理好的 ${bank.concepts.length} 個觀念出新的問法，不會加入其他知識。</p>
+   <p class="lead">用選好的觀念出新的問法，不會加入其他知識。答錯過的觀念已經先幫你勾好。</p>
    ${sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
    <div class="section-title">難度</div>
    <div class="chips">${[[0,'混合'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-glv="${l}" aria-pressed="${genState.lv===l}">${t}</button>`).join('')}</div>
    <p class="lead" style="font-size:1rem;margin-top:8px">基礎：直接回想　標準：分辨相近觀念　挑戰：反過來問、結合兩個觀念</p>
+   <div class="section-title">要加強哪些觀念</div>
+   <div id="g-cp">${conceptPickerHTML(bank,genState.cons)}</div>
    <div class="section-title">題數</div>
    <div class="chips">${QCOUNTS.map(v=>`<button class="chip" data-gc="${v}" aria-pressed="${genState.count===v}">${v} 題</button>`).join('')}</div>
    <p class="lead" style="font-size:1rem;margin-top:8px">每 ${GEN_PER_CALL} 題算一次 AI 使用次數，${genState.count} 題大約用 ${callsFor(genState.count)} 次。</p>
@@ -1557,6 +1732,7 @@ function genPage(bank){
   $('bk').onclick=()=>{if(genState.ctl)genState.ctl.abort();morePage(bank)};
   bindReload('gen',bank);
   if(sampleBlocked()||SAMPLE===undefined){ if(SAMPLE===undefined)setTimeout(()=>genPage(bank),1500); return; }
+  bindConceptPicker($('g-cp'),genState.cons);
   app.querySelectorAll('[data-glv]').forEach(b=>b.onclick=()=>{if(genState.phase==='working')return;genState.lv=+b.dataset.glv;genPage(bank)});
   app.querySelectorAll('[data-gc]').forEach(b=>b.onclick=()=>{if(genState.phase==='working')return;genState.count=+b.dataset.gc;genPage(bank)});
   const act=$('g-act');
@@ -1565,13 +1741,14 @@ function genPage(bank){
     $('g-stop').onclick=()=>genState.ctl&&genState.ctl.abort();
   }else{
     act.innerHTML=quotaNote+`<button class="big" id="g-start">✨ 產生 ${genState.count} 題</button>${genState.msg?`<p class="lead" style="margin-top:12px">${esc(genState.msg)}</p>`:''}`;
-    $('g-start').onclick=()=>{genState.msg='';runGen(bank)};
+    $('g-start').onclick=()=>{if(!genState.cons.size){toast('請至少選一個觀念');return}genState.msg='';runGen(bank)};
   }
 }
 async function runGen(bank){
   genState.phase='working';genPage(bank);
   const ctl=new AbortController();genState.ctl=ctl;
-  const r=await genBatches(bank,genState.lv,genState.count,ctl,(a,t)=>{const p=document.getElementById('g-prog');if(p)p.textContent=`Claude 正在寫題目……（${a} / ${t} 題）`});
+  const r=await genBatches(bank,genState.lv,genState.count,ctl,(a,t)=>{const p=document.getElementById('g-prog');if(p)p.textContent=`Claude 正在寫題目……（${a} / ${t} 題）`},
+    genState.cons.size<bank.concepts.length?genState.cons:null);
   genState.phase='idle';genState.ctl=null;
   if(r.added){genState.msg='';
     bankHome(bank,`新增 ${r.added} 題，已收進題庫${r.added<genState.count&&r.err?`（${aiErrMsg(r.err)}）`:''}。詳細解題會在每天的排程自動補上。`);return}
@@ -2082,9 +2259,11 @@ function libBankHome(bank){
      <div class="section-title">題數</div>
      <div class="chips">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,t])=>`<button class="chip" data-cn="${v}" aria-pressed="${bprefs.count===v}">${t}</button>`).join('')}</div>
      <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
-     <button class="big" id="go">開始練習</button>
+     ${resumeHTML(bankCtx(bank))}
+     <button class="${getProgress(bankCtx(bank))?'ghost':'big'}" id="go">${getProgress(bankCtx(bank))?'重新開始新的練習':'開始練習'}</button>
      ${weak?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weak} 個）</button>`:''}
      <button class="ghost" id="an">📊 學習分析（這台裝置的紀錄）</button>
+     <span id="ho-slot"></span>
    </section>`;
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>libHome();
@@ -2092,8 +2271,295 @@ function libBankHome(bank){
   app.querySelectorAll('[data-cn]').forEach(b=>b.onclick=()=>{bprefs.count=+b.dataset.cn;store.set('custom-prefs',bprefs);libBankHome(bank)});
   $('ar').onchange=e=>{prefs.autoRead=e.target.checked;store.set('g3plants-prefs',prefs)};
   $('go').onclick=()=>startBank(bank);
+  if($('resume'))$('resume').onclick=()=>resumeRound(bankCtx(bank));
   if($('weak'))$('weak').onclick=()=>startWeak(bank);
   $('an').onclick=()=>{sumState.msg='';analysisPage(bank)};
+  const showHo=n=>{const sl=$('ho-slot');if(sl&&n){sl.outerHTML=`<button class="ghost" id="ho">📘 重點講義（${n} 份）</button>`;$('ho').onclick=()=>handoutHome(bank)}};
+  if(hoList[bank.id])showHo(hoList[bank.id].length);
+  else libApi('libHandouts',{bankId:bank.id}).then(j=>{hoList[bank.id]=j.handouts||[];showHo(hoList[bank.id].length)}).catch(()=>{});
+  window.scrollTo(0,0);
+}
+
+/* ===== 重點講義 =====
+   家長選觀念 → AI 分段寫（每個觀念一段，再寫練習題、詳解）→ 存到後端 → 每天排程逐題驗算。
+   產生時在背景進行，可以繼續使用網站；完成後左下角會出現提示。中途中斷可以接著產生。 */
+const CN_NUM=['一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五'];
+const HJ_KEY='handout-job';
+let HJ=store.get(HJ_KEY,null);      // 目前的講義工作（只保留一份）
+let HJ_CTL=null;
+const isMathBank=b=>/數學|算術|math/i.test(String(b.subject||''));
+const hoLevels=n=>n<=2?[4,3,2]:[5,5,3];
+const hoCalls=n=>n+2;
+const hoList={};                    // 各題庫的講義清單快取
+const hoApi=(bank,action,data)=>bank.__lib?libApi(action,data):api(action,data);
+function hjSave(){if(!HJ){try{localStorage.removeItem(HJ_KEY)}catch(e){}return}const {ctl,...x}=HJ;store.set(HJ_KEY,x)}
+const hoStr=(v,n)=>String(v==null?'':v).trim().slice(0,n||600);
+const hoArr=(v,n,m)=>(Array.isArray(v)?v:[]).map(x=>hoStr(x,m)).filter(Boolean).slice(0,n);
+
+function hoRules(bank){
+  return `寫作規則：
+- 對象是${bank.grade||'國小'}的孩子。口語、親切，像老師在旁邊講，用「你」稱呼；多用生活裡的比喻。
+- 台灣用語、繁體中文，名詞用台灣課本的說法；不要用孩子看不懂的術語，用到就順便解釋。
+- 只能根據提供的觀念和題目範圍，不要加入超出年級或範圍的內容。
+- 自己設計的題目要和題庫題目同型、同難度，但數字或情境至少換一項，不可以照抄原題。
+${isMathBank(bank)?'- 數學：數字要挑得乾淨，答案盡量是整數或一位小數；圓周率用 3.14。每一題寫完都要自己重算一次確認答案正確。\n':''}- 不要使用 Markdown 符號（*、#、|），只寫純文字。`;
+}
+function hoQs(bank,ids){
+  return bank.questions.filter(q=>!ids||ids.includes(q.c)).slice(0,30)
+    .map(q=>`- ${q.q}${q.t==='mc'?`（選項：${q.o.join('／')}）`:''}（答案：${ansStr(q)}）`).join('\n')||'（沒有題目）';
+}
+function hoBlockPrompt(bank,con){
+  return `你是台灣的國小老師，要為「${bankInfo(bank)}」寫一份給孩子看的重點講義。這一次只寫其中一個觀念的段落。
+
+觀念：${con.text}
+
+這個觀念在題庫裡的題目（讓你了解考法，不可以照抄）：
+${hoQs(bank,[con.id])}
+
+這一段要寫：
+1. title：白話標題，一句話說出這個觀念在做什麼（不超過 20 字）。
+2. why：一兩句說明「為什麼」，不要只丟結論。
+3. rules：重點 2～4 條（招式、口訣或公式），每條一句。
+4. example：自己設計一題例題，分步驟寫（最多 6 步，每步寫成「第一步（做什麼）：內容」），最後給答案。
+5. mistake：這個觀念最常錯的地方，一兩句。
+
+${hoRules(bank)}
+
+只回傳一個 JSON 物件，不要其他文字：
+{"title":"…","why":"…","rules":["…"],"example":{"q":"…","steps":["第一步（…）：…"],"answer":"…"},"mistake":"…"}`;
+}
+function hoOutline(blocks){return blocks.map((b,i)=>`觀念${CN_NUM[i]}：${b.title}｜重點：${b.rules.join('；')}`).join('\n')}
+function hoPracticePrompt(bank,blocks,ids,lv){
+  return `你是台灣的國小老師，正在為「${bankInfo(bank)}」寫重點講義。觀念段落已經寫好：
+${hoOutline(blocks)}
+
+題庫題目（讓你了解考法，不可以照抄）：
+${hoQs(bank,ids)}
+
+請寫：
+1. intro：導讀，3～4 句，用一段話串起上面所有觀念，並給學習建議。
+2. index：卡題索引 3～8 列。left 寫「題目表面看起來的樣子」（孩子眼睛看得到的字眼或句式，例如「…哪一個不是…？」），不可以寫觀念名稱；block 寫對應的觀念編號（數字，從 1 開始）。
+3. practice：分層練習，題目旁不可以寫是哪個觀念（判斷用哪一招是孩子的練習）。
+   - basic：${lv[0]} 題，只用一個觀念就能回答。
+   - advanced：${lv[1]} 題，要多想一步或反過來想。
+   - challenge：${lv[2]} 題，要結合兩個觀念或多步推理，每題附一句 hint 提示。
+   題目可以是填空、簡答或選擇，讓孩子寫在紙上；不要和例題重複。
+4. encourage：結尾一兩句鼓勵，提醒可以回去練習題庫。
+
+${hoRules(bank)}
+
+只回傳一個 JSON 物件，不要其他文字：
+{"intro":"…","index":[{"left":"…","block":1}],"practice":{"basic":["…"],"advanced":["…"],"challenge":[{"q":"…","hint":"…"}]},"encourage":"…"}`;
+}
+function hoAnswerPrompt(bank,blocks,practice){
+  let n=0;
+  const list=[...practice.basic.map(q=>`${++n}. ${q}`),...practice.advanced.map(q=>`${++n}. ${q}`),...practice.challenge.map(c=>`${++n}. ${c.q}`)].join('\n');
+  return `你是台灣的國小老師，正在為「${bankInfo(bank)}」寫重點講義的詳解。講義的觀念：
+${hoOutline(blocks)}
+
+練習題：
+${list}
+
+請為每一題寫完整詳解：steps 分步驟寫出過程（孩子看得懂每一步），answer 寫最後答案。適時補一句「驗證」或「提醒」。
+${isMathBank(bank)?'每一題都要自己重新計算一次，確認答案正確。':''}
+不要使用 Markdown 符號，只寫純文字。
+
+只回傳一個 JSON 陣列，題號要和上面一致：
+[{"no":1,"steps":["…"],"answer":"…"}]`;
+}
+function hoNormBlock(r,con){
+  if(!r||typeof r!=='object')return null;
+  const ex=r.example||{};
+  const b={cid:con.id,title:hoStr(r.title,60)||con.text,why:hoStr(r.why,400),rules:hoArr(r.rules,6,200),
+    example:{q:hoStr(ex.q,400),steps:hoArr(ex.steps,8,300),answer:hoStr(ex.answer,200)},mistake:hoStr(r.mistake,400)};
+  return b.why||b.rules.length?b:null;
+}
+function hoNormPractice(r){
+  if(!r||typeof r!=='object')return null;
+  const p=r.practice||{};
+  const out={intro:hoStr(r.intro,800),encourage:hoStr(r.encourage,300),
+    index:(Array.isArray(r.index)?r.index:[]).map(x=>({left:hoStr(x&&x.left,120),block:Math.max(1,parseInt(x&&x.block)||1)})).filter(x=>x.left).slice(0,10),
+    practice:{basic:hoArr(p.basic,8,400),advanced:hoArr(p.advanced,8,400),
+      challenge:(Array.isArray(p.challenge)?p.challenge:[]).map(c=>typeof c==='string'?{q:hoStr(c,400),hint:''}:{q:hoStr(c&&c.q,400),hint:hoStr(c&&c.hint,200)}).filter(c=>c.q).slice(0,5)}};
+  return out.practice.basic.length+out.practice.advanced.length+out.practice.challenge.length?out:null;
+}
+function hoNormAnswers(r){
+  return (Array.isArray(r)?r:[]).map(a=>({no:parseInt(a&&a.no)||0,steps:hoArr(a&&a.steps,10,300),answer:hoStr(a&&a.answer,200)})).filter(a=>a.no);
+}
+
+/* --- 背景執行講義工作 --- */
+function hoStart(bank,ids){
+  if(HJ&&HJ.phase==='running'){toast('另一份講義還在產生中，請等它完成');return}
+  const cons=bank.concepts.filter(c=>ids.has(c.id));
+  HJ={bankId:bank.id,bankTitle:bank.title||bankInfo(bank),cids:cons.map(c=>c.id),blocks:[],extra:null,answers:null,
+      step:0,total:hoCalls(cons.length),phase:'running',msg:'',all:cons.length===bank.concepts.length,t:Date.now()};
+  hjSave();hoRun(bank);
+}
+async function hoRun(bank){
+  if(!HJ)return;
+  HJ.phase='running';HJ.msg='';hjSave();hoPill();
+  const ctl=new AbortController();HJ_CTL=ctl;
+  const cons=HJ.cids.map(id=>bank.concepts.find(c=>c.id===id)).filter(Boolean);
+  const opt={signal:ctl.signal,cache:false,modelTier:'default'};
+  try{
+    while(HJ.blocks.length<cons.length){
+      const con=cons[HJ.blocks.length];
+      const b=hoNormBlock(await SAMPLE.json(hoBlockPrompt(bank,con),opt),con);
+      if(!b)throw {code:'invalid_json'};
+      HJ.blocks.push(b);HJ.step=HJ.blocks.length;hjSave();hoPill();hoRefresh(bank);
+    }
+    if(!HJ.extra){
+      const x=hoNormPractice(await SAMPLE.json(hoPracticePrompt(bank,HJ.blocks,HJ.cids,hoLevels(cons.length)),opt));
+      if(!x)throw {code:'invalid_json'};
+      HJ.extra=x;HJ.step=cons.length+1;hjSave();hoPill();hoRefresh(bank);
+    }
+    if(!HJ.answers){
+      HJ.answers=hoNormAnswers(await SAMPLE.json(hoAnswerPrompt(bank,HJ.blocks,HJ.extra.practice),opt));
+      HJ.step=cons.length+2;hjSave();
+    }
+    const conTexts=cons.map(c=>c.text);
+    const h={id:'h'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),bankId:bank.id,
+      title:HJ.all&&cons.length>1?'整個題庫':cons.length===1?conTexts[0].slice(0,30):`${cons.length} 個觀念`,
+      conceptIds:HJ.cids,conceptTexts:conTexts,createdAt:Date.now(),bankInfo:bankInfo(bank),bankTitle:bank.title||'',
+      blocks:HJ.blocks,...HJ.extra,answers:HJ.answers};
+    await api('handoutSave',{handout:h});
+    delete hoList[bank.id];
+    HJ.phase='done';HJ.hid=h.id;HJ.h={...h,status:'待驗算'};hjSave();
+    toast('📘 重點講義完成了！');
+  }catch(e){
+    HJ.phase=e&&e.code==='cancelled'?'paused':'error';
+    HJ.msg=e&&e.code==='cancelled'?'已暫停':aiErrMsg(e);hjSave();
+  }
+  HJ_CTL=null;hoPill();hoRefresh(bank);
+}
+function hoRefresh(bank){const el=document.getElementById('ho-gen');if(el&&el.dataset.bank===bank.id)handoutHome(bank,null,true)}
+async function hoFindBank(id){
+  let b=BANKS.find(x=>x.id===id);
+  if(!b&&hasBackend()){try{await bsLoad()}catch(e){}b=BANKS.find(x=>x.id===id)}
+  return b;
+}
+// 左下角的講義進度提示
+function hoPill(){
+  let p=document.getElementById('ho-pill');
+  if(!HJ){if(p)p.remove();return}
+  if(!p){p=document.createElement('button');p.id='ho-pill';p.className='ho-pill';document.body.appendChild(p)}
+  p.setAttribute('role','status');p.setAttribute('aria-live','polite');
+  const txt={running:`📘 講義產生中 ${HJ.step} / ${HJ.total}…`,done:'📘 講義完成了！點這裡看',
+    error:`📘 講義沒有完成・點這裡繼續`,paused:`📘 講義暫停在 ${HJ.step} / ${HJ.total}・點這裡繼續`}[HJ.phase]||'';
+  p.textContent=txt;p.classList.toggle('done',HJ.phase==='done');
+  p.onclick=async()=>{
+    const b=await hoFindBank(HJ.bankId);
+    if(!b){toast('找不到這個題庫，可能已經刪除');HJ=null;hjSave();hoPill();return}
+    if(HJ.phase==='done'){const h=HJ.h;HJ=null;hjSave();hoPill();handoutView(b,h);return}
+    handoutHome(b);
+  };
+}
+// 重新整理後：上次跑到一半的講義改成「暫停」，讓家長決定要不要繼續
+if(HJ&&HJ.phase==='running'){HJ.phase='paused';hjSave()}
+setTimeout(hoPill,0);
+
+/* --- 頁面：重點講義（清單＋產生新講義） --- */
+let hoSel=null;
+async function handoutHome(bank,preset,keep){
+  const own=!bank.__lib, canGen=own&&hasBackend();
+  if(!keep||!hoSel||hoSel.bid!==bank.id){hoSel=defaultConcepts(bank,preset||[]);hoSel.bid=bank.id}
+  const job=HJ&&HJ.bankId===bank.id&&HJ.phase!=='done'?HJ:null;
+  const list=hoList[bank.id];
+  const back=()=>own?bankHome(bank):libBankHome(bank);
+  const stTag=s=>s==='已驗算'?'<span class="tag">✅ 已驗算</span>':s==='已修正'?'<span class="tag">🛠 已驗算並修正</span>':'<span class="tag warn">⏳ 等待驗算</span>';
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
+   <h1 class="pg">📘 重點講義</h1>
+   <p class="lead">把觀念整理成可以列印的講義：重點、例題、最常錯的地方、分層練習和詳解。</p>
+   <section class="card"><h2 class="ct">已經做好的講義</h2>
+     ${list?(list.length?`<ul class="list">${list.map(h=>`<li><span>${esc(h.title)}<br><small style="color:var(--muted)">${new Date(h.createdAt).toLocaleDateString('zh-TW')}・${esc(h.concepts||'')}</small><br>${stTag(h.status)}</span>
+       <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><button class="iconbtn" data-hopen="${esc(h.id)}">打開</button>${own?`<button class="iconbtn" data-hdel="${esc(h.id)}" aria-label="刪除講義">🗑</button>`:''}</span></li>`).join('')}</ul>`
+       :'<p class="lead" style="margin:8px 0 0">還沒有講義。</p>'):'<p class="lead" style="margin:8px 0 0">讀取中……</p>'}
+   </section>
+   ${canGen?`<section class="card" id="ho-gen" data-bank="${esc(bank.id)}"><h2 class="ct">產生新的重點講義</h2>
+     ${job?`<div class="feedback"><p class="fb-head">${job.phase==='running'?`講義產生中（${job.step} / ${job.total}）`:job.phase==='paused'?`講義暫停在 ${job.step} / ${job.total}`:'講義沒有完成'}</p>
+        <p class="fb-why">${job.phase==='running'?'可以先去練習或做別的事，完成後左下角會出現提示。':esc(job.msg||'')}</p>
+        <div class="footer">${job.phase==='running'?'<button class="ghost" id="ho-stop">暫停</button>':'<button class="big" id="ho-cont" style="margin-top:0">繼續產生</button><button class="ghost" id="ho-drop">放棄這份</button>'}</div></div>`
+     :sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
+     <p class="lead" style="font-size:1rem;margin:6px 0">選一個觀念做單一觀念講義，或選多個、全選做整個題庫的講義。</p>
+     <div id="ho-cp">${conceptPickerHTML(bank,hoSel)}</div>
+     <p class="lead" style="font-size:1rem" id="ho-est"></p>
+     ${quotaNote}
+     <button class="big" id="ho-go">📘 產生講義</button>`}
+   </section>`:''}`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=back;
+  app.querySelectorAll('[data-hopen]').forEach(b=>b.onclick=()=>hoOpen(bank,b.dataset.hopen));
+  app.querySelectorAll('[data-hdel]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmBox('確定要刪除這份講義嗎？'))return;
+    try{await api('handoutDelete',{id:b.dataset.hdel});hoList[bank.id]=(hoList[bank.id]||[]).filter(h=>h.id!==b.dataset.hdel);handoutHome(bank,null,true)}catch(e){toast(aiErrMsg(e))}});
+  const est=()=>{const e=$('ho-est');if(e)e.textContent=hoSel.size?`已選 ${hoSel.size} 個觀念，大約使用 ${hoCalls(hoSel.size)} 次 AI，需要 1～3 分鐘。`:'請至少選一個觀念。'};
+  if($('ho-cp')){bindConceptPicker($('ho-cp'),hoSel,est);est()}
+  if($('ho-go'))$('ho-go').onclick=()=>{if(!hoSel.size){toast('請至少選一個觀念');return}hoStart(bank,hoSel);handoutHome(bank,null,true);toast('已送出，講義產生中，完成後會通知你')};
+  if($('ho-stop'))$('ho-stop').onclick=()=>{if(HJ_CTL)HJ_CTL.abort()};
+  if($('ho-cont'))$('ho-cont').onclick=()=>{hoRun(bank);handoutHome(bank,null,true)};
+  if($('ho-drop'))$('ho-drop').onclick=async()=>{if(await confirmBox('放棄這份還沒完成的講義嗎？已經用掉的 AI 次數不會退回。')){HJ=null;hjSave();hoPill();handoutHome(bank,null,true)}};
+  if(!keep)window.scrollTo(0,0);
+  if(!list){
+    try{const j=await hoApi(bank,bank.__lib?'libHandouts':'handoutList',{bankId:bank.id});hoList[bank.id]=j.handouts||[]}
+    catch(e){hoList[bank.id]=[]}
+    if(document.getElementById('bk')&&app.querySelector('h1.pg')&&app.querySelector('h1.pg').textContent.includes('重點講義'))handoutHome(bank,null,true);
+  }
+}
+async function hoOpen(bank,id){
+  toast('正在打開講義……');
+  if(HJ&&HJ.phase==='done'&&HJ.hid===id){HJ=null;hjSave();hoPill()}
+  try{const j=await hoApi(bank,bank.__lib?'libHandoutGet':'handoutGet',{id});handoutView(bank,j.handout)}
+  catch(e){toast(e&&e.code==='not_found'?'找不到這份講義':'打不開講義，請稍後再試')}
+}
+
+/* --- 頁面：看講義（可列印、存成 PDF） --- */
+function hoStep(t){const i=t.indexOf('：');return i>0&&i<24?`<b>${esc(t.slice(0,i))}</b>：${esc(t.slice(i+1))}`:esc(t)}
+function hoHTML(h){
+  const n=h.practice||{basic:[],advanced:[],challenge:[]};
+  let k=0;
+  const li=q=>`<li><b>${++k}.</b>　${esc(q)}</li>`;
+  const b1=n.basic.map(li).join(''),b2=n.advanced.map(li).join('');
+  const b3=n.challenge.map(c=>`<li><b>${++k}.</b>　${esc(c.q)}${c.hint?`<br><span class="hint">提示：${esc(c.hint)}</span>`:''}</li>`).join('');
+  return `<article class="ho">
+    <h1>${esc(h.bankTitle||'')}　重點講義</h1>
+    <div class="sub">${esc(h.bankInfo||'')}・${esc(h.title||'')}</div>
+    ${h.intro?`<div class="lead">${esc(h.intro)}</div>`:''}
+    ${h.index&&h.index.length?`<h2>卡題索引</h2><p class="hint">寫題目卡住時，看看題目長得像哪一列，再去看那個觀念。</p>
+      <table><tr><th>題目長這樣</th><th>去看</th></tr>${h.index.map(x=>`<tr><td>${esc(x.left)}</td><td>觀念${CN_NUM[x.block-1]||x.block}</td></tr>`).join('')}</table>`:''}
+    ${(h.blocks||[]).map((b,i)=>`<h2>觀念${CN_NUM[i]}　${esc(b.title)}</h2>
+      ${b.why?`<p>${esc(b.why)}</p>`:''}
+      ${b.rules.length?`<div class="box"><span class="tag">🔑 重點</span><ul>${b.rules.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></div>`:''}
+      ${b.example&&b.example.q?`<div class="ex"><span class="tag">例題</span><p>${esc(b.example.q)}</p>${b.example.steps.map(s=>`<p>${hoStep(s)}</p>`).join('')}${b.example.answer?`<p><b>答案：<span class="red">${esc(b.example.answer)}</span></b></p>`:''}</div>`:''}
+      ${b.mistake?`<div class="warn"><span class="tag">⚠️ 最常錯</span>　${esc(b.mistake)}</div>`:''}`).join('')}
+    <h2>分層練習</h2>
+    ${b1?`<h3>Level 1　基礎</h3><ol class="probs">${b1}</ol>`:''}
+    ${b2?`<h3>Level 2　進階</h3><ol class="probs">${b2}</ol>`:''}
+    ${b3?`<h3>挑戰題</h3><ol class="probs">${b3}</ol>`:''}
+    ${h.answers&&h.answers.length?`<h2>詳解</h2>${h.answers.map(a=>`<div class="ans"><b>${a.no}.</b>　${a.steps.map(hoStep).join('<br>')}${a.answer?`<br><b>答案：<span class="red">${esc(a.answer)}</span></b>`:''}</div>`).join('')}`:''}
+    ${h.encourage?`<div class="enc">${esc(h.encourage)}</div>`:''}
+  </article>`;
+}
+function handoutView(bank,h){
+  if(!h){toast('打不開講義');return}
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  const own=!bank.__lib;
+  const st=h.status||'待驗算';
+  // 列印時的頁尾：題庫名稱與頁碼（Chrome 支援；Safari 可能不顯示）
+  let ps=document.getElementById('ho-page');if(!ps){ps=document.createElement('style');ps.id='ho-page';document.head.appendChild(ps)}
+  const foot=String((h.bankTitle||'')+' 重點講義').replace(/[\\"]/g,'');
+  ps.textContent=`@page{size:A4;margin:16mm 15mm 18mm 15mm;@bottom-center{content:"${foot} ・ 第 " counter(page) " 頁";font-size:8.5pt;color:#999}}`;
+  app.innerHTML=`
+   <div class="toprow noprint"><button class="iconbtn" id="bk">← 講義清單</button><button class="iconbtn" id="pr">🖨 列印／存成 PDF</button></div>
+   <div class="noprint ho-status ${st==='待驗算'?'pending':''}">${st==='待驗算'
+     ?'⏳ 這份講義的答案還沒驗算。每天的排程會逐題重算、有錯會直接修正；驗算前請大人先看過再給孩子。'
+     :`${st==='已修正'?'🛠 已驗算，並修正了部分內容':'✅ 已驗算，內容沒有發現錯誤'}${h.verifiedAt?`（${new Date(h.verifiedAt).toLocaleDateString('zh-TW')}）`:''}${h.note?`<br><small>${esc(h.note)}</small>`:''}`}</div>
+   ${hoHTML(h)}
+   <div class="noprint" style="margin-top:16px"><button class="ghost" id="pr2">🖨 列印／存成 PDF</button>
+     <p class="lead" style="font-size:.95rem">iPad／iPhone：按「列印」後，在預覽畫面用兩指放大，就會變成 PDF，可以分享或存到檔案。</p></div>`;
+  document.getElementById('bk').onclick=()=>handoutHome(bank,null,true);
+  const pr=()=>window.print();
+  document.getElementById('pr').onclick=pr;document.getElementById('pr2').onclick=pr;
   window.scrollTo(0,0);
 }
 
@@ -2210,6 +2676,7 @@ const TOURS={
     {el:'#go',title:'開始練習',text:'答錯的觀念會在後面換個問法再出現，兩次都答對才算記住。'},
     {el:'#weak',title:'練常錯的觀念',text:'依照答錯次數，挑出常錯的觀念重新練習。'},
     {el:'#up',title:'上傳資料產生題目',text:'拍講義、考卷照片，或貼上字幕、文字，AI 會整理成練習題並直接收進題庫，詳細解題由每天的排程自動補上。'},
+    {el:'#ho',title:'重點講義',text:'選觀念，AI 整理成可以列印的講義：重點、例題、最常錯的地方、分層練習和詳解。'},
     {el:'#more',title:'產生更多題目',text:'可以再上傳新的資料，或用已經整理好的觀念出新的問法。'},
     {el:'#rv',title:'待確認的題目',text:'以前整理、還沒收進題庫的題目，看過後按「收進題庫」。'},
     {el:'#an',title:'學習分析',text:'看答對率、觀念掌握度、最近 14 天的練習狀況，也可以請 AI 寫學習摘要。'},
@@ -2320,6 +2787,29 @@ function placeTour(){
   const left=Math.min(vw-tw-12,Math.max(12,r.left+r.width/2-tw/2));
   Object.assign(tip.style,{top:top+'px',left:left+'px'});
 }
+/* ===== 介面風格切換（新增風格：加一筆到 STYLES，再寫對應的 CSS） ===== */
+const STYLES=[
+  {id:'chalk',name:'教室黑板',desc:'深綠黑板、粉筆字、木頭框',sw:'linear-gradient(135deg,#24352D 60%,#F2D65F 60%)'},
+  {id:'notebook',name:'綠格子作業簿',desc:'原本的風格，跟著裝置切換淺色／深色',sw:'linear-gradient(135deg,#F1F7EA 60%,#3D8B4F 60%)'},
+];
+function curStyle(){const v=document.documentElement.getAttribute('data-style');return STYLES.some(x=>x.id===v)?v:STYLES[0].id}
+function setStyle(id){document.documentElement.setAttribute('data-style',id);try{localStorage.setItem('ui-style',id)}catch(e){}}
+function styleBox(){
+  const d=document.createElement('div');d.className='modal';
+  const draw=()=>{d.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true" aria-label="切換介面風格">
+    <p style="margin:0;font-size:1.25rem">🎨 介面風格</p>
+    <div class="style-list">${STYLES.map(x=>`<button data-st="${x.id}" aria-pressed="${curStyle()===x.id}"><span class="sw" style="background:${x.sw}"></span><span>${esc(x.name)}<small>${esc(x.desc)}</small></span></button>`).join('')}</div>
+    <div class="footer"><button class="iconbtn tour-next" data-k="1">完成</button></div></div>`;
+    d.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{setStyle(b.dataset.st);draw();d.querySelector(`[data-st="${b.dataset.st}"]`).focus()});
+    d.querySelector('[data-k="1"]').onclick=close;};
+  document.body.appendChild(d);
+  const close=()=>{d.remove();keys()};const keys=modalKeys(d,close);
+  draw();d.querySelector('[aria-pressed="true"]').focus();
+}
+(function styleBtn(){
+  const b=document.createElement('button');b.className='style-btn';b.id='style-btn';b.setAttribute('aria-label','切換介面風格');b.textContent='🎨';
+  b.onclick=styleBox;document.body.appendChild(b);
+})();
 function helpBtn(){
   let b=document.getElementById('tour-help');
   if(!b){b=document.createElement('button');b.id='tour-help';b.className='tour-help';b.setAttribute('aria-label','看這一頁的使用說明');b.textContent='❔';document.body.appendChild(b);
