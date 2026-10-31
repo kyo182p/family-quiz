@@ -7,43 +7,33 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap" rel="stylesheet">
 <style>
+/* 風格：教室黑板。深綠黑板、粉筆字（霞鶩文楷）、黃粉筆是重點和主要按鈕、綠粉筆表示答對、粉紅粉筆表示答錯、木頭框。只有一種配色，不分淺色深色 */
 :root{
-  --paper:#F1F7EA; --grid:#DCEBD2; --ink:#1E3A2B; --muted:#506A5A;
-  --card:#FFFFFF; --leaf:#3D8B4F; --leaf-soft:#D6EBCF; --sun:#F2B23A; --sun-soft:#FFF1CC;
-  --coral:#E25D44; --coral-soft:#FBE0DA; --soil:#8B5E3C; --line:#C9DDBF;
-  --leaf-strong:#2E7340; --on-leaf:#fff; --coral-strong:#B83D27; --on-coral:#fff;
-  --leaf-ink:#2E7340; --sun-ink:#8A5A00; --coral-ink:#A93522; --press:#1F5530;
+  --paper:#24352D; --grid:#2C4036; --ink:#ECEEE4; --muted:#B9C4B6;
+  --card:#2A3D34; --leaf:#9BE3A5; --leaf-soft:#2F4B3B; --sun:#F2D65F; --sun-soft:#45432A;
+  --coral:#F3A7B6; --coral-soft:#4A3038; --soil:#7A5434; --line:#6F8277;
+  --leaf-strong:#F2D65F; --on-leaf:#1E2B24; --coral-strong:#F3A7B6; --on-coral:#1E2B24;
+  --leaf-ink:#A8E6B1; --sun-ink:#F2D65F; --coral-ink:#F7B9C5; --press:#A8902F;
+  --chalk-r:255px 15px 225px 15px/15px 225px 15px 255px;
+  --chalk-r2:15px 225px 15px 255px/255px 15px 225px 15px;
+  color-scheme:dark;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
-    --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
-    --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
-    --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75; --on-coral:#2A0E08;
-  --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
-  }
-}
-:root[data-theme="dark"]{
-  --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
-  --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
-  --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
-  --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75; --on-coral:#2A0E08;
-  --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
-}
 *,*::before,*::after{box-sizing:inherit}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);background:var(--soil)}
 body{
-  margin:0; min-height:100%; color:var(--ink);
-  font-family:"Huninn","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  margin:0; min-height:100vh; color:var(--ink);
+  font-family:"LXGW WenKai TC","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
   background-color:var(--paper);
-  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
-  background-size:28px 28px;
+  background-image:radial-gradient(ellipse at 18% 22%,rgba(255,255,255,.07),transparent 55%),radial-gradient(ellipse at 82% 70%,rgba(255,255,255,.05),transparent 50%),radial-gradient(ellipse at 50% 100%,rgba(255,255,255,.04),transparent 40%);
+  background-attachment:fixed;
   -webkit-tap-highlight-color:transparent;
 }
+/* 木頭黑板框 */
+body::after{content:"";position:fixed;inset:0;border:8px solid var(--soil);box-shadow:inset 0 0 0 2px #5E402A;pointer-events:none;z-index:60}
 main{max-width:720px;margin:0 auto;padding:16px 16px 96px}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
@@ -109,7 +99,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .r{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:10px;font-size:1.15rem;line-height:1.5}
 .r .e{font-size:2rem;flex:0 0 44px;text-align:center}
 .r b{flex:0 0 auto;min-width:4.5em}
-.r.hl{background:#FFF1CC;outline:2px solid #F2B23A}
+.r.hl{background:var(--sun-soft);outline:2px solid var(--sun)}
 .pop{animation:pop .35s ease-out}
 @keyframes pop{0%{transform:scale(.92)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
 .shake{animation:shake .35s}
@@ -195,6 +185,17 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
+/* 粉筆手繪框：邊框不規則，像用粉筆畫的 */
+.chip,.iconbtn,.ghost,.pickbtn{border-radius:var(--chalk-r)}
+.card,.bankcard,.detail,.feedback{border-radius:var(--chalk-r2)}
+.opt{border-radius:var(--chalk-r)}
+.opt:nth-child(even){border-radius:var(--chalk-r2)}
+.big{border-radius:var(--chalk-r2);font-weight:700}
+h1,.score{text-shadow:0 0 1px rgba(255,255,255,.5);letter-spacing:.06em}
+.opt.correct{color:var(--ink)}
+.toast{background:var(--ink);color:var(--paper)}
+.pic.illus{border-radius:6px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.pic.illus .r.hl{background:#FFF1CC;outline:2px solid #F2B23A}
 </style>
 </head>
 <body>
@@ -360,7 +361,7 @@ const BYID=Object.fromEntries(ALL.map(q=>[q.id,q]));
 const ORIGIN=Object.fromEntries(Q.filter(q=>q.c===q.id).map(q=>[q.c,q]));
 /* ===== 圖片 ===== */
 const C={leaf:'#3D8B4F',leaf2:'#6DB36F',dark:'#1E3A2B',soil:'#8B5E3C',sun:'#F2B23A',red:'#D7322B',pink:'#F28DB2',hl:'#FFF1CC'};
-const svg=(w,h,inner)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" font-family="Huninn,PingFang TC,Noto Sans TC,sans-serif">${inner}</svg>`;
+const svg=(w,h,inner)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" font-family="LXGW WenKai TC,PingFang TC,Noto Sans TC,sans-serif">${inner}</svg>`;
 const T=(x,y,t,s=16,c=C.dark,a='middle')=>`<text x="${x}" y="${y}" font-size="${s}" fill="${c}" text-anchor="${a}">${t}</text>`;
 const leafAt=(x,y,len,wid,ang,fill=C.leaf)=>`<g transform="translate(${x},${y}) rotate(${ang})"><path d="M0,0 C${wid},${-len*.3} ${wid*.6},${-len*.9} 0,${-len} C${-wid*.6},${-len*.9} ${-wid},${-len*.3} 0,0Z" fill="${fill}" stroke="${C.dark}" stroke-width="1.2"/><line x1="0" y1="0" x2="0" y2="${-len*.9}" stroke="#ffffff" stroke-opacity=".5"/></g>`;
 
