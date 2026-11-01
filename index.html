@@ -370,7 +370,10 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .pixend{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:10px}
 .pixend p{margin:0;color:var(--muted);font-size:1rem}
 .pixbook{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px;margin-top:10px}
-.pixbook figure{margin:0;text-align:center}.pixbook figcaption{font-size:1rem;margin-top:4px}
+.pixbook figure{margin:0;text-align:center}
+.bgo{position:relative;display:block;margin:0 auto;padding:4px 4px 0;background:none;border:2px solid transparent;border-radius:14px;cursor:pointer;color:inherit;font:inherit}
+.bgo:hover,.bgo:focus-visible{border-color:var(--sun)}
+.bgo-tag{display:inline-block;margin:2px 0 4px;padding:2px 10px;border-radius:999px;background:var(--sun);color:#222;font-size:.85rem;font-weight:700;white-space:nowrap}.pixbook figcaption{font-size:1rem;margin-top:4px}
 .pixbook figcaption .tip{color:var(--muted);font-size:.85rem}
 </style>
 </head>
@@ -978,9 +981,9 @@ function badgeSync(){
 }
 // 我的徽章頁和計數用：自己的題庫（雲端）＋這台裝置上的其他徽章
 function allBadges(){
-  const own=BANKS.filter(ownBank).map(b=>({meta:bankBadgeMeta(b),r:bankBadgeRec(b,false)})).filter(x=>x.r);
+  const own=BANKS.filter(ownBank).map(b=>({key:b.id,meta:bankBadgeMeta(b),r:bankBadgeRec(b,false)})).filter(x=>x.r);
   const ids=new Set(BANKS.map(b=>b.id));
-  const loc=Object.entries(BADGES).filter(([k,r])=>r&&r.meta&&!ids.has(k)).map(([k,r])=>({meta:r.meta,r}));
+  const loc=Object.entries(BADGES).filter(([k,r])=>r&&r.meta&&!ids.has(k)).map(([k,r])=>({key:k,meta:r.meta,r}));
   return own.concat(loc);
 }
 const badgeDark=r=>{const t=r.ok[0]+r.ok[1]+r.ok[2];return t>0&&(r.ok[1]+r.ok[2])/t>=.5};
@@ -1009,7 +1012,7 @@ async function badgeBookPage(back){
   // 從書架進來時還沒讀過自己的題庫：先讀，才看得到存在雲端的徽章
   // 也和雲端同步書架題庫、植物小學堂的徽章（別的裝置得到的也會出現）
   if(CONFIG.API_URL&&libCode())await busyRun('讀取徽章中……',async()=>{if(hasBackend()&&!BANKS.length){try{await bsLoad()}catch(e){}}await badgeSync()});
-  const list=allBadges().map(x=>({meta:x.meta,...x.r}));
+  const list=allBadges().map(x=>({key:x.key,meta:x.meta,...x.r}));
   const got=list.filter(r=>r.earned.length),doing=list.filter(r=>r.cells.length);
   const nGot=got.reduce((n,r)=>n+r.earned.length,0);
   app.innerHTML=`
@@ -1019,12 +1022,33 @@ async function badgeBookPage(back){
    <section class="card"><h2 class="ct">已經得到（${nGot} 枚）</h2>
      ${got.length?`<div class="pixbook">${got.map(r=>{const dk=r.earned.some(e=>e.dark),n=r.earned.length;
        const ng=r.earned.filter(e=>e.dark).length,ns=n-ng;
-       return `<figure>${badgeOf(r.meta,{dark:dk,size:120,plus:n>1?n-1:0})}<figcaption>${esc(r.meta.title)}<br><small>${[ng?`金色 ${ng} 次`:'',ns?`銀色 ${ns} 次`:''].filter(Boolean).join('・')}</small>${dk?'':'<br><small class="tip">多答標準、挑戰題，下次可以拿金色</small>'}</figcaption></figure>`}).join('')}</div>`
+       return `<figure><button type="button" class="bgo" data-bk="${esc(r.key)}" aria-label="再練「${esc(r.meta.title)}」">${badgeOf(r.meta,{dark:dk,size:120,plus:n>1?n-1:0})}<span class="bgo-tag">▶ 再挑戰</span></button><figcaption>${esc(r.meta.title)}<br><small>${[ng?`金色 ${ng} 次`:'',ns?`銀色 ${ns} 次`:''].filter(Boolean).join('・')}</small>${dk?'':'<br><small class="tip">多答標準、挑戰題，下次可以拿金色</small>'}</figcaption></figure>`}).join('')}</div>`
        :'<p class="lead" style="margin:8px 0 0">還沒有徽章，開始練習吧！</p>'}</section>
    ${doing.length?`<section class="card"><h2 class="ct">收集中</h2><div class="pixbook">${doing.map(r=>{const left=badgeCells(r.meta).length-r.cells.length;
-       return `<figure>${badgeOf(r.meta,{reveal:r.cells,dark:badgeDark(r),size:120})}<figcaption>${esc(r.meta.title)}<br><small>再答對 ${Math.ceil(left/badgePer(r.meta))} 題・${badgeDark(r)?'目前會得到金色':'目前會得到銀色'}</small></figcaption></figure>`}).join('')}</div></section>`:''}`;
+       const ctx=badgeCtx(r.key),pg=ctx&&getProgress(ctx);
+       return `<figure><button type="button" class="bgo" data-bk="${esc(r.key)}" aria-label="${pg?'接著做':'開始練'}「${esc(r.meta.title)}」">${badgeOf(r.meta,{reveal:r.cells,dark:badgeDark(r),size:120})}<span class="bgo-tag">${pg?`▶ 接著做 ${pg.leaves.length}/${pg.total}`:'▶ 開始練'}</span></button><figcaption>${esc(r.meta.title)}<br><small>再答對 ${Math.ceil(left/badgePer(r.meta))} 題・${badgeDark(r)?'目前會得到金色':'目前會得到銀色'}</small></figcaption></figure>`}).join('')}</div></section>`:''}`;
   document.getElementById('bk').onclick=back;
+  app.querySelectorAll('.bgo').forEach(b=>b.onclick=()=>badgeGo(b.dataset.bk));
   window.scrollTo(0,0);
+}
+// 徽章對應的練習：自己的題庫、書架題庫（lib-題庫ID）、植物小學堂（__plant）
+function badgeCtx(key){
+  if(key==='__plant')return PLANT_CTX;
+  const own=BANKS.find(b=>b.id===key);if(own)return bankCtx(own);
+  const m=/^lib-(.+)$/.exec(key||'');if(m&&LIBBANKS[m[1]])return bankCtx(LIBBANKS[m[1]]);
+  return null;
+}
+// 點徽章：有沒做完的練習就接著做，沒有就直接開始一回
+async function badgeGo(key){
+  if(key==='__plant'){CTX=PLANT_CTX;if(getProgress(CTX))resumeRound(CTX);else CTX.restart();return}
+  let bank=BANKS.find(b=>b.id===key);
+  const m=/^lib-(.+)$/.exec(key||'');
+  if(!bank&&m){bank=await libLoad(m[1]);if(!bank)return}
+  if(!bank){toast('找不到這個題庫，可能已經刪除或不再公開');return}
+  if(!bank.questions.some(q=>!isBlocked(q))){toast('這個題庫目前沒有可以練習的題目');return}
+  const ctx=bankCtx(bank);
+  if(getProgress(ctx)){resumeRound(ctx);return}
+  startBank(bank);
 }
 const pixBtnHTML=()=>{const n=badgeCount();return `<button class="ghost" id="pixb">🏅 我的徽章（${n} 枚）</button>`};
 const pixBookPage=badgeBookPage;
@@ -2709,13 +2733,15 @@ function codePage(){
   if($('rcclr'))$('rcclr').onclick=()=>{READER={code:'',name:''};store.set('reader',READER);LIB=null;LIBERR='';codePage()};
   $('fam').onclick=()=>familyPage(()=>{LIB=null;LIBERR='';codePage()});
 }
+async function libLoad(id){
+  if(LIBBANKS[id])return LIBBANKS[id];
+  try{const j=await busyRun('載入題庫中……',()=>libApi('libGet',{id}));const b=fixBank({...j.bank,__lib:true});libLoadLocal(b);LIBBANKS[id]=b;return b}
+  catch(e){toast(e.code==='not_found'?'這本題庫已經不公開了':'載入失敗，請稍後再試');return null}
+}
 async function openLib(id){
-  let b=LIBBANKS[id];
-  if(!b){
-    app.innerHTML='<p class="lead">載入題庫中……</p>';
-    try{const j=await busyRun('載入題庫中……',()=>libApi('libGet',{id}));b=fixBank({...j.bank,__lib:true});libLoadLocal(b);LIBBANKS[id]=b}
-    catch(e){toast(e.code==='not_found'?'這本題庫已經不公開了':'載入失敗，請稍後再試');LIB=null;return libHome()}
-  }
+  if(!LIBBANKS[id])app.innerHTML='<p class="lead">載入題庫中……</p>';
+  const b=await libLoad(id);
+  if(!b){LIB=null;return libHome()}
   libBankHome(b);
 }
 function libBankHome(bank){
