@@ -327,6 +327,16 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .zyc:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 .zyctx{font-size:1.3rem}
 .zyctx mark{background:var(--sun);color:#222;border-radius:3px;padding:0 2px}
+/* --- 閱讀測驗 --- */
+.passage{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px 16px;margin:0 0 14px}
+.passage summary{cursor:pointer;font-size:1.2rem;font-weight:700;list-style-position:inside}
+.passage summary small{padding-left:1.2em}
+.passage summary small{display:block;font-weight:400;font-size:.9rem;color:var(--muted)}
+.passage .ptext{max-height:55vh;overflow:auto;margin:8px 0;padding-right:4px}
+.passage .ptext p{font-size:1.15rem;line-height:1.9;margin:0 0 10px;text-indent:2em}
+.sheet .spas{border:1.5px solid #999;border-radius:8px;padding:8px 14px;margin:10px 0 6px;break-inside:avoid-page}
+.sheet .spas h3{text-align:center;margin:4px 0 8px;font-size:1.1rem}
+.sheet .spas p{text-indent:2em;margin:0 0 6px;line-height:1.8}
 /* --- 列印練習卷 --- */
 .sheet-no{display:flex;gap:10px;align-items:center}
 .sheet-no input{width:8em;font-size:1.2rem;padding:8px 10px;border-radius:10px;border:2px solid var(--line);background:var(--card);color:var(--ink)}
@@ -1138,8 +1148,11 @@ function ask(){
    <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button><button class="iconbtn" id="arq" aria-pressed="${prefs.autoRead}">${prefs.autoRead?'🔊 自動念：開':'🔇 自動念：關'}</button><span class="counter">${rv?'🔁 複習剛剛錯的觀念':`第 ${Math.min(mainDone+1,S.total)} / ${S.total} 題`}</span></div>
    ${vine()}
    ${!S.leaves.length&&!rv?`<p class="roundinfo">這次要做 <b>${S.total}</b> 題，答對就幫徽章揭開幾格 🏅</p>`:''}
+   ${(()=>{const pas=passageOf(CTX.bank,q);if(!pas)return '';
+     const prev=S.pos>0&&S.queue[S.pos-1]&&S.queue[S.pos-1].q.p;const open=prev!==q.p;
+     return `<details class="passage" id="pas" ${open?'open':''}><summary>📖 ${esc(pas.title)}<small>${open?'先讀文章，再回答下面的題目':'按這裡再看一次文章'}</small></summary><div class="ptext">${paraHTML(pas.text,zyT)}</div><button class="iconbtn" id="rdp">🔊 念文章</button></details>`})()}
    <section class="card pop">
-     <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${q.tpl?' <span class="tag">🔢 換數字題</span>':''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
+     <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${q.tpl?' <span class="tag">🔢 換數字題</span>':''}${q.rl?` <span class="tag">${RL_NAME[q.rl]}</span>`:''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
      ${flagOf(q)==='reported'?' <span class="tag warn">🚩 已有人回報，確認中</span>':''}
      <div class="qrow"><p class="qtext">${zyT(q.q)}</p><span class="qbtns"><button class="speak" id="sp" aria-label="念題目">🔊</button>${zyGrade(CTX.bank)?`<button class="speak zyb" id="zyt" aria-pressed="${zyOn(CTX.bank)}" aria-label="注音開關">ㄅ</button>`:''}${libCode()?`<button class="speak rp" id="rp" aria-label="回報題目有問題" ${flagOf(q)?'disabled':''}>🚩</button>`:''}</span></div>
      <div class="opts ${q.t==='tf'?'tf':''}" id="opts">
@@ -1153,6 +1166,7 @@ function ask(){
   document.getElementById('sp').onclick=()=>readQuestion(q,opts||[]);
   const zyb=document.getElementById('zyt');if(zyb)zyb.onclick=()=>{zySet(CTX.bank,!zyOn(CTX.bank));ask()};
   const rpb=document.getElementById('rp');if(rpb)rpb.onclick=()=>reportBox(q);
+  const rdp=document.getElementById('rdp');if(rdp)rdp.onclick=()=>{const pas=passageOf(CTX.bank,q);if(pas)speak(pas.title+'。'+pas.text.replace(/\n+/g,'。'))};
   document.getElementById('arq').onclick=e=>{prefs.autoRead=!prefs.autoRead;store.set('g3plants-prefs',prefs);e.currentTarget.textContent=prefs.autoRead?'🔊 自動念：開':'🔇 自動念：關';e.currentTarget.setAttribute('aria-pressed',prefs.autoRead);if(prefs.autoRead)readQuestion(q,opts||[]);else if('speechSynthesis' in window)speechSynthesis.cancel()};
   app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>answer(b));
   if(prefs.autoRead)setTimeout(()=>speak((rv?'複習題。':'')+(q.t==='tf'?q.q+'。對，還是錯？':q.q+'。'+opts.map((o,i)=>NUMS[i]+'，'+o).join('。'))),250);
@@ -1655,7 +1669,8 @@ function normQ(r,conceptIds){
   const icon=typeof r.icon==='string'?[...r.icon.trim()].slice(0,4).join(''):'';
   const detail=typeof r.detail==='string'?r.detail.trim().slice(0,400):'';
   const hint=typeof r.hint==='string'?r.hint.trim().slice(0,60):'';
-  const base={c,q,why:why||'',lv,src,ansByAI:!!r.ansByAI,icon,...(detail?{detail}:{}),...(hint?{hint}:{}),...(r.vnote?{vnote:String(r.vnote).slice(0,200)}:{})};
+  const base={c,q,why:why||'',lv,src,ansByAI:!!r.ansByAI,icon,...(detail?{detail}:{}),...(hint?{hint}:{}),...(r.vnote?{vnote:String(r.vnote).slice(0,200)}:{}),
+    ...(r.p?{p:String(r.p).slice(0,24)}:{}),...([1,2,3,4].includes(+r.rl)?{rl:+r.rl}:{})};
   if(r.t==='tf'){ if(r.a!=='O'&&r.a!=='X')return null; return {...base,t:'tf',a:r.a}; }
   if(r.t==='mc'){
     if(!Array.isArray(r.o))return null;
@@ -1678,11 +1693,18 @@ function mergeResult(bank,res,defaultSrc){
     const nid=newId(bank,'k'); idMap[id]=nid; bank.concepts.push({id:nid,text});
   });
   const ids=new Set(bank.concepts.map(x=>x.id));
+  // 閱讀測驗的文章：照抄進 bank.passages，題目的 p 換成新的文章代號
+  const pmap={};
+  (Array.isArray(res&&res.passages)?res.passages:[]).forEach(ps=>{
+    const id=String(ps&&ps.id||''),title=String(ps&&ps.title||'').trim().slice(0,40)||'閱讀文章',text=String(ps&&ps.text||'').replace(/\r/g,'').trim().slice(0,3000);
+    if(!id||text.length<30)return;
+    bank.passages=bank.passages||[];const pid=newId(bank,'p');pmap[id]=pid;bank.passages.push({id:pid,title,text});
+  });
   const seen=new Set(bank.questions.concat(bank.pending).map(q=>q.q));
   let added=0,dropped=0;const newIds=[];
   const qs=Array.isArray(res)?res:(Array.isArray(res&&res.questions)?res.questions:[]);
   qs.forEach(r=>{
-    const rr={...r,c:idMap[r&&r.c]||(r&&r.c),src:(r&&r.src)||defaultSrc};
+    const rr={...r,c:idMap[r&&r.c]||(r&&r.c),src:(r&&r.src)||defaultSrc,p:r&&r.p?pmap[r.p]||((bank.passages||[]).some(x=>x.id===r.p)?r.p:''):''};
     const n=normQ(rr,ids);
     if(!n||seen.has(n.q)){dropped++;return}
     const nid=newId(bank,'q');seen.add(n.q); bank.questions.push({...n,id:nid}); newIds.push(nid); added++;
@@ -1721,6 +1743,7 @@ ${note?'家長補充：'+note:''}
 7. 只能根據資料內容，不可以加入資料以外的知識。
 8. 資料不是題目、只是課文或講解時，就根據內容出幾題，src 為 "AI"。${aiLv?`這些 AI 補充題全部出「${LV[aiLv]}」難度，lv 一律為 ${aiLv}（${['','直接回想','要分辨相近的觀念','反過來問、應用或結合兩個觀念'][aiLv]}）。`:''}
 9. 這一次最多整理 15 題；題目太多時，優先抄錄有答案的原題。
+10. 閱讀測驗（一篇文章配好幾題）：把文章全文照抄放進 passages（id 用 "p1"、"p2"…，title 是文章標題，text 是全文、段落之間用 \n 分開），這些題目加上 p 為文章代號；可以的話再加 rl 標出提問層次（1 提取訊息、2 推論、3 詮釋整合、4 比較評估）。文章照片看不清楚的字用□代替，不要自己編。
 
 ${JSON_RULES}
 
@@ -1728,7 +1751,7 @@ ${JSON_RULES}
 ${cons}
 
 只回傳一個 JSON 物件，不要其他文字，格式：
-{"concepts":[{"id":"n1","text":"互生是一個節長一片葉子"}],"questions":[{"c":"n1","t":"mc","q":"題目","o":["選項一","選項二","選項三"],"a":"選項一","why":"解說","src":"原題","ansByAI":false,"lv":1,"icon":"🌱"}],"skipped":[{"q":"題目","reason":"需要寫出句子"}]}
+{"concepts":[{"id":"n1","text":"互生是一個節長一片葉子"}],"passages":[],"questions":[{"c":"n1","t":"mc","q":"題目","o":["選項一","選項二","選項三"],"a":"選項一","why":"解說","src":"原題","ansByAI":false,"lv":1,"icon":"🌱"}],"skipped":[{"q":"題目","reason":"需要寫出句子"}]}
 ${text?'\n文字資料：\n'+text:''}`;
 }
 
@@ -2109,8 +2132,9 @@ ${bank.concepts.map(c=>'- '+c.text).join('\n')||'（沒有）'}
 
 同時判斷題目是否清楚、是否只有一個正確答案（ok）。
 
-題目：
-${qs.map(q=>`[${q.id}]（${q.t==='tf'?'是非題':'選擇題'}）${q.q}${q.t==='mc'?`　選項：${q.o.join('／')}`:''}`).join('\n')}
+${(()=>{const ps=[...new Set(qs.map(q=>q.p).filter(Boolean))].map(id=>(bank.passages||[]).find(p=>p.id===id)).filter(Boolean);
+  return ps.length?`閱讀測驗的文章（題目標了【文章代號】的，只能根據該篇文章作答；答案在文中找不到依據、或兩個選項都說得通，ok 為 false）：\n${ps.map(p=>`【${p.id}】${p.title}\n${p.text}`).join('\n\n')}\n\n`:''})()}題目：
+${qs.map(q=>`[${q.id}]（${q.t==='tf'?'是非題':'選擇題'}）${q.p?`【${q.p}】`:''}${q.q}${q.t==='mc'?`　選項：${q.o.join('／')}`:''}`).join('\n')}
 
 只回傳 JSON 陣列，不要其他文字：
 [{"id":"題目代號","a":"是非題寫 O 或 X；選擇題寫選項原文","ok":true,"why":"有問題時一句說明，沒有就給空字串"}]`;
@@ -2151,12 +2175,14 @@ function morePage(bank){
    <p class="lead">選擇新題目要從哪裡來。產生的題目會直接收進題庫，詳細解題由每天的排程自動補上。</p>
    <button class="ghost" id="m-up">📷 上傳新的資料<br><small style="color:var(--muted)">照片、字幕或文字，整理成題目</small></button>
    <button class="ghost" id="m-gen" ${hasCon?'':'disabled'}>✨ 用已有的觀念出新題<br><small style="color:var(--muted)">${hasCon?`根據這個題庫的 ${bank.concepts.length} 個觀念換問法`:'還沒有觀念，請先上傳資料'}</small></button>
+   ${isChineseBank(bank)&&gradeNum(bank)>=3?`<button class="ghost" id="m-read">📖 閱讀測驗<br><small style="color:var(--muted)">依年級寫原創短文，每篇配 5～6 題閱讀理解</small></button>`:''}
    ${isMathBank(bank)?`<button class="ghost" id="m-par" ${hasCon?'':'disabled'}>🔢 數學換數字題<br><small style="color:var(--muted)">${hasCon?'AI 寫題型、程式算答案，每次練習都換數字':'還沒有觀念，請先上傳資料'}</small></button>`:''}`;
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>bankHome(bank);
   $('m-up').onclick=()=>uploadPage(bank);
   if(hasCon)$('m-gen').onclick=()=>genPage(bank);
   if(hasCon&&$('m-par'))$('m-par').onclick=()=>paramPage(bank);
+  if($('m-read'))$('m-read').onclick=()=>readingPage(bank);
   window.scrollTo(0,0);
 }
 
@@ -2494,10 +2520,145 @@ async function runParam(bank){
   paramPage(bank);
 }
 
+/* ===== 國語閱讀測驗：一篇文章配幾題，題目依 PIRLS 四種提問層次 =====
+   文章存在 bank.passages（{id,title,text,genre}），題目的 p 是文章代號、rl 是提問層次（1 提取 2 推論 3 詮釋整合 4 比較評估）。
+   觀念就用四種閱讀能力，答錯統計、講義、常錯觀念都能直接用。 */
+const RL_NAME={1:'提取訊息',2:'推論',3:'詮釋整合',4:'比較評估'};
+const RL_DESC={1:'文章裡直接寫出來的事',2:'文章沒直接寫、要連起兩處線索才知道的事',3:'主旨、人物的想法感受、段落之間的關係',4:'作者為什麼這樣寫、寫法好不好、和自己的經驗比較'};
+const isChineseBank=b=>/國語|國文|華語|閱讀/.test(String(b.subject||'')+String(b.title||''));
+const gradeNum=b=>cnNum((String(b.grade||'').match(/[一二三四五六\d]/)||[''])[0])||0;
+// 各年級的文章長度、句子、題目層次比例（之後可依雷達結果調整）
+const READ_LEVEL={
+  3:{len:[350,500],sent:'句子短（大多 20 字以內），用三年級學過的常用字詞，成語最多 1 個且要常見',mix:[2,2,1,0]},
+  4:{len:[450,650],sent:'句子以 25 字以內為主，可以有少數常見成語',mix:[2,2,1,0]},
+  5:{len:[600,850],sent:'句子長短交錯，可以有較多描寫與常見成語，生難詞要能從上下文猜出意思',mix:[1,2,2,1]},
+  6:{len:[750,1000],sent:'可以有轉折、對比、象徵等寫法，詞彙符合六年級程度',mix:[1,2,2,1]},
+};
+const readLevel=b=>READ_LEVEL[Math.min(6,Math.max(3,gradeNum(b)||4))];
+const GENRES=[['記敘文','生活故事、人物經歷'],['說明文','介紹動物、科學、地方、物品'],['寓言童話','有寓意的小故事'],['應用文','書信、日記、活動公告']];
+// 確保題庫有四種閱讀能力的觀念，回傳 {1:觀念代號,...}
+function readingConcepts(bank){
+  const map={};
+  [1,2,3,4].forEach(l=>{
+    const text=`${RL_NAME[l]}：${RL_DESC[l]}`;
+    let c=bank.concepts.find(x=>x.text.startsWith(RL_NAME[l]+'：'));
+    if(!c){c={id:newId(bank,'k'),text};bank.concepts.push(c)}
+    map[l]=c.id;
+  });
+  return map;
+}
+function readPrompt(bank,genre,topic,nQ){
+  const L=readLevel(bank),g=gradeNum(bank)||4;
+  const mix=L.mix.map((n,i)=>n?`${RL_NAME[i+1]} ${n} 題`:'').filter(Boolean).join('、');
+  const titles=(bank.passages||[]).map(p=>'- '+p.title).join('\n');
+  return `你是台灣的國小國語老師，要幫 ${g} 年級的孩子寫一份「閱讀測驗」：一篇原創短文，加上 ${nQ} 題選擇題。
+題庫：${bankInfo(bank)}
+
+文章：
+- 文體：${genre}${topic?`；主題：${topic}`:'；主題自己選，貼近孩子生活或課本常見題材'}。
+- 全文 ${L.len[0]}～${L.len[1]} 字，分成 3～6 段，段落之間用 \\n 分開。
+- ${L.sent}。
+- 必須是你自己寫的原創內容，不可以抄課本、繪本或任何已出版的文章；說明文的知識要正確。
+- 不要和已經有的文章同題材：
+${titles||'（還沒有）'}
+
+題目：
+- 共 ${nQ} 題，層次分配：${mix}（題數不同時依比例調整）。
+  · 提取訊息：答案在文中直接找得到。
+  · 推論：要連起文中兩處線索才知道，不能只靠常識。
+  · 詮釋整合：主旨、人物想法感受、段落關係。
+  · 比較評估：作者用意、寫法的效果。
+- 每題 4 個選項，只有一個正確，正確答案一定要能在文中找到依據；錯誤選項要「看起來有道理但文中證據不支持」（例如只對了一半、把兩個人物弄混、超出文章的推測），不能有兩個都說得通的選項。
+- 題目依文章順序排列，不要問文章沒提到的事，也不要考字音字形。
+- rl：提問層次 1 提取、2 推論、3 詮釋整合、4 比較評估。lv：提取為 1，推論為 2，詮釋整合與比較評估為 3。
+- why：一兩句說明答案在哪一段、怎麼看出來，${g} 年級孩子看得懂。
+- hint：一句提示，告訴孩子回去看哪一段或注意什麼，不能說出答案。
+
+只回傳一個 JSON 物件，不要其他文字：
+{"title":"文章標題","text":"第一段……\\n第二段……","questions":[{"rl":1,"lv":1,"t":"mc","q":"題目","o":["選項一","選項二","選項三","選項四"],"a":"選項一","why":"解說","hint":"提示"}]}`;
+}
+// 把一份 AI 回傳的文章與題目收進題庫
+function addReading(bank,res,genre){
+  const title=String(res&&res.title||'').trim().slice(0,40),text=String(res&&res.text||'').replace(/\r/g,'').replace(/\\n/g,'\n').trim();
+  if(!title||text.length<150||text.length>2500)return {added:0,ids:[]};
+  const cmap=readingConcepts(bank);
+  bank.passages=bank.passages||[];
+  const pid=newId(bank,'p');
+  const ids=new Set(bank.concepts.map(c=>c.id));
+  const newIds=[];
+  (Array.isArray(res.questions)?res.questions:[]).forEach(r=>{
+    const rl=[1,2,3,4].includes(+r.rl)?+r.rl:2;
+    const n=normQ({...r,c:cmap[rl],src:'AI',ansByAI:false,lv:rl===1?1:rl===2?2:3},ids);
+    if(!n)return;
+    const id=newId(bank,'q');bank.questions.push({...n,id,p:pid,rl,icon:'📖'});newIds.push(id);
+  });
+  if(newIds.length)bank.passages.push({id:pid,title,text,genre});
+  else bank.concepts=bank.concepts.filter(c=>bank.questions.some(q=>q.c===c.id)||!Object.values(cmap).includes(c.id));
+  return {added:newIds.length,ids:newIds,title};
+}
+const passageOf=(bank,q)=>q&&q.p&&bank&&(bank.passages||[]).find(p=>p.id===q.p)||null;
+const paraHTML=(t,fmt)=>String(t||'').split(/\n+/).filter(s=>s.trim()).map(s=>`<p>${fmt(s.trim())}</p>`).join('');
+
+let readState={genre:'記敘文',topic:'',n:1,phase:'idle',msg:'',ctl:null};
+function readingPage(bank){
+  const L=readLevel(bank),g=gradeNum(bank)||4,nQ=g>=5?6:5,np=(bank.passages||[]).length;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← 產生更多題目</button></div>
+   <h1 class="pg">📖 閱讀測驗</h1>
+   <p class="lead">AI 依 ${g} 年級程度寫原創短文（約 ${L.len[0]}～${L.len[1]} 字），每篇配 ${nQ} 題，題目分成「提取訊息、推論、詮釋整合${g>=5?'、比較評估':''}」幾個層次，答錯時看得出是哪一種閱讀能力還不熟。${np?`<br>這個題庫已經有 ${np} 篇文章。`:''}</p>
+   ${sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
+   <div class="section-title">文體</div>
+   <div class="chips">${GENRES.map(([v,d])=>`<button class="chip" data-gr="${v}" aria-pressed="${readState.genre===v}">${v}<small>${d}</small></button>`).join('')}</div>
+   <div class="section-title">主題（可不填）</div>
+   <div class="form"><input id="r-topic" maxlength="30" placeholder="例如：第一次搭公車、海龜、颱風天" value="${esc(readState.topic)}"></div>
+   <div class="section-title">要幾篇</div>
+   <div class="chips">${[1,2,3].map(v=>`<button class="chip" data-rn="${v}" aria-pressed="${readState.n===v}">${v} 篇</button>`).join('')}</div>
+   <p class="lead" style="font-size:1rem;margin-top:8px">每篇算 1 次 AI 使用次數，另外驗算答案約 1 次。產生的題目會直接收進題庫；驗算時答案對不上的放到「待確認」。</p>
+   <div id="r-act" style="margin-top:16px"></div>`}`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=()=>{if(readState.ctl)readState.ctl.abort();morePage(bank)};
+  if(sampleBlocked()||SAMPLE===undefined){if(SAMPLE===undefined)setTimeout(()=>readingPage(bank),1500);return}
+  $('r-topic').oninput=e=>{readState.topic=e.target.value};
+  app.querySelectorAll('[data-gr]').forEach(b=>b.onclick=()=>{if(readState.phase==='working')return;readState.genre=b.dataset.gr;readingPage(bank)});
+  app.querySelectorAll('[data-rn]').forEach(b=>b.onclick=()=>{if(readState.phase==='working')return;readState.n=+b.dataset.rn;readingPage(bank)});
+  const act=$('r-act');
+  if(readState.phase==='working'){
+    act.innerHTML=`<div class="feedback"><p class="fb-head" id="r-prog">Claude 正在寫文章……</p><p class="fb-why">每篇大約 30～60 秒，請不要關掉畫面、切換 App 或鎖定螢幕。</p><button class="ghost" id="r-stop">停止</button></div>`;
+    $('r-stop').onclick=()=>readState.ctl&&readState.ctl.abort();
+  }else{
+    act.innerHTML=quotaNote+`<button class="big" id="r-start">📖 產生 ${readState.n} 篇閱讀測驗</button>${readState.msg?`<p class="lead" style="margin-top:12px">${esc(readState.msg)}</p>`:''}`;
+    $('r-start').onclick=()=>{readState.msg='';runReading(bank,nQ)};
+  }
+  window.scrollTo(0,0);
+}
+async function runReading(bank,nQ){
+  readState.phase='working';readingPage(bank);
+  const ctl=new AbortController();readState.ctl=ctl;
+  const prog=t=>{const p=document.getElementById('r-prog');if(p)p.textContent=t};
+  let titles=[],ids=[],err=null,v={checked:0,moved:0};
+  for(let i=0;i<readState.n;i++){
+    prog(`Claude 正在寫第 ${i+1} / ${readState.n} 篇文章……`);
+    let res=null;
+    for(let t=0;t<2&&!res;t++){
+      try{res=await SAMPLE.json(readPrompt(bank,readState.genre,readState.topic.trim(),nQ),{signal:ctl.signal,cache:false,modelTier:'default'});err=null}
+      catch(e){err=e;if(e&&(e.code==='cancelled'||e.code!=='network'&&e.code!=='invalid_json'))break}
+    }
+    if(!res)break;
+    const r=addReading(bank,res,readState.genre);
+    if(r.added){titles.push(r.title);ids.push(...r.ids);await bsSave(bank)}
+  }
+  if(ids.length&&!(err&&err.code==='cancelled')){prog('AI 正在讀文章、驗算答案……');v=await verifyNew(bank,ids,ctl.signal)}
+  readState.phase='idle';readState.ctl=null;
+  if(titles.length){readState.msg='';
+    bankHome(bank,`新增 ${titles.length} 篇閱讀測驗（${titles.map(t=>'「'+t+'」').join('、')}），共 ${ids.length-v.moved} 題收進題庫。${err?`（後面幾篇沒完成：${aiErrMsg(err)}）`:''}${v.moved?`有 ${v.moved} 題驗算時答案對不上，放在「待確認的題目」。`:''}`);return}
+  readState.msg=err?aiErrMsg(err):'這次產生的文章或題目格式不對，請再試一次。';
+  readingPage(bank);
+}
+
 /* --- 頁面：待確認（可修改） --- */
 let editIdx=-1;
 function qView(q){
-  const tags=`<span class="tag">${LV[q.lv]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span> <span class="tag">${q.src==='原題'?'原題':q.src==='改寫'?'由填空等改寫':'AI 新題'}</span>${needAnsCheck(q)?' <span class="tag warn">⚠️ 答案由 AI 判斷，請確認</span>':''}${q.tpl?` <span class="tag">🔢 換數字題${q.kinds?`（約 ${q.kinds>=100?'100+':q.kinds} 種數字）`:''}</span>`:''}`;
+  const tags=`<span class="tag">${LV[q.lv]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span> <span class="tag">${q.src==='原題'?'原題':q.src==='改寫'?'由填空等改寫':'AI 新題'}</span>${needAnsCheck(q)?' <span class="tag warn">⚠️ 答案由 AI 判斷，請確認</span>':''}${q.tpl?` <span class="tag">🔢 換數字題${q.kinds?`（約 ${q.kinds>=100?'100+':q.kinds} 種數字）`:''}</span>`:''}${q.p?` <span class="tag">📖 閱讀測驗${q.rl?'・'+RL_NAME[q.rl]:''}</span>`:''}`;
   const ans=q.t==='tf'?`答案：${q.a==='O'?'⭕ 對':'❌ 錯'}`:q.o.map(o=>o===q.a?`<b style="color:var(--leaf-ink)">✔ ${esc(o)}</b>`:esc(o)).join('　');
   const ck=q.check?(q.check.s==='pass'?' <span class="tag">✅ AI 判讀通過</span>':` <span class="tag warn">⚠️ AI 判讀有問題</span>`):'';
   const fl=FLAGS[CUR_BANK_KEY]&&FLAGS[CUR_BANK_KEY].f[q.id];
@@ -3585,7 +3746,12 @@ function printSheetPage(bank){
   const items=avail?buildSheet(bank,sp,sp.no):[];
   const title=bank.title||bankInfo(bank);
   const CIRC='①②③④⑤⑥';
-  const tf=items.filter(x=>x.q.t==='tf'), mc=items.filter(x=>x.q.t!=='tf');
+  const tf=items.filter(x=>x.q.t==='tf'&&!x.q.p), mc=items.filter(x=>x.q.t!=='tf'&&!x.q.p);
+  // 閱讀測驗：同一篇文章的題目放在一起，文章印在題目前面
+  const rdG=[];items.filter(x=>x.q.p).forEach(x=>{let g=rdG.find(y=>y.id===x.q.p);if(!g){const pas=passageOf(bank,x.q);if(!pas)return;g={id:x.q.p,pas,items:[]};rdG.push(g)}g.items.push(x)});
+  const qPos=x=>bank.questions.findIndex(q=>q.id===x.q.id);rdG.forEach(g=>g.items.sort((a,b)=>qPos(a)-qPos(b)));
+  const rd=rdG.flatMap(g=>g.items);
+  const SEC='一二三四';let sec=0;const secNo=()=>SEC[sec++];
   let k=0;
   const qli=({q,o})=>{k++;const ph=ctx.pic(q);
     return `<li class="sq">${q.t==='tf'?'<span class="paren">（　　）</span>':'<span class="paren">（　　）</span>'}<span class="qn">${k}.</span> ${zyT(q.q)}
@@ -3609,15 +3775,16 @@ function printSheetPage(bank){
      <label class="toggle"><input type="checkbox" id="why" ${sp.why?'checked':''}> 答案卷附上解說</label>
      <div class="section-title">卷號</div>
      <div class="sheet-no"><input id="no" type="number" inputmode="numeric" min="1" max="99999" value="${sp.no}" aria-label="卷號"><button class="ghost" id="new">🔀 換一份</button></div>
-     <p class="lead" style="font-size:.95rem;margin:8px 0 0">${avail?`符合條件的題目有 ${avail} 題，這份卷 ${items.length} 題（是非 ${tf.length}、選擇 ${mc.length}）。`:'沒有符合條件的題目，換個範圍或難度試試。'}</p>
+     <p class="lead" style="font-size:.95rem;margin:8px 0 0">${avail?`符合條件的題目有 ${avail} 題，這份卷 ${items.length} 題（是非 ${tf.length}、選擇 ${mc.length}${rd.length?`、閱讀測驗 ${rd.length}`:''}）。`:'沒有符合條件的題目，換個範圍或難度試試。'}</p>
    </section>
    ${items.length?`<article class="ho sheet">
      <header class="sh-head"><h1>${esc(title)}</h1><span class="sh-no">卷號 ${sp.no}</span></header>
      <div class="sh-meta"><span>姓名：＿＿＿＿＿＿</span><span>日期：＿＿＿＿＿＿</span><span>得分：＿＿＿＿</span></div>
-     ${tf.length?`<h2>一、是非題（對的畫 ⭕，錯的畫 ❌）</h2><ol class="sqs">${tf.map(qli).join('')}</ol>`:''}
-     ${mc.length?`<h2>${tf.length?'二':'一'}、選擇題（把正確答案的號碼寫在括號裡）</h2><ol class="sqs">${mc.map(qli).join('')}</ol>`:''}
+     ${tf.length?`<h2>${secNo()}、是非題（對的畫 ⭕，錯的畫 ❌）</h2><ol class="sqs">${tf.map(qli).join('')}</ol>`:''}
+     ${mc.length?`<h2>${secNo()}、選擇題（把正確答案的號碼寫在括號裡）</h2><ol class="sqs">${mc.map(qli).join('')}</ol>`:''}
+     ${rd.length?`<h2>${secNo()}、閱讀測驗（讀完文章，把正確答案的號碼寫在括號裡）</h2>${rdG.map(g=>`<section class="spas"><h3>${esc(g.pas.title)}</h3>${paraHTML(g.pas.text,zyT)}</section><ol class="sqs">${g.items.map(qli).join('')}</ol>`).join('')}`:''}
      <section class="sh-ans"><header class="sh-head"><h1>答案卷</h1><span class="sh-no">${esc(title)}・卷號 ${sp.no}</span></header>
-       <ol class="alist ${sp.why?'':'grid'}">${tf.map(ali).join('')}${mc.map(ali).join('')}</ol></section>
+       <ol class="alist ${sp.why?'':'grid'}">${tf.map(ali).join('')}${mc.map(ali).join('')}${rd.map(ali).join('')}</ol></section>
    </article>`:''}`;
   const $=id=>document.getElementById(id), save=()=>{store.set('sheet-prefs',sp);printSheetPage(bank)};
   $('bk').onclick=()=>bankHome(bank);

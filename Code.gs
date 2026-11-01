@@ -771,7 +771,8 @@ function adminPending(limit) {
   const conText = (b, c) => ((b.concepts || []).filter(k => k.id === c)[0] || {}).text || '';
   const pack = (x, q) => ({ bankId: String(x.bank.id), bankInfo: [x.bank.grade, x.bank.term, x.bank.subject, x.bank.publisher, x.bank.unit].filter(Boolean).join(' '),
     qId: String(q.id), concept: conText(x.bank, q.c), t: q.t, q: q.q, o: q.o || null, a: q.a, why: q.why || '', detail: q.detail || '',
-    ...(q.tpl ? { tpl: q.tpl } : {}) });   // 換數字題：q / o / a 只是一組範例，排程要檢查模板
+    ...(q.tpl ? { tpl: q.tpl } : {}),
+    ...(q.p ? { passage: ((x.bank.passages || []).filter(p => p.id === q.p)[0] || {}) } : {}) });   // 閱讀測驗：附上文章   // 換數字題：q / o / a 只是一組範例，排程要檢查模板
   const reports = [];
   const rows = reportSheet().getDataRange().getValues();
   for (let i = 1; i < rows.length && reports.length < limit; i++) {
