@@ -1913,7 +1913,7 @@ function bankHome(bank,msg){
   if(!FLAGS[bank.id])loadFlags(bank.id).then(()=>{const b=document.getElementById('ls');if(b&&b.isConnected){b.outerHTML=listBtnHTML(bank);const nb=document.getElementById('ls');if(nb)nb.onclick=()=>openList(bank)}});
   if('speechSynthesis' in window)speechSynthesis.cancel();
   const n=bank.questions.length;
-  const lvCount=l=>bank.questions.filter(q=>!l||q.lv===l).length;
+  const lvCount=l=>bank.questions.filter(q=>lvMatch(q,l)).length;
   const answered=Object.values(bank.rec||{}).some(r=>r&&r.seen);
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 題庫列表</button><button class="iconbtn" id="ed">✏️ 編輯資料</button></div>
@@ -1923,7 +1923,7 @@ function bankHome(bank,msg){
    ${n?`<section class="card">
      <h2 class="ct">▶ 開始練習</h2>
      <div class="section-title">難度</div>
-     <div class="chips">${[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${bprefs.lv===l}" ${lvCount(l)?'':'disabled'}>${t}<small>${lvCount(l)}題</small></button>`).join('')}</div>
+     <div class="chips">${lvChips(bank).map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${lvOf(bank)===l}" ${lvCount(l)?'':'disabled'}>${t}<small>${lvCount(l)}題</small></button>`).join('')}</div>
      <div class="section-title">題數</div>
      <div class="chips">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,t])=>`<button class="chip" data-cn="${v}" aria-pressed="${bprefs.count===v}">${t}</button>`).join('')}</div>
      <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
@@ -1998,10 +1998,25 @@ function startWeak(bank){
   if(!qs.length)return;
   CTX=bankCtx(bank);start(qs);
 }
+// 難度：0 全部、1 基礎、2 標準、3 挑戰、4 閱讀測驗（基礎／標準／挑戰不含閱讀測驗的題目）
+const hasReading=b=>b.questions.some(q=>q.p);
+const lvChips=b=>[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']].concat(hasReading(b)?[[4,'📖 閱讀測驗']]:[]);
+const lvMatch=(q,l)=>!l||(l===4?!!q.p:q.lv===l&&!q.p);
+const lvOf=b=>bprefs.lv===4&&!hasReading(b)?0:bprefs.lv;
+// 閱讀測驗：整篇文章一起練，同一篇的題目照文章順序；文章順序隨機，練過少的文章優先
+function readingRound(bank,count){
+  const groups={};bank.questions.filter(q=>q.p&&!isBlocked(q)).forEach(q=>(groups[q.p]=groups[q.p]||[]).push(q));
+  const seen=g=>g.reduce((n,q)=>n+((bank.rec[q.id]||{}).seen||0),0)/g.length;
+  const order=shuffle(Object.values(groups)).sort((a,b)=>seen(a)-seen(b));
+  const out=[];for(const g of order){if(count&&out.length>=count)break;out.push(...g)}
+  return out;
+}
 function startBank(bank){
-  const pool=bank.questions.filter(q=>!bprefs.lv||q.lv===bprefs.lv);
-  if(!pool.length){toast('這個難度還沒有題目');return}
+  const lv=lvOf(bank);
   CTX=bankCtx(bank);
+  if(lv===4){const qs=readingRound(bank,bprefs.count);if(!qs.length){toast('還沒有閱讀測驗的題目');return}start(qs);return}
+  const pool=bank.questions.filter(q=>lvMatch(q,lv));
+  if(!pool.length){toast('這個難度還沒有題目');return}
   start(pickRound(pool,bprefs.count,bank.rec));
 }
 
@@ -3292,7 +3307,7 @@ function libBankHome(bank){
   CTX=PLANT_CTX;
   loadFlags(bank.id);
   if('speechSynthesis' in window)speechSynthesis.cancel();
-  const n=bank.questions.length,lvCount=l=>bank.questions.filter(q=>!l||q.lv===l).length,weak=weakConcepts(bank).length;
+  const n=bank.questions.length,lvCount=l=>bank.questions.filter(q=>lvMatch(q,l)).length,weak=weakConcepts(bank).length;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 題庫書架</button></div>
    <h1 class="pg">${esc(bank.title||bankInfo(bank))}</h1>
@@ -3300,7 +3315,7 @@ function libBankHome(bank){
    <section class="card">
      <h2 class="ct">▶ 開始練習</h2>
      <div class="section-title">難度</div>
-     <div class="chips">${[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${bprefs.lv===l}" ${lvCount(l)?'':'disabled'}>${t}<small>${lvCount(l)}題</small></button>`).join('')}</div>
+     <div class="chips">${lvChips(bank).map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${lvOf(bank)===l}" ${lvCount(l)?'':'disabled'}>${t}<small>${lvCount(l)}題</small></button>`).join('')}</div>
      <div class="section-title">題數</div>
      <div class="chips">${[[10,'10 題'],[20,'20 題'],[0,'全部']].map(([v,t])=>`<button class="chip" data-cn="${v}" aria-pressed="${bprefs.count===v}">${t}</button>`).join('')}</div>
      <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
@@ -3861,7 +3876,7 @@ const sheetPrefs=store.get('sheet-prefs',{n:20,lv:0,scope:'all',why:false});
 function seedRng(seed){let a=(seed>>>0)||1;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function seedShuffle(arr,rnd){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function sheetPool(bank,sp){
-  let qs=bank.questions.filter(q=>!sp.lv||q.lv===sp.lv);
+  let qs=bank.questions.filter(q=>lvMatch(q,sp.lv));
   if(sp.scope==='wrong')qs=qs.filter(q=>{const r=bank.rec[q.id];return r&&r.wrong});
   return qs;
 }
@@ -3908,7 +3923,7 @@ function printSheetPage(bank){
      <div class="section-title">範圍</div>
      <div class="chips">${[['all','全部題目'],['wrong','答錯過的題']].map(([v,t])=>`<button class="chip" data-sc="${v}" aria-pressed="${sp.scope===v}">${t}</button>`).join('')}</div>
      <div class="section-title">難度</div>
-     <div class="chips">${[[0,'全部'],[1,'基礎'],[2,'標準'],[3,'挑戰']].map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${sp.lv===l}">${t}</button>`).join('')}</div>
+     <div class="chips">${lvChips(bank).map(([l,t])=>`<button class="chip" data-lv="${l}" aria-pressed="${sp.lv===l}">${t}</button>`).join('')}</div>
      <div class="section-title">題數</div>
      <div class="chips">${[[10,'10 題'],[20,'20 題'],[30,'30 題'],[0,'全部']].map(([v,t])=>`<button class="chip" data-n="${v}" aria-pressed="${sp.n===v}">${t}</button>`).join('')}</div>
      ${zyGrade(bank)?`<label class="toggle"><input type="checkbox" id="zys" ${zyOn(bank)?'checked':''}> 題目加注音</label>`:''}
