@@ -1933,12 +1933,13 @@ function bankHome(bank,msg){
      <button class="ghost" id="rnd">🎲 幫我選 5 題</button>
      ${weakConcepts(bank).length?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weakConcepts(bank).length} 個）</button>`:''}
      ${pixBtnHTML()}</section>`
+    :canReading(bank)?`<div class="card"><p class="lead" style="margin:0 0 12px">還沒有題目。可以直接請 AI 依 ${gradeNum(bank)} 年級程度寫閱讀測驗，不用上傳任何資料；也可以上傳課本、考卷照片整理成題目。</p><button class="big" id="rd0">📖 產生閱讀測驗（不用上傳）</button></div>`
     :'<div class="card"><p class="lead" style="margin:0">還沒有題目。先上傳資料，確認後就可以練習。</p></div>'}
    <section class="card"><h2 class="ct">大人使用</h2>
      ${bank.concepts.length?`<button class="ghost" id="ho">📘 重點講義</button>`:''}
      ${n?`<button class="ghost" id="ps">🖨 列印練習卷</button>`:''}
      ${n&&zyGrade(bank)&&!bank.__lib?`<button class="ghost" id="zyc">ㄅ 注音校對${zyTodo(bank)?`（${zyTodo(bank)} 題還沒看）`:'（都看過了）'}</button>`:''}
-     ${answered?`<button class="ghost" id="more">✨ 產生更多題目</button>`:`<button class="ghost" id="up">📷 上傳資料產生題目（照片、字幕、文字）</button>`}
+     ${answered?`<button class="ghost" id="more">✨ 產生更多題目</button>`:`<button class="ghost" id="up">📷 上傳資料產生題目（照片、字幕、文字）</button>${canReading(bank)?`<button class="ghost" id="rd1">📖 產生閱讀測驗（不用上傳，依年級出題）</button>`:''}`}
      ${bank.pending.length?`<button class="ghost" id="rv">✅ 待確認的題目（${bank.pending.length}）</button>`:''}
      ${answered?`<button class="ghost" id="an">📊 學習分析</button>`:''}
      ${listBtnHTML(bank)}
@@ -1957,6 +1958,7 @@ function bankHome(bank,msg){
   if($('rnd'))$('rnd').onclick=()=>startRandom(bank);
   if($('pixb'))$('pixb').onclick=()=>pixBookPage(()=>bank.__lib?libBankHome(bank):bankHome(bank));
   if($('up'))$('up').onclick=()=>uploadPage(bank); if($('more'))$('more').onclick=()=>morePage(bank);
+  ['rd0','rd1'].forEach(k=>{if($(k))$(k).onclick=()=>readingPage(bank)});
   if($('an'))$('an').onclick=()=>{sumState.msg='';analysisPage(bank)};
   if($('ho'))$('ho').onclick=()=>handoutHome(bank);
   if($('ps'))$('ps').onclick=()=>printSheetPage(bank);
@@ -2210,7 +2212,7 @@ function morePage(bank){
    <p class="lead">選擇新題目要從哪裡來。產生的題目會直接收進題庫，詳細解題由每天的排程自動補上。</p>
    <button class="ghost" id="m-up">📷 上傳新的資料<br><small style="color:var(--muted)">照片、字幕或文字，整理成題目</small></button>
    <button class="ghost" id="m-gen" ${hasCon?'':'disabled'}>✨ 用已有的觀念出新題<br><small style="color:var(--muted)">${hasCon?`根據這個題庫的 ${bank.concepts.length} 個觀念換問法`:'還沒有觀念，請先上傳資料'}</small></button>
-   ${isChineseBank(bank)&&gradeNum(bank)>=3?`<button class="ghost" id="m-read">📖 閱讀測驗<br><small style="color:var(--muted)">依年級寫原創短文，每篇配 5～6 題閱讀理解</small></button>`:''}
+   ${canReading(bank)?`<button class="ghost" id="m-read">📖 閱讀測驗<br><small style="color:var(--muted)">依年級寫原創短文，每篇配 5～6 題閱讀理解</small></button>`:''}
    ${isMathBank(bank)?`<button class="ghost" id="m-par" ${hasCon?'':'disabled'}>🔢 數學換數字題<br><small style="color:var(--muted)">${hasCon?'AI 寫題型、程式算答案，每次練習都換數字':'還沒有觀念，請先上傳資料'}</small></button>`:''}`;
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>bankHome(bank);
@@ -2561,6 +2563,7 @@ async function runParam(bank){
 const RL_NAME={1:'提取訊息',2:'推論',3:'詮釋整合',4:'比較評估'};
 const RL_DESC={1:'文章裡直接寫出來的事',2:'文章沒直接寫、要連起兩處線索才知道的事',3:'主旨、人物的想法感受、段落之間的關係',4:'作者為什麼這樣寫、寫法好不好、和自己的經驗比較'};
 const isChineseBank=b=>/國語|國文|華語|閱讀/.test(String(b.subject||'')+String(b.title||''));
+const canReading=b=>!b.__lib&&isChineseBank(b)&&gradeNum(b)>=3;
 const gradeNum=b=>cnNum((String(b.grade||'').match(/[一二三四五六\d]/)||[''])[0])||0;
 // 各年級的文章長度、句子、題目層次比例（之後可依雷達結果調整）
 // 確保題庫有四種閱讀能力的觀念，回傳 {1:觀念代號,...}
@@ -2716,7 +2719,7 @@ function readingPage(bank){
   const plan=readPlan(bank,nQ),cnt=[1,2,3,4].map(l=>plan.filter(x=>x===l).length);
   if(!genresFor(bank).some(([v])=>v===readState.genre))readState.genre='混合';
   app.innerHTML=`
-   <div class="toprow"><button class="iconbtn" id="bk">← 產生更多題目</button></div>
+   <div class="toprow"><button class="iconbtn" id="bk">← ${bank.questions.length?'產生更多題目':esc(bank.title||bankInfo(bank))}</button></div>
    <h1 class="pg">📖 閱讀測驗</h1>
    <p class="lead">AI 依 ${g} 年級程度寫原創短文（約 ${L.len[0]}～${L.len[1]} 字），每篇配 ${nQ} 題：${[1,2,3,4].filter((l,i)=>cnt[i]).map((l,i)=>`${RL_NAME[l]} ${cnt[l-1]} 題`).join('、')}。答錯時看得出是哪一種閱讀能力還不熟；答完會在文章裡標出答案的依據。${np?`<br>這個題庫已經有 ${np} 篇文章。`:''}</p>
    ${sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
@@ -2729,7 +2732,7 @@ function readingPage(bank){
    <p class="lead" style="font-size:1rem;margin-top:8px">每篇算 1 次 AI 使用次數，另外檢查題目約 2 次：一次看文章驗算答案，一次「不看文章作答」，靠常識就答得出來的題目會放到「待確認」。</p>
    <div id="r-act" style="margin-top:16px"></div>`}`;
   const $=id=>document.getElementById(id);
-  $('bk').onclick=()=>{if(readState.ctl)readState.ctl.abort();morePage(bank)};
+  $('bk').onclick=()=>{if(readState.ctl)readState.ctl.abort();bank.questions.length?morePage(bank):bankHome(bank)};
   if(sampleBlocked()||SAMPLE===undefined){if(SAMPLE===undefined)setTimeout(()=>readingPage(bank),1500);return}
   $('r-topic').oninput=e=>{readState.topic=e.target.value};
   app.querySelectorAll('[data-gr]').forEach(b=>b.onclick=()=>{if(readState.phase==='working')return;readState.genre=b.dataset.gr;readingPage(bank)});
