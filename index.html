@@ -1363,8 +1363,25 @@ function parseJSONLoose(t){
   if(i===Infinity)return undefined;
   const body=t.slice(i);
   const j=Math.max(body.lastIndexOf('}'),body.lastIndexOf(']'));
-  if(j>0){try{return JSON.parse(body.slice(0,j+1))}catch(e){}}
-  return repairJSON(body);
+  if(j>0){try{return JSON.parse(body.slice(0,j+1))}catch(e){}
+    try{return JSON.parse(fixJSONStrings(body.slice(0,j+1)))}catch(e){}}
+  return repairJSON(fixJSONStrings(body));
+}
+// 文章類的回應常在字串裡直接換行，或把引號寫成半形 "：換行改成 \n，字串中間的 " 跳脫掉
+function fixJSONStrings(t){
+  let out='',inStr=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(!inStr){out+=c;if(c==='"')inStr=true;continue}
+    if(c==='\\'){out+=c+(t[i+1]||'');i++;continue}
+    if(c==='"'){let k=i+1;while(k<t.length&&/\s/.test(t[k]))k++;
+      if(k>=t.length||',:}]'.includes(t[k])){out+=c;inStr=false}else out+='\\"';continue}
+    if(c==='\n'){out+='\\n';continue}
+    if(c==='\r')continue;
+    if(c==='\t'){out+='\\t';continue}
+    out+=c;
+  }
+  return out;
 }
 // 回應太長被截斷時：退回到最後一個完整的物件，補上缺少的括號
 function repairJSON(t){
@@ -1391,7 +1408,7 @@ function makeSample(){
     if(j.remaining!=null)FAMILY.remaining=j.remaining;
     return {text:j.text,truncated:!!j.truncated};
   };
-  call.json=async(p,o)=>{const {text,truncated}=await call(p,o);const v=parseJSONLoose(text);if(v===undefined)throw {code:'invalid_json',message:truncated?'回應太長被截斷':''};return v};
+  call.json=async(p,o)=>{const {text,truncated}=await call(p,o);const v=parseJSONLoose(text);if(v===undefined){store.set('last-ai-raw',{t:Date.now(),truncated,text:String(text||'').slice(0,20000)});throw {code:'invalid_json',message:truncated?'回應太長被截斷':''}}return v};
   call.limits=async()=>({maxPromptBytes:200000,images:{maxCount:5,maxInputBytes:20e6,mediaTypes:['image/jpeg','image/png','image/webp']}});
   return call;
 }
@@ -2634,7 +2651,7 @@ ${plan.map((l,i)=>`- 第 ${i+1} 題：${RL_NAME[l]}（rl=${l}）——${HOW[l]}`
 - why：一兩句說明答案在哪一段、怎麼看出來，${g} 年級孩子看得懂。
 - hint：一句提示，告訴孩子回去看哪一段或注意什麼，不能說出答案。
 
-只回傳一個 JSON 物件，不要其他文字：
+只回傳一個 JSON 物件，不要其他文字。文章和題目裡的對話、引用一律用「」，不要用半形引號 "；段落之間寫成 \\n，不要在字串裡直接換行：
 {"title":"文章標題","text":"第一段……\\n第二段……","questions":[{"rl":1,"lv":1,"t":"mc","q":"題目","o":["選項一","選項二","選項三","選項四"],"a":"選項一","ev":"文章裡的原句","why":"解說","hint":"提示"}]}`;
 }
 const normTxt=s=>String(s||'').replace(/[\s　「」『』“”"'‘’]/g,'');
