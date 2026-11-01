@@ -318,6 +318,18 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
 [data-style="chalk"] .busy-card{border-radius:var(--chalk-r2)}
+/* --- 提示、塗色畫冊 --- */
+.feedback.hintbox{border-color:var(--sun);background:var(--sun-soft)}
+.roundinfo{margin:0 0 10px;font-size:1.05rem;color:var(--muted);text-align:center}
+.roundinfo b{color:var(--ink);font-size:1.2rem}
+.pixrow{display:flex;align-items:center;gap:12px;margin:8px 0;font-size:1rem}
+.pix{display:inline-block;flex:0 0 auto;background:#fff;border-radius:6px;padding:2px}
+@media (prefers-reduced-motion:no-preference){.pix .pnew{animation:pnew .6s ease-out}}
+@keyframes pnew{from{opacity:0}to{opacity:1}}
+.pixend{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:10px}
+.pixend p{margin:0;color:var(--muted);font-size:1rem}
+.pixbook{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px;margin-top:10px}
+.pixbook figure{margin:0;text-align:center}.pixbook figcaption{font-size:1rem;margin-top:4px}
 </style>
 </head>
 <body>
@@ -691,7 +703,9 @@ function home(){
    <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
    ${resumeHTML(PLANT_CTX)}
    <button class="${getProgress(PLANT_CTX)?'ghost':'big'}" id="go">${getProgress(PLANT_CTX)?'重新開始新的練習':'開始練習'}</button>
+   <button class="ghost" id="rnd">🎲 幫我選 5 題</button>
    ${wc.length?`<button class="ghost" id="gw">🌱 練常錯的觀念（${wc.length} 個）</button>`:''}
+   ${pixBtnHTML()}
    <button class="ghost" id="gp">📒 學習紀錄（給爸爸媽媽看）</button>
    <button class="ghost" id="gai">🤖 用 AI 產生新題目（大人使用）</button>`;
   app.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>{prefs.unit=b.dataset.u;store.set('g3plants-prefs',prefs);home()});
@@ -699,6 +713,8 @@ function home(){
   document.getElementById('ar').onchange=e=>{prefs.autoRead=e.target.checked;store.set('g3plants-prefs',prefs)};
   document.getElementById('go').onclick=()=>start(pickRound(pool(),prefs.count));
   if(document.getElementById('resume'))document.getElementById('resume').onclick=()=>resumeRound(PLANT_CTX);
+  document.getElementById('rnd').onclick=()=>start(pickRound(practice(),5));
+  document.getElementById('pixb').onclick=()=>pixBookPage(home);
   const gw=document.getElementById('gw');
   // 常錯觀念：每個觀念出一題，優先用這個孩子還沒練過的問法
   if(gw)gw.onclick=()=>start(buildWeakRound(shuffle(wc.slice(0,10)),ALL,rec));
@@ -707,6 +723,61 @@ function home(){
   document.getElementById('gai').onclick=()=>{aiState.phase='idle';aiState.msg='';aiPage()};
   window.scrollTo(0,0);
 }
+
+/* --- 塗色畫冊：答對一題（第一次就答對）幫畫塗 3 格，塗滿收進畫冊，紀錄存在這台裝置 --- */
+const PIX_PER_OK=3;
+const PIX_COLORS={R:'#E5484D',P:'#F59AB5',Y:'#F5C518',O:'#F08A24',G:'#3FA34D',B:'#3E8EDE',N:'#8B5E3C',K:'#2B2B2B',W:'#FFFFFF',L:'#9BD3F5'};
+const PIX_ART=[
+  {id:'heart',name:'愛心',g:['.RR..RR.','RPRRRRRR','RRRRRRRR','RRRRRRRR','.RRRRRR.','..RRRR..','...RR...','........']},
+  {id:'star',name:'星星',g:['...YY...','...YY...','YYYYYYYY','.YYOOYY.','..YOOY..','.YYYYYY.','.YY..YY.','YY....YY']},
+  {id:'flower',name:'小花',g:['.PP.PP..','PPPPPPP.','.PPYPP..','PPPPPPP.','.PP.PP..','...G....','.GGG.GG.','...GGG..']},
+  {id:'fish',name:'小魚',g:['........','..BBB..B','.BBBBBBB','BBWBBBB.','BKBBBBB.','.BBBBBBB','..BBB..B','........']},
+  {id:'tree',name:'大樹',g:['...GG...','..GGGG..','.GGGGGG.','GGGGGGGG','.GGRGGG.','...NN...','...NN...','..NNNN..']},
+  {id:'cat',name:'貓咪',g:['O......O','OO....OO','OOOOOOOO','OKOOOOKO','OOOOOOOO','OOOPPOOO','.OOOOOO.','..O..O..']},
+  {id:'rocket',name:'火箭',g:['...RR...','..RWWR..','..WLLW..','..WLLW..','..WWWW..','.RWWWWR.','RR.OO.RR','...YY...']},
+  {id:'apple',name:'蘋果',g:['....N...','...NG...','.RRRRRR.','RRRRRRWR','RRRRRRRR','RRRRRRRR','.RRRRRR.','..RR.RR.']},
+];
+const pixCells=art=>{const c=[];art.g.forEach((row,y)=>[...row].forEach((ch,x)=>{if(ch!=='.')c.push(y*8+x)}));return c};
+let PIX=store.get('pix-book',{i:0,filled:[],done:[]});
+function pixArt(){return PIX_ART[PIX.i%PIX_ART.length]}
+// 塗 n 格；回傳這次塗的格子與是否完成一張
+function pixFill(n){
+  const art=pixArt(),cells=pixCells(art),left=cells.filter(c=>!PIX.filled.includes(c));
+  const pick=shuffle(left).slice(0,n);
+  PIX.filled.push(...pick);
+  let done=null;
+  if(PIX.filled.length>=cells.length){done=art;PIX.done.push({id:art.id,at:Date.now()});PIX.i++;PIX.filled=[]}
+  store.set('pix-book',PIX);
+  return {art:done||art,filled:done?cells:PIX.filled.slice(),fresh:pick,done:!!done};
+}
+function pixSVG(art,filled,size,fresh){
+  const f=new Set(filled),nw=new Set(fresh||[]);
+  let r='';art.g.forEach((row,y)=>[...row].forEach((ch,x)=>{if(ch==='.')return;const i=y*8+x;
+    r+=f.has(i)?`<rect x="${x}" y="${y}" width="1" height="1" fill="${PIX_COLORS[ch]}" stroke="rgba(0,0,0,.12)" stroke-width=".04"${nw.has(i)?' class="pnew"':''}/>`
+               :`<rect x="${x+.06}" y="${y+.06}" width=".88" height=".88" fill="none" stroke="#9aa59a" stroke-width=".06" stroke-dasharray=".15 .1"/>`}));
+  return `<svg class="pix" viewBox="-.2 -.2 8.4 8.4" width="${size}" height="${size}" role="img" aria-label="${esc(art.name)}，塗了 ${filled.length} / ${pixCells(art).length} 格">${r}</svg>`;
+}
+function pixMini(p){
+  const total=pixCells(p.art).length;
+  return `<div class="pixrow">${pixSVG(p.art,p.filled,64,p.fresh)}<span>${p.done?`🎉 完成「${esc(p.art.name)}」！收進畫冊了`:`🎨 幫「${esc(p.art.name)}」塗了 ${p.fresh.length} 格（${p.filled.length} / ${total}）`}</span></div>`;
+}
+function pixBookPage(back){
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  const art=pixArt(),total=pixCells(art).length;
+  const counts={};PIX.done.forEach(d=>counts[d.id]=(counts[d.id]||0)+1);
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← 返回</button></div>
+   <h1 class="pg">🖼 我的畫冊</h1>
+   <p class="lead">每答對一題，就幫畫塗 ${PIX_PER_OK} 格；塗滿一張就收進畫冊。</p>
+   <section class="card" style="text-align:center"><h2 class="ct">正在塗：${esc(art.name)}</h2>
+     ${pixSVG(art,PIX.filled,180)}<p class="lead" style="margin:6px 0 0">${PIX.filled.length} / ${total} 格，再答對 ${Math.ceil((total-PIX.filled.length)/PIX_PER_OK)} 題就完成</p></section>
+   <section class="card"><h2 class="ct">已完成（${PIX.done.length} 張）</h2>
+     ${PIX.done.length?`<div class="pixbook">${PIX_ART.filter(a=>counts[a.id]).map(a=>`<figure>${pixSVG(a,pixCells(a),90)}<figcaption>${esc(a.name)}${counts[a.id]>1?` ×${counts[a.id]}`:''}</figcaption></figure>`).join('')}</div>`
+       :'<p class="lead" style="margin:8px 0 0">還沒有完成的畫，開始練習吧！</p>'}</section>`;
+  document.getElementById('bk').onclick=back;
+  window.scrollTo(0,0);
+}
+const pixBtnHTML=()=>`<button class="ghost" id="pixb">🖼 我的畫冊（${PIX.done.length} 張）</button>`;
 
 /* --- 練習進度：每答一題存一次，中途離開可以接著做 --- */
 const progKey=ctx=>'progress-'+(ctx.pkey||ctx.key);
@@ -781,6 +852,7 @@ function ask(){
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button><button class="iconbtn" id="arq" aria-pressed="${prefs.autoRead}">${prefs.autoRead?'🔊 自動念：開':'🔇 自動念：關'}</button><span class="counter">${rv?'🔁 複習剛剛錯的觀念':`第 ${Math.min(mainDone+1,S.total)} / ${S.total} 題`}</span></div>
    ${vine()}
+   ${!S.leaves.length&&!rv?`<p class="roundinfo">這次要做 <b>${S.total}</b> 題，答對一題幫「${esc(pixArt().name)}」塗 ${PIX_PER_OK} 格 🎨</p>`:''}
    <section class="card pop">
      <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
      ${flagOf(q)==='reported'?' <span class="tag warn">🚩 已有人回報，確認中</span>':''}
@@ -801,12 +873,20 @@ function ask(){
   window.scrollTo(0,0);
 }
 
+// 答錯時的提示：題目自帶的 hint，或這題的觀念
+function hintOf(q){
+  if(q.hint)return q.hint;
+  const t=CTX.conceptText&&CTX.conceptText(q);
+  return t?`想想看：${t}`:'再讀一次題目，把每個選項都想一想。';
+}
 function answer(btn){
   const {q,kind,stage}=S.cur, v=btn.dataset.v, ok=v===q.a, c=q.c;
-  app.querySelectorAll('.opt').forEach(b=>{b.disabled=true;if(b.dataset.v===q.a)b.classList.add('correct')});
-  if(!ok)btn.classList.add('wrong','shake'); else btn.classList.add('pop');
-  CTX.bump(q.id,ok,ok?null:v);
+  const second=!!S.cur.tried;
+  // 選擇題第一次答錯：先給提示、劃掉選錯的選項，讓孩子再選一次（紀錄仍算答錯一次）
+  const retry=!ok&&!second&&q.t==='mc'&&q.o.length>=3;
   let note='';
+  if(!second){
+  CTX.bump(q.id,ok,ok?null:v);
   if(kind==='main'){
     S.leaves.push(ok);S.justAdded=true;
     if(!ok){ if(!S.missed.includes(c))S.missed.push(c); schedule(c,1,GAP_FIRST(),q.id); note='過幾題會換個問法再考你一次喔！'; }
@@ -816,12 +896,27 @@ function answer(btn){
     else if(ok){ st.mastered=true; note='🌟 這個觀念記住了！'; }
     else { if(schedule(c,stage,GAP_AGAIN(),q.id))note='沒關係，等一下再試一次。'; }
   }
+  if(ok)S.cur.pix=pixFill(PIX_PER_OK);
+  }else note=S.cur.note||'';
+  if(retry){
+    S.cur.tried=true;S.cur.note=note;
+    btn.classList.add('wrong','shake');btn.disabled=true;sndNO();
+    const fb=document.getElementById('fb');
+    fb.innerHTML=`<div class="feedback hintbox pop"><p class="fb-head">🤔 再想想！</p><p class="fb-why">💡 ${esc(hintOf(q))}</p><p class="fb-why" style="color:var(--muted)">再選一次看看。</p></div>`;
+    const vineEl=app.querySelector('.vine'); if(vineEl&&S.justAdded)vineEl.outerHTML=vine();
+    fb.scrollIntoView({behavior:'smooth',block:'nearest'});
+    if(prefs.autoRead)speak('再想想。'+hintOf(q));
+    return;
+  }
+  app.querySelectorAll('.opt').forEach(b=>{b.disabled=true;if(b.dataset.v===q.a)b.classList.add('correct')});
+  if(!ok)btn.classList.add('wrong','shake'); else btn.classList.add('pop');
   ok?sndOK():sndNO();
   const ansText=q.t==='tf'?(q.a==='O'?'⭕ 對':'❌ 錯'):q.a;
   const last=S.pos+1>=S.queue.length;
   const fb=document.getElementById('fb');
   fb.innerHTML=`<div class="feedback ${ok?'':'bad'} pop">
-     <p class="fb-head">${ok?'🎉 答對了！':'🤔 再想想！正確答案是：'+esc(ansText)}</p>
+     <p class="fb-head">${ok?(second?'👍 這次答對了！':'🎉 答對了！'):(second?'正確答案是：':'🤔 再想想！正確答案是：')+esc(ansText)}</p>
+     ${S.cur.pix?pixMini(S.cur.pix):''}
      <p class="fb-why">${esc(q.why)}</p>
      ${q.detail?`<details class="detail" id="det"><summary>📖 看詳細解題</summary><p>${esc(q.detail)}</p><button class="iconbtn" id="det-say">🔊 念詳解</button></details>`:''}
      ${note?`<p class="fb-why" style="margin-top:8px;color:var(--muted)">${note}</p>`:''}
@@ -830,7 +925,7 @@ function answer(btn){
      <button class="big" id="nx">${last?'看結果':'下一題'}</button>
    </div>`;
   const vineEl=app.querySelector('.vine'); if(vineEl&&S.justAdded)vineEl.outerHTML=vine();
-  const say=()=>speak((ok?'答對了！':'正確答案是'+ansText.replace(/[⭕❌]/g,'')+'。')+q.why+(note?note.replace('🌟',''):''));
+  const say=()=>speak((ok?(second?'這次答對了！':'答對了！'):'正確答案是'+ansText.replace(/[⭕❌]/g,'')+'。')+q.why+(note?note.replace('🌟',''):''));
   document.getElementById('rw').onclick=say;
   const ds=document.getElementById('det-say');if(ds)ds.onclick=()=>speak(q.detail);
   saveProgress();
@@ -852,12 +947,15 @@ function finish(){
      <p class="score">${first} / ${total}</p>
      <p style="font-size:1.2rem;margin:0;color:var(--muted)">第一次就答對 ${first} 題</p>
      <p style="font-size:1.3rem">${msg}</p>
+     <div class="pixend">${pixSVG(pixArt(),PIX.filled,120)}<p>正在塗「${esc(pixArt().name)}」：${PIX.filled.length} / ${pixCells(pixArt()).length} 格・畫冊已有 ${PIX.done.length} 張</p></div>
    </section>
    ${mastered.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌟 錯了之後，複習到記住的觀念：</p><ul class="list">${mastered.map(li).join('')}</ul></section>`:''}
    ${notyet.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌱 還要再加油的觀念：</p><ul class="list">${notyet.map(li).join('')}</ul></section>`:''}
    <button class="big" id="again">${S.missed.length?'把錯的觀念再練一次':'再玩一次'}</button>
    ${CTX.bank&&!CTX.bank.__lib&&hasBackend()?`<button class="ghost" id="hob">📘 ${S.missed.length?'把錯的觀念做成重點講義':'重點講義'}</button>`:''}
+   ${pixBtnHTML()}
    <button class="ghost" id="hm">🏠 回首頁</button>`;
+  document.getElementById('pixb').onclick=()=>pixBookPage(()=>CTX.home());
   document.getElementById('again').onclick=()=>S.missed.length
     ?start(shuffle(S.missed.map(c=>pickVariantFresh(c))))
     :CTX.restart();
@@ -1270,7 +1368,8 @@ function normQ(r,conceptIds){
   const src=['原題','改寫','AI'].includes(r.src)?r.src:'AI';
   const icon=typeof r.icon==='string'?[...r.icon.trim()].slice(0,4).join(''):'';
   const detail=typeof r.detail==='string'?r.detail.trim().slice(0,400):'';
-  const base={c,q,why:why||'',lv,src,ansByAI:!!r.ansByAI,icon,...(detail?{detail}:{})};
+  const hint=typeof r.hint==='string'?r.hint.trim().slice(0,60):'';
+  const base={c,q,why:why||'',lv,src,ansByAI:!!r.ansByAI,icon,...(detail?{detail}:{}),...(hint?{hint}:{}),...(r.vnote?{vnote:String(r.vnote).slice(0,200)}:{})};
   if(r.t==='tf'){ if(r.a!=='O'&&r.a!=='X')return null; return {...base,t:'tf',a:r.a}; }
   if(r.t==='mc'){
     if(!Array.isArray(r.o))return null;
@@ -1294,17 +1393,17 @@ function mergeResult(bank,res,defaultSrc){
   });
   const ids=new Set(bank.concepts.map(x=>x.id));
   const seen=new Set(bank.questions.concat(bank.pending).map(q=>q.q));
-  let added=0,dropped=0;
+  let added=0,dropped=0;const newIds=[];
   const qs=Array.isArray(res)?res:(Array.isArray(res&&res.questions)?res.questions:[]);
   qs.forEach(r=>{
     const rr={...r,c:idMap[r&&r.c]||(r&&r.c),src:(r&&r.src)||defaultSrc};
     const n=normQ(rr,ids);
     if(!n||seen.has(n.q)){dropped++;return}
-    seen.add(n.q); bank.questions.push({...n,id:newId(bank,'q')}); added++;
+    const nid=newId(bank,'q');seen.add(n.q); bank.questions.push({...n,id:nid}); newIds.push(nid); added++;
   });
   const sk=Array.isArray(res&&res.skipped)?res.skipped:[];
   sk.forEach(x=>{const q=String(x&&x.q||'').trim().slice(0,160);if(q)bank.skipped.push({q,reason:String(x.reason||'').slice(0,80)})});
-  return {added,dropped,skipped:sk.length};
+  return {added,dropped,skipped:sk.length,ids:newIds};
 }
 
 /* --- 給 Claude 的指示 --- */
@@ -1315,7 +1414,8 @@ const JSON_RULES=`題型規則：
 - 選擇題：t 為 "mc"，o 為 2 到 4 個選項，只能有一個正確，a 必須和 o 裡的某個選項一字不差；不要用「以上皆是」「以上皆非」。
 - lv 難度：1＝基礎（直接回想）、2＝標準（要分辨相近的觀念）、3＝挑戰（反過來問、應用或結合兩個觀念）。
 - why：一兩句解說，小朋友看得懂，不超過 60 字。
-- icon：一個適合這題的 emoji，沒有適合的就給空字串。`;
+- icon：一個適合這題的 emoji，沒有適合的就給空字串。
+- hint：一句提示（20 字以內），引導孩子想到關鍵，但不能直接說出答案。`;
 
 function analyzePrompt(bank,text,note,nImages,aiLv){
   const cons=bank.concepts.map(x=>`${x.id}：${x.text}`).join('\n')||'（還沒有）';
@@ -1495,7 +1595,9 @@ function bankHome(bank,msg){
      <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
      ${resumeHTML(bankCtx(bank))}
      <button class="${getProgress(bankCtx(bank))?'ghost':'big'}" id="go">${getProgress(bankCtx(bank))?'重新開始新的練習':'開始練習'}</button>
-     ${weakConcepts(bank).length?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weakConcepts(bank).length} 個）</button>`:''}</section>`
+     <button class="ghost" id="rnd">🎲 幫我選 5 題</button>
+     ${weakConcepts(bank).length?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weakConcepts(bank).length} 個）</button>`:''}
+     ${pixBtnHTML()}</section>`
     :'<div class="card"><p class="lead" style="margin:0">還沒有題目。先上傳資料，確認後就可以練習。</p></div>'}
    <section class="card"><h2 class="ct">大人使用</h2>
      ${bank.concepts.length?`<button class="ghost" id="ho">📘 重點講義</button>`:''}
@@ -1515,6 +1617,8 @@ function bankHome(bank,msg){
   if($('go'))$('go').onclick=()=>startBank(bank);
   if($('resume'))$('resume').onclick=()=>resumeRound(bankCtx(bank));
   if($('weak'))$('weak').onclick=()=>startWeak(bank);
+  if($('rnd'))$('rnd').onclick=()=>startRandom(bank);
+  if($('pixb'))$('pixb').onclick=()=>pixBookPage(()=>bank.__lib?libBankHome(bank):bankHome(bank));
   if($('up'))$('up').onclick=()=>uploadPage(bank); if($('more'))$('more').onclick=()=>morePage(bank);
   if($('an'))$('an').onclick=()=>{sumState.msg='';analysisPage(bank)};
   if($('ho'))$('ho').onclick=()=>handoutHome(bank);
@@ -1532,6 +1636,7 @@ function bankCtx(bank){return {
   label:q=>LV[q.lv]||'基礎',
   bump:(id,ok,pick)=>{const r=bank.rec[id]||{seen:0,wrong:0};r.seen++;if(!ok){r.wrong++;notePick(r,pick)}r.st=ok?(r.st||0)+1:0;bank.rec[id]=r;logDay(bank,ok);scheduleSave(bank)},
   rec:()=>bank.rec,
+  conceptText:q=>(bank.concepts.find(x=>x.id===q.c)||{}).text||'',
   pic:q=>{const con=(bank.concepts.find(x=>x.id===q.c)||{}).text;
     return (q.icon||con)?`<div class="bpic">${q.icon?`<div class="bicon">${esc(q.icon)}</div>`:''}${con?`<p>📌 觀念：${esc(con)}</p>`:''}</div>`:''},
   home:()=>{bsSave(bank);bank.__lib?libBankHome(bank):bankHome(bank)},
@@ -1543,6 +1648,11 @@ function weakConcepts(bank){
   return Object.keys(w).sort((a,b)=>w[b]-w[a]);
 }
 // 每個常錯觀念出一題，優先用孩子練得最少的問法
+// 幫我選：不用設定，直接出 5 題（不分難度）
+function startRandom(bank){
+  if(!bank.questions.length){toast('還沒有題目');return}
+  CTX=bankCtx(bank);start(pickRound(bank.questions,5,bank.rec));
+}
 function startWeak(bank){
   const qs=buildWeakRound(shuffle(weakConcepts(bank).slice(0,10)),bank.questions,bank.rec);
   if(!qs.length)return;
@@ -1649,7 +1759,7 @@ async function runAnalyze(bank,maxN){
   const files=upState.files.slice(), text=upState.text.trim().slice(0,60000), note=upState.note.trim().slice(0,300);
   const per=Math.min(maxN||2,2);
   const batches=[]; if(files.length){for(let i=0;i<files.length;i+=per)batches.push(files.slice(i,i+per))} else batches.push([]);
-  let tot={added:0,dropped:0,skipped:0},err=null;
+  let tot={added:0,dropped:0,skipped:0,ids:[]},err=null;
   for(let i=0;i<batches.length;i++){
     const ctl=new AbortController();upState.ctl=ctl;
     const label=batches.length>1?`第 ${i+1} / ${batches.length} 批：`:'';
@@ -1660,7 +1770,7 @@ async function runAnalyze(bank,maxN){
       const res=await SAMPLE.json(analyzePrompt(bank,i===0?text:'',note,batches[i].length,upLv),opts);
       if(res&&res.__repaired)tot.cut=(tot.cut||0)+1;
       if(upLv&&res&&Array.isArray(res.questions))res.questions.forEach(q=>{if(q&&q.src==='AI')q.lv=upLv});
-      const r=mergeResult(bank,res,'原題'); tot.added+=r.added;tot.dropped+=r.dropped;tot.skipped+=r.skipped;
+      const r=mergeResult(bank,res,'原題'); tot.added+=r.added;tot.dropped+=r.dropped;tot.skipped+=r.skipped;tot.ids.push(...r.ids);
       await bsSave(bank);
     }catch(e){
       if(e&&e.code==='cancelled'){err=e;break}
@@ -1674,18 +1784,66 @@ async function runAnalyze(bank,maxN){
   if(tot.added&&tot.added<upCount&&!stopped&&bank.concepts.length){
     const ctl=new AbortController();upState.ctl=ctl;
     const r=await genBatches(bank,upLv,upCount-tot.added,ctl,(a,t)=>{const p=document.getElementById('u-prog');if(p)p.textContent=`原題 ${tot.added} 題，AI 正在補題目……（${a} / ${t} 題）`});
-    extra=r.added;if(r.err)err=r.err;
+    extra=r.added;if(r.err)err=r.err;tot.ids.push(...r.ids);
+  }
+  let v={checked:0,moved:0};
+  if(tot.ids.length&&!(err&&err.code==='cancelled')){
+    const ctl=new AbortController();upState.ctl=ctl;
+    v=await verifyNew(bank,tot.ids,ctl.signal,()=>{const p=document.getElementById('u-prog');if(p)p.textContent='AI 正在驗算題目的答案……'});
   }
   upState.ctl=null;upState.phase='idle';
   if(tot.added||tot.skipped){
     upState.files=[];upState.text='';upState.note='';
-    const all=tot.added+extra;
-    bankHome(bank,`新增 ${all} 題，已收進題庫（資料原題 ${tot.added} 題${extra?`、AI 補題 ${extra} 題`:''}）${tot.skipped?`；另有 ${tot.skipped} 題不適合點選作答`:''}${tot.dropped?`；${tot.dropped} 題格式不合格或重複，已略過`:''}${tot.cut?`。有 ${tot.cut} 批內容太多，後段題目可能沒整理到，可以把那幾張照片再上傳一次`:''}${tot.failed?`。第 ${tot.failed.join('、')} 批沒有成功（${aiErrMsg(err)}），可以把那幾張照片再上傳一次`:''}${extra+tot.added<upCount&&err&&!tot.failed?`。補題沒有完成（${aiErrMsg(err)}）`:''}。詳細解題會在每天的排程自動補上。`);
+    const all=tot.added+extra-v.moved;
+    bankHome(bank,`新增 ${all} 題，已收進題庫（資料原題 ${tot.added} 題${extra?`、AI 補題 ${extra} 題`:''}）${tot.skipped?`；另有 ${tot.skipped} 題不適合點選作答`:''}${tot.dropped?`；${tot.dropped} 題格式不合格或重複，已略過`:''}${tot.cut?`。有 ${tot.cut} 批內容太多，後段題目可能沒整理到，可以把那幾張照片再上傳一次`:''}${tot.failed?`。第 ${tot.failed.join('、')} 批沒有成功（${aiErrMsg(err)}），可以把那幾張照片再上傳一次`:''}${extra+tot.added<upCount&&err&&!tot.failed?`。補題沒有完成（${aiErrMsg(err)}）`:''}。${verifyMsg(v)}詳細解題會在每天的排程自動補上。`);
     return;
   }
   upState.msg=err?aiErrMsg(err):'這次沒有整理出可以用的題目，請換清楚一點的照片，或補充說明再試一次。';
   uploadPage(bank,true);
 }
+
+/* --- 出題驗算：另一次 AI 不看答案獨立作答，答案不一致或題目不清楚的移到「待確認」 ---
+   只驗算 AI 判斷答案的題目（AI 新題、改寫題、資料沒有答案的題目）；講義上有答案的原題以講義為準 */
+const needVerify=q=>q.src==='AI'||q.src==='改寫'||q.ansByAI;
+function verifyPrompt(bank,qs){
+  return `你是台灣國小${bank.grade||''}的老師，要檢查一份「${bankInfo(bank)}」的練習題。
+下面的題目沒有附答案，請你自己獨立作答每一題；數學題要真的計算。作答以這份題庫整理自講義的觀念為準：
+${bank.concepts.map(c=>'- '+c.text).join('\n')||'（沒有）'}
+
+同時判斷題目是否清楚、是否只有一個正確答案（ok）。
+
+題目：
+${qs.map(q=>`[${q.id}]（${q.t==='tf'?'是非題':'選擇題'}）${q.q}${q.t==='mc'?`　選項：${q.o.join('／')}`:''}`).join('\n')}
+
+只回傳 JSON 陣列，不要其他文字：
+[{"id":"題目代號","a":"是非題寫 O 或 X；選擇題寫選項原文","ok":true,"why":"有問題時一句說明，沒有就給空字串"}]`;
+}
+async function verifyNew(bank,ids,signal,onProg){
+  const qs=bank.questions.filter(q=>ids.includes(q.id)&&needVerify(q));
+  let checked=0,moved=0,failed=0;
+  for(let i=0;i<qs.length;i+=40){
+    const part=qs.slice(i,i+40);
+    onProg&&onProg(i,qs.length);
+    let res;
+    try{res=await SAMPLE.json(verifyPrompt(bank,part),{signal,cache:false,modelTier:'default'})}
+    catch(e){if(e&&e.code==='cancelled')break;failed+=part.length;continue}   // 驗算沒成功：先保留，交給每天的排程判讀
+    const map={};(Array.isArray(res)?res:[]).forEach(r=>{if(r&&r.id)map[String(r.id)]=r});
+    part.forEach(q=>{
+      const r=map[q.id];if(!r)return;checked++;
+      let a=String(r.a==null?'':r.a).trim();
+      if(q.t==='tf')a=/^(o|對|○|⭕|true)$/i.test(a)?'O':/^(x|錯|×|❌|false)$/i.test(a)?'X':a;
+      if(r.ok!==false&&a===q.a)return;
+      const why=String(r.why||'').trim().slice(0,60);
+      const vnote=r.ok===false?`出題驗算：${why||'題目可能不清楚或不只一個答案'}`
+        :`出題驗算：另一次作答選了「${(q.t==='tf'?(a==='O'?'對':a==='X'?'錯':a):a).slice(0,30)}」，和答案不同${why?'（'+why+'）':''}`;
+      bank.questions=bank.questions.filter(x=>x.id!==q.id);
+      bank.pending.push({...q,ansByAI:true,vnote});moved++;
+    });
+  }
+  if(moved)await bsSave(bank);
+  return {checked,moved,failed};
+}
+const verifyMsg=v=>v.moved?`其中 ${v.moved} 題驗算時答案對不上，先放到「待確認的題目」，請大人看一下。`:v.checked?`AI 出的 ${v.checked} 題都驗算過了。`:'';
 
 /* --- 頁面：產生更多題目（選來源） --- */
 function morePage(bank){
@@ -1708,7 +1866,7 @@ const GEN_PER_CALL=15;
 const QCOUNTS=[20,30,50];
 const callsFor=n=>Math.ceil(n/GEN_PER_CALL);
 async function genBatches(bank,lv,target,ctl,onProg,only){
-  let added=0,dropped=0,rounds=0,err=null;
+  let added=0,dropped=0,rounds=0,err=null;const ids=[];
   const maxRounds=callsFor(target)+1;
   while(added<target&&rounds<maxRounds){
     rounds++;
@@ -1718,12 +1876,12 @@ async function genBatches(bank,lv,target,ctl,onProg,only){
       const res=await SAMPLE.json(genPrompt(bank,lv,want,only),{signal:ctl.signal,cache:false,modelTier:'quick'});
       const arr=(Array.isArray(res)?res:[]).map(r=>({...r,src:'AI',ansByAI:false,lv:lv||r.lv}));
       const r=mergeResult(bank,{questions:arr},'AI');
-      added+=r.added;dropped+=r.dropped;
+      added+=r.added;dropped+=r.dropped;ids.push(...r.ids);
       await bsSave(bank);
       if(!r.added)break;
     }catch(e){err=e;break}
   }
-  return {added,dropped,err};
+  return {added,dropped,err,ids};
 }
 
 /* --- 觀念複選：答錯過的觀念排前面並預設勾選，也可以選其他觀念或整個題庫 --- */
@@ -1767,7 +1925,7 @@ function genPage(bank){
    <div id="g-cp">${conceptPickerHTML(bank,genState.cons)}</div>
    <div class="section-title">題數</div>
    <div class="chips">${QCOUNTS.map(v=>`<button class="chip" data-gc="${v}" aria-pressed="${genState.count===v}">${v} 題</button>`).join('')}</div>
-   <p class="lead" style="font-size:1rem;margin-top:8px">每 ${GEN_PER_CALL} 題算一次 AI 使用次數，${genState.count} 題大約用 ${callsFor(genState.count)} 次。</p>
+   <p class="lead" style="font-size:1rem;margin-top:8px">每 ${GEN_PER_CALL} 題算一次 AI 使用次數，另外驗算答案約 1～2 次；${genState.count} 題大約用 ${callsFor(genState.count)+Math.ceil(genState.count/40)} 次。</p>
    <div id="g-act" style="margin-top:16px"></div>`}`;
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>{if(genState.ctl)genState.ctl.abort();morePage(bank)};
@@ -1790,9 +1948,11 @@ async function runGen(bank){
   const ctl=new AbortController();genState.ctl=ctl;
   const r=await genBatches(bank,genState.lv,genState.count,ctl,(a,t)=>{const p=document.getElementById('g-prog');if(p)p.textContent=`Claude 正在寫題目……（${a} / ${t} 題）`},
     genState.cons.size<bank.concepts.length?genState.cons:null);
+  let v={checked:0,moved:0};
+  if(r.ids.length&&!(r.err&&r.err.code==='cancelled'))v=await verifyNew(bank,r.ids,ctl.signal,()=>{const p=document.getElementById('g-prog');if(p)p.textContent='AI 正在驗算題目的答案……'});
   genState.phase='idle';genState.ctl=null;
   if(r.added){genState.msg='';
-    bankHome(bank,`新增 ${r.added} 題，已收進題庫${r.added<genState.count&&r.err?`（${aiErrMsg(r.err)}）`:''}。詳細解題會在每天的排程自動補上。`);return}
+    bankHome(bank,`新增 ${r.added-v.moved} 題，已收進題庫${r.added<genState.count&&r.err?`（${aiErrMsg(r.err)}）`:''}。${verifyMsg(v)}詳細解題會在每天的排程自動補上。`);return}
   genState.msg=r.err?aiErrMsg(r.err):'這次產生的題目都不合格，請再試一次。';
   genPage(bank);
 }
@@ -1806,7 +1966,8 @@ function qView(q){
   const fl=FLAGS[CUR_BANK_KEY]&&FLAGS[CUR_BANK_KEY].f[q.id];
   const flt=fl==='reported'?' <span class="tag warn">🚩 有人回報，等待判讀</span>':fl==='issue'?' <span class="tag warn">🚩 回報成立，已暫停出題</span>':'';
   const note=q.check&&q.check.s==='issue'?`<br><small style="color:var(--coral-ink)">判讀意見：${esc(q.check.note||'')}</small>`:'';
-  return `${tags}${ck}${flt}<br><span style="font-size:1.15rem">${q.icon?esc(q.icon)+' ':''}${esc(q.q)}</span><br><small>${ans}</small><br><small style="color:var(--muted)">解說：${esc(q.why)}</small>${q.detail?`<br><small style="color:var(--muted)">📖 詳解：${esc(q.detail)}</small>`:''}${note}`;
+  const vn=q.vnote?` <span class="tag warn">🔍 ${esc(q.vnote)}</span>`:'';
+  return `${tags}${ck}${flt}${vn}<br><span style="font-size:1.15rem">${q.icon?esc(q.icon)+' ':''}${esc(q.q)}</span><br><small>${ans}</small><br><small style="color:var(--muted)">解說：${esc(q.why)}</small>${q.detail?`<br><small style="color:var(--muted)">📖 詳解：${esc(q.detail)}</small>`:''}${note}`;
 }
 let CUR_BANK_KEY='';
 function qEditor(q){
@@ -1839,7 +2000,7 @@ function reviewPage(bank,msg){
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
    <h1 class="pg">待確認的題目（${P.length}）</h1>
    ${msg?`<p class="lead">${esc(msg)}</p>`:''}
-   <p class="lead" style="font-size:1rem">請確認題目和答案正確，按「收進題庫」才會給孩子練習。有 ⚠️ 的題目特別要檢查。</p>
+   <p class="lead" style="font-size:1rem">請確認題目和答案正確，按「收進題庫」才會給孩子練習。有 ⚠️ 的題目特別要檢查；有 🔍 的是出題驗算時答案對不上的題目，可以按「✏️ 修改」改正，或直接刪掉。</p>
    ${P.length?`<button class="big" id="all" style="margin-top:0">全部收進題庫</button>`:''}
    <ul class="list">${P.map((q,i)=>`<li style="flex-direction:column;align-items:stretch">
      ${editIdx===i?qEditor(q):`<span>${qView(q)}</span>
@@ -1849,11 +2010,11 @@ function reviewPage(bank,msg){
      <button class="ghost" id="clrsk">清除這份清單</button></section>`:''}`;
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>{editIdx=-1;bankHome(bank)};
-  const accept=i=>{const q=P.splice(i,1)[0];bank.questions.push(q)};
+  const accept=i=>{const q=P.splice(i,1)[0];delete q.vnote;bank.questions.push(q)};
   if($('all'))$('all').onclick=async()=>{
-    const warn=P.filter(q=>q.ansByAI).length;
+    const warn=P.filter(q=>q.ansByAI||q.vnote).length;
     if(warn&&!await confirmBox(`有 ${warn} 題的答案是 AI 判斷的，確定都檢查過了嗎？`))return;
-    bank.questions.push(...P.splice(0));editIdx=-1;await busyRun('儲存中……',()=>bsSave(bank));toast('已全部收進題庫');reviewPage(bank)};
+    bank.questions.push(...P.splice(0).map(q=>{delete q.vnote;return q}));editIdx=-1;await busyRun('儲存中……',()=>bsSave(bank));toast('已全部收進題庫');reviewPage(bank)};
   app.querySelectorAll('[data-acc]').forEach(b=>b.onclick=async()=>{accept(+b.dataset.acc);editIdx=-1;await busyRun('儲存中……',()=>bsSave(bank));reviewPage(bank)});
   app.querySelectorAll('[data-rej]').forEach(b=>b.onclick=async()=>{P.splice(+b.dataset.rej,1);editIdx=-1;await busyRun('儲存中……',()=>bsSave(bank));reviewPage(bank)});
   app.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{editIdx=+b.dataset.edit;reviewPage(bank)});
@@ -2302,7 +2463,9 @@ function libBankHome(bank){
      <label class="toggle"><input type="checkbox" id="ar" ${prefs.autoRead?'checked':''}> 自動念題目（練習中也可以隨時切換）</label>
      ${resumeHTML(bankCtx(bank))}
      <button class="${getProgress(bankCtx(bank))?'ghost':'big'}" id="go">${getProgress(bankCtx(bank))?'重新開始新的練習':'開始練習'}</button>
+     <button class="ghost" id="rnd">🎲 幫我選 5 題</button>
      ${weak?`<button class="ghost" id="weak">🌱 練常錯的觀念（${weak} 個）</button>`:''}
+     ${pixBtnHTML()}
      <button class="ghost" id="an">📊 學習分析（這台裝置的紀錄）</button>
      <span id="ho-slot"></span>
    </section>`;
@@ -2314,6 +2477,8 @@ function libBankHome(bank){
   $('go').onclick=()=>startBank(bank);
   if($('resume'))$('resume').onclick=()=>resumeRound(bankCtx(bank));
   if($('weak'))$('weak').onclick=()=>startWeak(bank);
+  if($('rnd'))$('rnd').onclick=()=>startRandom(bank);
+  if($('pixb'))$('pixb').onclick=()=>pixBookPage(()=>bank.__lib?libBankHome(bank):bankHome(bank));
   $('an').onclick=()=>{sumState.msg='';analysisPage(bank)};
   const showHo=n=>{const sl=$('ho-slot');if(sl&&n){sl.outerHTML=`<button class="ghost" id="ho">📘 重點講義（${n} 份）</button>`;$('ho').onclick=()=>handoutHome(bank)}};
   if(hoList[bank.id])showHo(hoList[bank.id].length);
