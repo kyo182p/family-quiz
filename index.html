@@ -2446,7 +2446,7 @@ function paramPage(bank){
    <div id="p-cp">${conceptPickerHTML(bank,paramState.cons)}</div>
    <div class="section-title">要幾種題型</div>
    <div class="chips">${[5,10,15].map(v=>`<button class="chip" data-pc="${v}" aria-pressed="${paramState.count===v}">${v} 種</button>`).join('')}</div>
-   <p class="lead" style="font-size:1rem;margin-top:8px">寫題型算 1 次 AI 使用次數，另外抽一組數字驗算題意約 1 次。程式會先把每種題型試做 200 次，數字不乾淨、變化太少的題型會自動丟掉。</p>
+   <p class="lead" style="font-size:1rem;margin-top:8px">每 5 種題型算 1 次 AI 使用次數（${paramState.count} 種約 ${Math.ceil(paramState.count/5)+1} 次，含驗算）。程式會先把每種題型試做 200 次，數字不乾淨、變化太少的題型會自動丟掉。</p>
    <div id="p-act" style="margin-top:16px"></div>`}`;
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>{if(paramState.ctl)paramState.ctl.abort();morePage(bank)};
@@ -2455,7 +2455,7 @@ function paramPage(bank){
   app.querySelectorAll('[data-pc]').forEach(b=>b.onclick=()=>{if(paramState.phase==='working')return;paramState.count=+b.dataset.pc;paramPage(bank)});
   const act=$('p-act');
   if(paramState.phase==='working'){
-    act.innerHTML=`<div class="feedback"><p class="fb-head" id="p-prog">Claude 正在寫題型……</p><p class="fb-why">大約要等 20～60 秒，請不要關掉畫面。</p><button class="ghost" id="p-stop">停止</button></div>`;
+    act.innerHTML=`<div class="feedback"><p class="fb-head" id="p-prog">Claude 正在寫題型……</p><p class="fb-why">每 5 種大約 20～40 秒，請不要關掉畫面、切換 App 或鎖定螢幕。</p><button class="ghost" id="p-stop">停止</button></div>`;
     $('p-stop').onclick=()=>paramState.ctl&&paramState.ctl.abort();
   }else{
     act.innerHTML=quotaNote+`<button class="big" id="p-start">🔢 產生 ${paramState.count} 種換數字題</button>${paramState.msg?`<p class="lead" style="margin-top:12px">${esc(paramState.msg)}</p>`:''}`;
@@ -2463,21 +2463,34 @@ function paramPage(bank){
   }
   window.scrollTo(0,0);
 }
+// 一次只請 AI 寫 5 種題型：回應比較快，手機不容易斷線；某一批失敗時，前面成功的照樣保留
+const PARAM_PER_CALL=5;
 async function runParam(bank){
   paramState.phase='working';paramPage(bank);
   const ctl=new AbortController();paramState.ctl=ctl;
   const prog=t=>{const p=document.getElementById('p-prog');if(p)p.textContent=t};
-  let r={added:0,bad:[],ids:[]},err=null,v={checked:0,moved:0};
-  try{
-    const res=await SAMPLE.json(paramPrompt(bank,paramState.count,paramState.cons.size<bank.concepts.length?paramState.cons:null),{signal:ctl.signal,cache:false,modelTier:'default'});
+  const only=paramState.cons.size<bank.concepts.length?paramState.cons:null,target=paramState.count;
+  let added=0,bad=[],ids=[],err=null,v={checked:0,moved:0},rounds=0;
+  while(added<target&&rounds<Math.ceil(target/PARAM_PER_CALL)+1){
+    rounds++;
+    const want=Math.min(PARAM_PER_CALL,target-added);
+    prog(`Claude 正在寫題型……（${added} / ${target} 種）`);
+    let res=null;
+    for(let t=0;t<2&&!res;t++){   // 連線斷掉時自動重試一次
+      try{res=await SAMPLE.json(paramPrompt(bank,want,only),{signal:ctl.signal,cache:false,modelTier:'default'});err=null}
+      catch(e){err=e;if(e&&(e.code==='cancelled'||e.code!=='network'&&e.code!=='invalid_json'))break}
+    }
+    if(!res)break;
     prog('程式正在試做每一種題型……');
-    r=addTemplates(bank,res);
-    if(r.added){await bsSave(bank);prog('AI 正在驗算題意……');v=await verifyNew(bank,r.ids,ctl.signal)}
-  }catch(e){err=e}
+    const r=addTemplates(bank,res);
+    added+=r.added;bad.push(...r.bad);ids.push(...r.ids);
+    if(r.added)await bsSave(bank);
+  }
+  if(ids.length&&!(err&&err.code==='cancelled')){prog('AI 正在驗算題意……');v=await verifyNew(bank,ids,ctl.signal)}
   paramState.phase='idle';paramState.ctl=null;
-  if(r.added){paramState.msg='';
-    bankHome(bank,`新增 ${r.added-v.moved} 種換數字題，每次練習都會換數字。${r.bad.length?`另有 ${r.bad.length} 種題型沒通過程式檢查，已經丟掉。`:''}${v.moved?`有 ${v.moved} 種題意可能有問題，放在「待確認的題目」。`:''}`);return}
-  paramState.msg=err?aiErrMsg(err):`這次的題型都沒通過程式檢查（${[...new Set(r.bad)].slice(0,3).join('、')||'格式不對'}），請再試一次。`;
+  if(added){paramState.msg='';
+    bankHome(bank,`新增 ${added-v.moved} 種換數字題，每次練習都會換數字。${added<target&&err?`（後面幾批沒完成：${aiErrMsg(err)}）`:''}${bad.length?`另有 ${bad.length} 種題型沒通過程式檢查，已經丟掉。`:''}${v.moved?`有 ${v.moved} 種題意可能有問題，放在「待確認的題目」。`:''}`);return}
+  paramState.msg=err?aiErrMsg(err)+(err.code==='network'?'（等待時請不要切換到別的 App 或鎖定螢幕）':''):`這次的題型都沒通過程式檢查（${[...new Set(bad)].slice(0,3).join('、')||'格式不對'}），請再試一次。`;
   paramPage(bank);
 }
 
