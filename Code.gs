@@ -22,6 +22,7 @@ const READER_LIMIT = 2;        // 每個家庭最多幾組有效的閱讀碼
 const LIB_CACHE_SEC = 600;     // 公開題庫清單快取秒數
 const SHEET_REPORT = '回報';
 const SHEET_HANDOUT = '講義';
+const SHEET_BADGE = '徽章';     // 書架題庫與植物小學堂的徽章（自己的題庫的徽章存在題庫裡）
 const MAX_HANDOUT_CHARS = 200000; // 單份講義 JSON 上限
 const REPORT_DAILY_LIMIT = 10; // 每組代碼每天最多回報幾題
 const REWARD_PER_REPORT = 3;   // 回報經 AI 確認成立，邀請碼家庭可得的 AI 次數
@@ -89,6 +90,18 @@ function doPost(e) {
       if (req.action === 'libHandouts') return out({ ok: true, handouts: libHandouts(String(req.bankId || '')) });
       const h = libHandoutGet(String(req.id || ''));
       return out(h ? { ok: true, handout: h } : { ok: false, code: 'not_found', message: '講義不存在' });
+    } catch (err) {
+      console.error(err);
+      return out({ ok: false, code: 'server_error', message: String(err && err.message || err) });
+    }
+  }
+  // 徽章同步：送上這台裝置的徽章，伺服器合併後回傳完整的一份（邀請碼或閱讀碼都可以）
+  if (req.action === 'badges') {
+    const famB = findFamily(req.code);
+    const readerB = famB ? null : findReader(req.code);
+    if (!famB && !readerB) return out({ ok: false, code: 'bad_code', message: '代碼不正確或已停用' });
+    try {
+      return out(badgeSync(famB ? famB.code : readerB.code, famB ? '家庭' : '閱讀碼', req.badges));
     } catch (err) {
       console.error(err);
       return out({ ok: false, code: 'server_error', message: String(err && err.message || err) });
@@ -182,6 +195,7 @@ function setup() {
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('ADMIN_TOKEN')) props.setProperty('ADMIN_TOKEN', Utilities.getUuid().replace(/-/g, ''));
   ensure(SHEET_HANDOUT, ['講義ID', '邀請碼', '題庫ID', '標題', '觀念', '建立時間', '狀態', '驗算意見', '驗算時間', 'JSON 分段數', 'JSON1']);
+  ensure(SHEET_BADGE, ['代碼', '身分', '更新時間', '徽章 JSON']);
   ensure(SHEET_USAGE, ['時間', '邀請碼', '家庭', '模型', '照片數', '輸入 token', '輸出 token', '估計美元']);
   if (fam.getLastRow() === 1) fam.appendRow(['TEST-0000', '測試家庭', 10, true, '測試用，可刪除', false]);
 }
@@ -869,4 +883,59 @@ function adminVerdict(req) {
     lock.releaseLock();
   }
   return result;
+}
+
+/* ===== 徽章同步 ===== */
+function badgeSheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_BADGE);
+  if (!sh) {   // 沒重新跑 setup 也能用
+    sh = ss.insertSheet(SHEET_BADGE);
+    sh.appendRow(['代碼', '身分', '更新時間', '徽章 JSON']);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+// 同一個徽章在兩台裝置都有紀錄時：得到過的次數取聯集（用得到的時間去重），
+// 收集中的格子取「最近得到徽章」較晚的那台；一樣晚就取格子較多的那台
+function mergeBadgeRec(a, b) {
+  if (!a || typeof a !== 'object') return b;
+  if (!b || typeof b !== 'object') return a;
+  const seen = {}, earned = [];
+  [].concat(a.earned || [], b.earned || []).forEach(e => {
+    const k = String(e && e.at);
+    if (e && !seen[k]) { seen[k] = 1; earned.push({ at: Number(e.at) || 0, dark: !!e.dark }); }
+  });
+  earned.sort((x, y) => x.at - y.at);
+  const last = r => (r.earned || []).reduce((m, e) => Math.max(m, Number(e && e.at) || 0), 0);
+  const la = last(a), lb = last(b);
+  const cur = la !== lb ? (la > lb ? a : b) : ((b.cells || []).length >= (a.cells || []).length ? b : a);
+  return { cells: (cur.cells || []).slice(0, 400), ok: cur.ok || [0, 0, 0], earned: earned.slice(-500), meta: b.meta || a.meta || null };
+}
+function badgeSync(code, role, incoming) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = badgeSheet();
+    const rows = sh.getDataRange().getValues();
+    let row = 0, stored = {};
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][0]) === code) { row = i + 1; try { stored = JSON.parse(String(rows[i][3] || '{}')) || {}; } catch (e) { stored = {}; } break; }
+    }
+    const merged = {};
+    const inc = incoming && typeof incoming === 'object' ? incoming : {};
+    Object.keys(stored).concat(Object.keys(inc)).forEach(k => {
+      if (k in merged || !/^[\w\-]{1,80}$/.test(k)) return;
+      merged[k] = mergeBadgeRec(stored[k], inc[k]);
+    });
+    const json = JSON.stringify(merged);
+    if (json.length > 49000) return { ok: false, code: 'too_large', message: '徽章資料太大' };
+    if (json !== JSON.stringify(stored)) {
+      if (row) sh.getRange(row, 2, 1, 3).setValues([[role, new Date(), json]]);
+      else sh.appendRow([code, role, new Date(), json]);
+    }
+    return { ok: true, badges: merged };
+  } finally {
+    lock.releaseLock();
+  }
 }
