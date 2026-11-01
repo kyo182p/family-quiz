@@ -902,21 +902,39 @@ function badgeCells(meta){
   }catch(e){out=all}
   return badgeCellCache[key]=out;
 }
-function badgeRec(key,meta){
-  const r=BADGES[key]||(BADGES[key]={cells:[],ok:[0,0,0],earned:[],meta});
-  r.meta=meta;return r;
+// 徽章紀錄放在哪裡：自己的題庫存在題庫裡（跟作答紀錄一起同步到雲端）；書架題庫和植物小學堂存在這台裝置
+const ownBank=b=>!!(b&&!b.__lib&&b.id!=='__plant');
+function bankBadgeRec(b,create){
+  if(!b.badge){const loc=BADGES[b.id];
+    if(loc)b.badge={cells:loc.cells||[],ok:loc.ok||[0,0,0],earned:loc.earned||[]};   // 舊版存在裝置的紀錄搬進題庫
+    else if(create)b.badge={cells:[],ok:[0,0,0],earned:[]};}
+  return b.badge||null;
+}
+function badgeStore(ctx,meta){
+  const b=ctx&&ctx.bank;
+  if(ownBank(b))return {r:bankBadgeRec(b,true),save:done=>{if(BADGES[b.id]){delete BADGES[b.id];store.set('badges',BADGES)}
+    if(done){clearTimeout(recTimers[b.id]);bsSave(b)}else scheduleSave(b)}};   // 得到徽章時馬上存到雲端
+  const key=ctx.pkey||ctx.key,r=BADGES[key]||(BADGES[key]={cells:[],ok:[0,0,0],earned:[]});
+  r.meta=meta;return {r,save:()=>store.set('badges',BADGES)};
+}
+// 我的徽章頁和計數用：自己的題庫（雲端）＋這台裝置上的其他徽章
+function allBadges(){
+  const own=BANKS.filter(ownBank).map(b=>({meta:bankBadgeMeta(b),r:bankBadgeRec(b,false)})).filter(x=>x.r);
+  const ids=new Set(BANKS.map(b=>b.id));
+  const loc=Object.entries(BADGES).filter(([k,r])=>r&&r.meta&&!ids.has(k)).map(([k,r])=>({meta:r.meta,r}));
+  return own.concat(loc);
 }
 const badgeDark=r=>{const t=r.ok[0]+r.ok[1]+r.ok[2];return t>0&&(r.ok[1]+r.ok[2])/t>=.5};
 // 答對一題：揭開格子；全部揭開就得到徽章，開始下一輪收集
 function badgeFill(q){
-  const key=CTX.pkey||CTX.key,meta=CTX.badge?CTX.badge():PLANT_BADGE,r=badgeRec(key,meta);
+  const meta=CTX.badge?CTX.badge():PLANT_BADGE,{r,save}=badgeStore(CTX,meta);
   const cells=badgeCells(meta),left=cells.filter(c=>!r.cells.includes(c));
   const per=badgePer(meta),fresh=shuffle(left).slice(0,per);
   r.cells.push(...fresh);
   const lv=[1,2,3].includes(q.lv)?q.lv:1;r.ok[lv-1]++;
   let done=false,dark=badgeDark(r);
   if(r.cells.length>=cells.length){done=true;r.earned.push({at:Date.now(),dark});r.cells=[];r.ok=[0,0,0]}
-  store.set('badges',BADGES);
+  save(done);
   return {meta,reveal:done?null:r.cells.slice(),fresh,done,dark,per,left:done?0:cells.length-r.cells.length};
 }
 const badgeOf=(meta,o)=>badgeSVG({...meta,alt:`${meta.title} 徽章`,...o});
@@ -925,11 +943,13 @@ function badgeMini(p){
     ?`🎉 得到「${esc(p.meta.title)}」的${p.dark?'金色進階徽章':'銀色徽章'}！收進「我的徽章」了`
     :`🏅 揭開了 ${p.fresh.length} 格，再答對 ${Math.ceil(p.left/p.per)} 題就得到徽章`}</span></div>`;
 }
-function badgeNow(){const key=CTX.pkey||CTX.key,meta=CTX.badge?CTX.badge():PLANT_BADGE,r=BADGES[key]||{cells:[],ok:[0,0,0],earned:[]};
+function badgeNow(){const meta=CTX.badge?CTX.badge():PLANT_BADGE,r=(ownBank(CTX.bank)?bankBadgeRec(CTX.bank,false):BADGES[CTX.pkey||CTX.key])||{cells:[],ok:[0,0,0],earned:[]};
   const total=badgeCells(meta).length;return {meta,r,total,left:total-r.cells.length,dark:badgeDark(r)}}
-function badgeBookPage(back){
+async function badgeBookPage(back){
   if('speechSynthesis' in window)speechSynthesis.cancel();
-  const list=Object.entries(BADGES).map(([k,r])=>({k,...r})).filter(r=>r.meta);
+  // 從書架進來時還沒讀過自己的題庫：先讀，才看得到存在雲端的徽章
+  if(hasBackend()&&!BANKS.length){try{await busyRun('讀取徽章中……',bsLoad)}catch(e){}}
+  const list=allBadges().map(x=>({meta:x.meta,...x.r}));
   const got=list.filter(r=>r.earned.length),doing=list.filter(r=>r.cells.length);
   const nGot=got.reduce((n,r)=>n+r.earned.length,0);
   app.innerHTML=`
@@ -945,12 +965,12 @@ function badgeBookPage(back){
   document.getElementById('bk').onclick=back;
   window.scrollTo(0,0);
 }
-const pixBtnHTML=()=>{const n=Object.values(BADGES).reduce((s,r)=>s+((r.earned&&r.earned.length)||0),0);return `<button class="ghost" id="pixb">🏅 我的徽章（${n} 枚）</button>`};
+const pixBtnHTML=()=>{const n=badgeCount();return `<button class="ghost" id="pixb">🏅 我的徽章（${n} 枚）</button>`};
 const pixBookPage=badgeBookPage;
-const badgeCount=()=>Object.values(BADGES).reduce((s,r)=>s+((r.earned&&r.earned.length)||0),0);
+const badgeCount=()=>allBadges().reduce((s,x)=>s+((x.r.earned&&x.r.earned.length)||0),0);
 // 題庫卡片右側的徽章小圖：得到過就顯示完整徽章，否則顯示目前揭開的進度
-function bankBadgeThumb(key,meta){
-  const r=BADGES[key];
+function bankBadgeThumb(key,meta,rec){
+  const r=rec||BADGES[key];
   const got=r&&r.earned&&r.earned.length;
   return `<span class="bk-badge" title="${got?'已得到徽章':'徽章收集中'}">${badgeOf(meta,got?{dark:r.earned.some(e=>e.dark),size:64}:{reveal:(r&&r.cells)||[],dark:r?badgeDark(r):false,size:64})}</span>`;
 }
@@ -1699,7 +1719,7 @@ async function betaHome(){
    <h1 class="pg">我的題庫</h1>
    <p class="lead">上傳孩子的講義、考卷照片或解題字幕，AI 會整理成點選作答的練習題。大人確認過的題目才會給孩子練習。</p>
    <p class="lead" style="font-size:1rem">${where}${BS.note?'<br>'+esc(BS.note):''}</p>
-   ${BANKS.length?BANKS.map(b=>`<button class="bankcard" data-b="${esc(b.id)}">${bankBadgeThumb(b.id,bankBadgeMeta(b))}
+   ${BANKS.length?BANKS.map(b=>`<button class="bankcard" data-b="${esc(b.id)}">${bankBadgeThumb(b.id,bankBadgeMeta(b),bankBadgeRec(b,false))}
       <span class="bk-title">${esc(b.title||bankInfo(b)||'未命名題庫')}</span>
       <span class="bk-meta">${esc(bankInfo(b))}</span>
       <span class="bk-meta">${b.questions.length} 題${b.pending.length?`・<b style="color:var(--coral-ink)">${b.pending.length} 題待確認</b>`:''}${b.questions.filter(q=>q.check&&q.check.s==='issue').length?`・<b style="color:var(--coral-ink)">⚠️ ${b.questions.filter(q=>q.check&&q.check.s==='issue').length} 題需要修正</b>`:''}${b.published?'・🌐 已公開':''}</span></button>`).join('')
