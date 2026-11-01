@@ -635,7 +635,7 @@ function readQuestion(q,opts){
 
 /* ===== 流程 ===== */
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const PLANT_CTX={key:'__plant',all:()=>ALL,origin:c=>ORIGIN[c],label:q=>UNITS[q.u],bump:(id,ok,pick)=>bump(id,ok,pick),rec:()=>rec,
+const PLANT_CTX={key:'__plant',badge:()=>PLANT_BADGE,all:()=>ALL,origin:c=>ORIGIN[c],label:q=>UNITS[q.u],bump:(id,ok,pick)=>bump(id,ok,pick),rec:()=>rec,
   pic:q=>renderPic(q.pic),home:()=>home(),restart:()=>start(pickRound(pool(),prefs.count))};
 let CTX=PLANT_CTX;
 const app=document.getElementById('app');
@@ -724,60 +724,220 @@ function home(){
   window.scrollTo(0,0);
 }
 
-/* --- 塗色畫冊：答對一題（第一次就答對）幫畫塗 3 格，塗滿收進畫冊，紀錄存在這台裝置 --- */
-const PIX_PER_OK=3;
-const PIX_COLORS={R:'#E5484D',P:'#F59AB5',Y:'#F5C518',O:'#F08A24',G:'#3FA34D',B:'#3E8EDE',N:'#8B5E3C',K:'#2B2B2B',W:'#FFFFFF',L:'#9BD3F5'};
-const PIX_ART=[
-  {id:'heart',name:'愛心',g:['.RR..RR.','RPRRRRRR','RRRRRRRR','RRRRRRRR','.RRRRRR.','..RRRR..','...RR...','........']},
-  {id:'star',name:'星星',g:['...YY...','...YY...','YYYYYYYY','.YYOOYY.','..YOOY..','.YYYYYY.','.YY..YY.','YY....YY']},
-  {id:'flower',name:'小花',g:['.PP.PP..','PPPPPPP.','.PPYPP..','PPPPPPP.','.PP.PP..','...G....','.GGG.GG.','...GGG..']},
-  {id:'fish',name:'小魚',g:['........','..BBB..B','.BBBBBBB','BBWBBBB.','BKBBBBB.','.BBBBBBB','..BBB..B','........']},
-  {id:'tree',name:'大樹',g:['...GG...','..GGGG..','.GGGGGG.','GGGGGGGG','.GGRGGG.','...NN...','...NN...','..NNNN..']},
-  {id:'cat',name:'貓咪',g:['O......O','OO....OO','OOOOOOOO','OKOOOOKO','OOOOOOOO','OOOPPOOO','.OOOOOO.','..O..O..']},
-  {id:'rocket',name:'火箭',g:['...RR...','..RWWR..','..WLLW..','..WLLW..','..WWWW..','.RWWWWR.','RR.OO.RR','...YY...']},
-  {id:'apple',name:'蘋果',g:['....N...','...NG...','.RRRRRR.','RRRRRRWR','RRRRRRRR','RRRRRRRR','.RRRRRR.','..RR.RR.']},
-];
-const pixCells=art=>{const c=[];art.g.forEach((row,y)=>[...row].forEach((ch,x)=>{if(ch!=='.')c.push(y*8+x)}));return c};
-let PIX=store.get('pix-book',{i:0,filled:[],done:[]});
-function pixArt(){return PIX_ART[PIX.i%PIX_ART.length]}
-// 塗 n 格；回傳這次塗的格子與是否完成一張
-function pixFill(n){
-  const art=pixArt(),cells=pixCells(art),left=cells.filter(c=>!PIX.filled.includes(c));
-  const pick=shuffle(left).slice(0,n);
-  PIX.filled.push(...pick);
-  let done=null;
-  if(PIX.filled.length>=cells.length){done=art;PIX.done.push({id:art.id,at:Date.now()});PIX.i++;PIX.filled=[]}
-  store.set('pix-book',PIX);
-  return {art:done||art,filled:done?cells:PIX.filled.slice(),fresh:pick,done:!!done};
+/* ===== 學習徽章（硬琺瑯風格）：每個題庫自動產生一枚 ===== */
+/* 徽章圖案（原創）：每科一到六年級各一個原創剪影，徽章外形＝圖案本身（不再套固定框） */
+const bC=(cx,cy,r)=>`M${cx-r},${cy} A${r},${r} 0 1 0 ${cx+r},${cy} A${r},${r} 0 1 0 ${cx-r},${cy} Z`;
+const bE=(cx,cy,rx,ry)=>`M${cx-rx},${cy} A${rx},${ry} 0 1 0 ${cx+rx},${cy} A${rx},${ry} 0 1 0 ${cx-rx},${cy} Z`;
+const bR=(x,y,w,h,r=0)=>{r=Math.min(r,w/2,h/2);return `M${x+r},${y} H${x+w-r} Q${x+w},${y} ${x+w},${y+r} V${y+h-r} Q${x+w},${y+h} ${x+w-r},${y+h} H${x+r} Q${x},${y+h} ${x},${y+h-r} V${y+r} Q${x},${y} ${x+r},${y} Z`};
+function bP(pts,r=0){const n=pts.length;let d='';for(let i=0;i<n;i++){const p=pts[i],a=pts[(i+n-1)%n],b=pts[(i+1)%n];
+  const ua=[a[0]-p[0],a[1]-p[1]],ub=[b[0]-p[0],b[1]-p[1]],la=Math.hypot(...ua),lb=Math.hypot(...ub),k=Math.min(r,la/2,lb/2);
+  const s=[p[0]+ua[0]/la*k,p[1]+ua[1]/la*k],e=[p[0]+ub[0]/lb*k,p[1]+ub[1]/lb*k];
+  d+=(i?'L':'M')+s[0].toFixed(1)+','+s[1].toFixed(1)+' Q'+p[0].toFixed(1)+','+p[1].toFixed(1)+' '+e[0].toFixed(1)+','+e[1].toFixed(1)}return d+'Z'}
+const bReg=(n,R0,rot,cx=512,cy=512)=>Array.from({length:n},(_,i)=>{const t=(rot+360*i/n)*Math.PI/180;return [cx+R0*Math.cos(t),cy+R0*Math.sin(t)]});
+const bStar=(n,ro,ri,cx=512,cy=512,rot=-90)=>Array.from({length:n*2},(_,i)=>{const t=(rot+180*i/n)*Math.PI/180,r=i%2?ri:ro;return [cx+r*Math.cos(t),cy+r*Math.sin(t)]});
+// 葉片：中心、長度、寬度、角度
+const bLeaf=(cx,cy,len,w,ang)=>{const t=ang*Math.PI/180,c=Math.cos(t),s=Math.sin(t),pt=(u,v)=>[(cx+u*c-v*s).toFixed(1),(cy+u*s+v*c).toFixed(1)].join(',');
+  return `M${pt(-len/2,0)} C${pt(-len/4,-w)} ${pt(len/4,-w)} ${pt(len/2,0)} C${pt(len/4,w)} ${pt(-len/4,w)} ${pt(-len/2,0)} Z`};
+const bRot=(pts,a,cx=512,cy=512)=>{const t=a*Math.PI/180;return pts.map(([x,y])=>[cx+(x-cx)*Math.cos(t)-(y-cy)*Math.sin(t),cy+(x-cx)*Math.sin(t)+(y-cy)*Math.cos(t)])};
+// 每個圖案：[路徑, 顏色角色]；m 主色（依單元）、md 主色深、ml 主色淺、g 綠、y 黃、o 橘、r 紅、w 乳白、k 深灰、b 棕
+const BADGE_DESIGNS={
+ 自然:[
+  /*1 雙葉嫩芽*/ ()=>[[bE(512,770,230,70),'b'],[bR(496,470,32,300,16),'g'],[bLeaf(395,470,250,95,-25),'g'],[bLeaf(640,420,300,110,20),'m'],[bLeaf(640,420,170,40,20),'ml']],
+  /*2 水滴與漣漪*/ ()=>[[bE(512,790,280,60),'ml'],[`M512,215 C600,360 700,470 700,590 A188,188 0 0 1 324,590 C324,470 424,360 512,215 Z`,'m'],[bE(450,560,40,80),'w']],
+  /*3 太陽*/ ()=>[[bP(bStar(12,320,215),18),'y'],[bC(512,512,190),'m'],[bC(512,512,110),'o']],
+  /*4 大葉片*/ ()=>[[bLeaf(512,512,620,250,-40),'m'],[bP([[300,700],[560,470],[575,485],[316,716]],10),'md'],[bLeaf(600,420,150,40,-40),'ml']],
+  /*5 山與雲*/ ()=>[[bP([[190,760],[420,330],[520,500],[600,400],[834,760]],30),'m'],[bP([[420,330],[475,430],[440,470],[400,430],[365,430]],12),'w'],[`M560,300 a60,60 0 0 1 110,-20 a70,70 0 0 1 120,40 a50,50 0 0 1 -10,96 H560 a60,60 0 0 1 0,-116 Z`,'w']],
+  /*6 燒瓶*/ ()=>[[bR(440,220,144,60,20),'k'],[bP([[460,270],[564,270],[564,450],[760,760],[264,760],[460,450]],40),'w'],[bP([[372,590],[652,590],[760,760],[264,760]],30),'m'],[bC(470,680,26),'ml'],[bC(560,640,18),'ml']],
+ ],
+ 數學:[
+  /*1 三塊積木*/ ()=>[[bR(240,500,250,250,30),'m'],[bR(510,500,250,250,30),'y'],[bR(375,230,250,250,30),'r']],
+  /*2 尺*/ ()=>[[bP(bRot([[180,420],[844,420],[844,600],[180,600]],-28),30),'y'],...[0,1,2,3,4,5,6].map(i=>[bP(bRot([[250+i*90,420],[270+i*90,420],[270+i*90,(i%2?500:530)],[250+i*90,(i%2?500:530)]],-28),6),'m'])],
+  /*3 三角板*/ ()=>[[bP([[230,780],[230,250],[800,780]],40),'m'],[bP([[320,700],[320,480],[560,700]],20),'w']],
+  /*4 分數派*/ ()=>[[`M512,512 L512,212 A300,300 0 1 1 212,512 Z`,'m'],[`M470,470 L170,470 A300,300 0 0 1 470,170 Z`,'y'],[bP([[512,512],[512,250],[540,250],[540,512]],8),'md']],
+  /*5 骰子*/ ()=>[[bP([[512,200],[790,350],[512,500],[234,350]],30),'ml'],[bP([[234,350],[512,500],[512,820],[234,670]],30),'m'],[bP([[512,500],[790,350],[790,670],[512,820]],30),'md'],[bE(512,350,40,22),'w'],[bC(330,560,28),'w'],[bC(420,700,28),'w'],[bC(620,560,28),'w'],[bC(700,660,28),'w']],
+  /*6 等號星*/ ()=>[[bP(bStar(4,330,150,512,512,-90),40),'m'],[bR(430,450,164,40,20),'w'],[bR(430,534,164,40,20),'w']],
+ ],
+ 國語:[
+  /*1 鉛筆*/ ()=>{const p=pts=>bP(bRot(pts,-35),14);return [[p([[260,440],[700,440],[700,584],[260,584]]),'y'],[p([[700,440],[800,440],[800,584],[700,584]]),'r'],[p([[160,512],[260,440],[260,584]]),'w'],[p([[160,512],[200,483],[200,541]]),'k']]},
+  /*2 打開的書*/ ()=>[[`M512,330 C420,270 300,260 200,290 V740 C300,710 420,720 512,780 Z`,'m'],[`M512,330 C604,270 724,260 824,290 V740 C724,710 604,720 512,780 Z`,'ml'],[bR(496,320,32,470,16),'md']],
+  /*3 毛筆*/ ()=>{const p=pts=>bP(bRot(pts,40),20);return [[p([[200,470],[640,470],[640,554],[200,554]]),'b'],[p([[640,455],[700,455],[700,569],[640,569]]),'k'],[bP(bRot([[700,455],[790,472],[870,512],[790,552],[700,569]],40),30),'m']]},
+  /*4 卷軸*/ ()=>[[bR(250,300,524,424,30),'w'],[bR(200,250,624,90,45),'m'],[bR(200,684,624,90,45),'m'],[bR(320,420,384,26,13),'b'],[bR(320,500,300,26,13),'b'],[bR(320,580,340,26,13),'b']],
+  /*5 印章*/ ()=>[[bR(380,200,264,200,60),'b'],[bR(250,380,524,400,50),'m'],[bR(330,460,364,240,20),'w'],[bR(380,510,60,140,10),'r'],[bR(470,510,60,60,10),'r'],[bR(560,510,80,140,10),'r']],
+  /*6 引號對話*/ ()=>[[`M300,240 H724 Q824,240 824,340 V600 Q824,700 724,700 H520 L380,820 L410,700 H300 Q200,700 200,600 V340 Q200,240 300,240 Z`,'m'],[bC(380,470,48),'w'],[bC(512,470,48),'w'],[bC(644,470,48),'w']],
+ ],
+ 社會:[
+  /*1 小屋*/ ()=>[[bP([[512,200],[840,470],[184,470]],30),'r'],[bR(260,450,504,330,24),'m'],[bR(450,580,124,200,16),'b'],[bR(310,520,100,90,12),'w'],[bR(614,520,100,90,12),'w']],
+  /*2 地球*/ ()=>[[bC(512,512,300),'m'],[`M330,330 C400,300 470,330 460,400 C450,470 380,470 360,540 C340,600 280,580 240,520 C230,440 270,370 330,330 Z`,'g'],[`M600,560 C660,520 740,560 760,620 C720,720 640,780 590,760 C560,700 560,600 600,560 Z`,'g']],
+  /*3 指南針*/ ()=>[[bC(512,512,310),'k'],[bC(512,512,250),'w'],[bP([[512,250],[570,512],[454,512]],10),'r'],[bP([[512,774],[570,512],[454,512]],10),'m']],
+  /*4 摺疊地圖*/ ()=>[[bP([[200,300],[400,240],[624,300],[824,240],[824,720],[624,780],[400,720],[200,780]],24),'ml'],[bP([[400,240],[624,300],[624,780],[400,720]],10),'m'],[`M280,600 C350,520 450,620 520,520 S690,440 760,400`,'none'],[bC(700,420,30),'r']],
+  /*5 旗子*/ ()=>[[bR(260,200,40,620,20),'k'],[`M300,230 C420,180 520,300 640,250 C700,225 760,230 800,250 V520 C760,500 700,495 640,520 C520,570 420,450 300,500 Z`,'m'],[bP(bStar(5,70,30,520,380),6),'y']],
+  /*6 拱橋*/ ()=>[[`M180,520 H844 V760 H740 A228,200 0 0 0 284,760 H180 Z`,'m'],[bR(160,470,704,60,30),'b'],[bE(512,800,220,30),'ml']],
+ ],
+ 英語:[
+  /*1 字母積木*/ ()=>[[bP([[512,200],[800,340],[800,680],[512,820],[224,680],[224,340]],30),'m'],[`M440,640 L505,380 H535 L600,640 H560 L545,580 H495 L480,640 Z M505,540 H535 L520,470 Z`,'w']],
+  /*2 雙對話框*/ ()=>[[`M230,250 H580 Q640,250 640,310 V500 Q640,560 580,560 H380 L290,640 L310,560 H230 Q170,560 170,500 V310 Q170,250 230,250 Z`,'m'],[`M470,450 H800 Q860,450 860,510 V690 Q860,750 800,750 H720 L740,830 L650,750 H470 Q410,750 410,690 V510 Q410,450 470,450 Z`,'y']],
+  /*3 信封*/ ()=>[[bR(190,300,644,430,40),'w'],[bP([[190,330],[512,560],[834,330],[834,300],[190,300]],30),'m'],[bC(700,640,55),'r']],
+  /*4 紙飛機*/ ()=>[[bP([[180,500],[850,230],[620,800]],24),'m'],[bP([[480,560],[850,230],[560,700]],16),'ml'],[bP([[480,560],[560,700],[470,720]],14),'md']],
+  /*5 耳機*/ ()=>[[`M250,600 V500 A262,262 0 0 1 774,500 V600 H714 V500 A202,202 0 0 0 310,500 V600 Z`,'k'],[bR(200,540,150,240,50),'m'],[bR(674,540,150,240,50),'m']],
+  /*6 書本與星*/ ()=>[[bR(260,320,504,420,40),'m'],[bR(300,360,424,340,24),'ml'],[bP(bStar(5,170,72,512,520),12),'y']],
+ ],
+ 生活:[
+  /*1 蘋果*/ ()=>[[`M512,330 C600,250 820,280 820,500 C820,700 680,810 590,790 C550,780 530,770 512,770 C494,770 474,780 434,790 C344,810 204,700 204,500 C204,280 424,250 512,330 Z`,'m'],[bR(498,200,28,140,14),'b'],[bLeaf(600,260,160,55,-20),'g']],
+  /*2 雨傘*/ ()=>[[`M200,500 A312,300 0 0 1 824,500 C780,470 720,470 680,500 C640,470 560,470 512,500 C464,470 384,470 344,500 C304,470 244,470 200,500 Z`,'m'],[`M496,490 V740 A56,56 0 0 1 384,740 V720 H424 V740 A16,16 0 0 0 456,740 V490 Z`,'k'],[bP([[512,230],[540,270],[484,270]],8),'k']],
+  /*3 小花*/ ()=>[...[0,1,2,3,4].map(i=>{const t=(-90+72*i)*Math.PI/180;return [bC(512+150*Math.cos(t),470+150*Math.sin(t),115),'m']}),[bC(512,470,95),'y'],[bR(498,560,28,260,14),'g'],[bLeaf(600,720,170,55,-30),'g']],
+  /*4 鬧鐘*/ ()=>[[bC(330,290,80),'y'],[bC(694,290,80),'y'],[bC(512,520,290),'m'],[bC(512,520,220),'w'],[bP([[500,330],[524,330],[524,540],[500,540]],10),'k'],[bP([[500,516],[660,580],[650,604],[500,544]],10),'k'],[bR(360,790,60,60,20),'k'],[bR(604,790,60,60,20),'k']],
+  /*5 腳印*/ ()=>[[bE(560,600,170,230),'m'],[bC(430,330,55),'m'],[bC(540,290,52),'m'],[bC(640,310,48),'m'],[bC(720,370,42),'m'],[bE(570,640,70,100),'ml']],
+  /*6 牙刷與泡泡*/ ()=>[[bP(bRot([[180,470],[620,470],[620,554],[180,554]],-30),40),'m'],[bP(bRot([[620,430],[860,430],[860,520],[620,520]],-30),16),'w'],[bC(330,300,70),'ml'],[bC(440,230,45),'ml'],[bC(250,410,40),'ml']],
+ ],
+ 其他:[
+  /*1 星星*/ ()=>[[bP(bStar(5,320,140),36),'m'],[bP(bStar(5,160,70),20),'y']],
+  /*2 愛心*/ ()=>[[`M512,820 C300,700 190,580 190,420 C190,300 280,220 380,220 C440,220 490,255 512,300 C534,255 584,220 644,220 C744,220 834,300 834,420 C834,580 724,700 512,820 Z`,'m'],[bE(390,380,60,90),'w']],
+  /*3 燈泡*/ ()=>[[`M512,190 A230,230 0 0 1 652,600 V660 H372 V600 A230,230 0 0 1 512,190 Z`,'y'],[bR(380,660,264,70,20),'k'],[bR(410,730,204,60,20),'k'],[`M460,600 V470 Q460,420 512,420 Q564,420 564,470 V600`,'none'],[bE(420,330,34,60),'w']],
+  /*4 拼圖片*/ ()=>[[`M260,300 H440 A72,72 0 1 1 584,300 H764 V480 A72,72 0 1 0 764,624 V780 H260 V624 A72,72 0 1 1 260,480 Z`,'m']],
+  /*5 火箭*/ ()=>[[`M512,170 C650,280 680,450 640,640 H384 C344,450 374,280 512,170 Z`,'w'],[bC(512,430,70),'m'],[bP([[384,560],[260,720],[384,700]],20),'r'],[bP([[640,560],[764,720],[640,700]],20),'r'],[bP([[440,640],[584,640],[512,820]],20),'o']],
+  /*6 王冠*/ ()=>[[bP([[220,740],[220,330],[370,500],[512,260],[654,500],[804,330],[804,740]],30),'y'],[bR(220,660,584,90,20),'m'],[bC(512,560,46),'r'],[bC(360,600,34),'m'],[bC(664,600,34),'m']],
+ ],
+};
+
+const BADGE_UNIT=[['#7CC4F0','#1F4E9A'],['#F28B8B','#8E1F33'],['#F7D96B','#A8741A'],['#8FD49A','#1E6B3A'],
+  ['#F6A9CB','#9C2F66'],['#B9A3EA','#4B2F8C'],['#F7AE6E','#9A4A17'],['#7FDCD6','#1C6C6A']];
+const bgMix=(a,b,t)=>{const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));const A=p(a),B=p(b);return '#'+A.map((x,i)=>Math.round(x+(B[i]-x)*t).toString(16).padStart(2,'0')).join('')};
+const bgRoman=n=>{const m=[[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];let r='';for(const [v,t] of m)while(n>=v){r+=t;n-=v}return r};
+const bgSubjectKey=s=>{s=String(s||'');return /自然|科學|理化/.test(s)?'自然':/數/.test(s)?'數學':/國|語文|華語/.test(s)?'國語':/社會|歷史|地理/.test(s)?'社會':/英/.test(s)?'英語':/生活/.test(s)?'生活':'其他'};
+const badgePieces=meta=>BADGE_DESIGNS[bgSubjectKey(meta.subject)][Math.min(6,Math.max(1,meta.grade||1))-1]();
+const BG_VB=[120,120,784];   // 徽章畫面範圍：x、y、寬高
+let bgSeq=0;
+/* o：{subject, grade, unit, dark, size, reveal:[揭開的格子]|null, alt}；一般徽章是銀色金屬，進階徽章是金色金屬加深色琺瑯 */
+function badgeSVG(o){
+  const id='bg'+(++bgSeq),dark=!!o.dark;
+  const pieces=badgePieces(o),fills=pieces.filter(p=>p[1]!=='none');
+  const [lt,dk]=BADGE_UNIT[((o.unit||1)-1)%8],m=dark?dk:lt;
+  const deep=c=>dark?bgMix(c,'#000000',.25):c;
+  const col={m,md:bgMix(m,'#000000',.3),ml:bgMix(m,'#ffffff',dark?.25:.45),g:deep('#5DBB63'),y:deep('#F6CF45'),o:deep('#F08A3A'),r:deep('#E2534B'),w:'#F5EEDC',k:'#3A3F4B',b:deep('#A9744A')};
+  const metal=dark?['#FFF3B8','#E9B949','#B07A1E','#F2CF6A','#8A5E14']:['#FFFFFF','#D9DEE4','#8E97A3','#E8ECF1','#6E7782'];
+  const shape=fills.map(p=>`<path d="${p[0]}"/>`).join('');
+  const num=o.unit?bgRoman(o.unit):'★';
+  let grid='';
+  if(o.reveal){
+    const n=BADGE_GRID,st=BG_VB[2]/n,set=new Set(o.reveal);
+    for(let y=0;y<n;y++)for(let x=0;x<n;x++){if(set.has(y*n+x))continue;
+      grid+=`<rect x="${BG_VB[0]+x*st}" y="${BG_VB[1]+y*st}" width="${st}" height="${st}" fill="#2F3B35" stroke="#7d8a82" stroke-width="4"/>`}
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${BG_VB[0]} ${BG_VB[1]} ${BG_VB[2]} ${BG_VB[2]}" width="${o.size||200}" height="${o.size||200}" role="img" aria-label="${esc(o.alt||'學習徽章')}">
+<defs>
+ <linearGradient id="${id}g" x1="0" y1="0" x2="1" y2="1">${metal.map((c,i)=>`<stop offset="${[0,.22,.5,.72,1][i]}" stop-color="${c}"/>`).join('')}</linearGradient>
+ <filter id="${id}bv" x="-10%" y="-10%" width="120%" height="120%">
+  <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="b"/>
+  <feSpecularLighting in="b" surfaceScale="5" specularConstant="1.2" specularExponent="18" lighting-color="#fff" result="sp"><feDistantLight azimuth="235" elevation="40"/></feSpecularLighting>
+  <feComposite in="sp" in2="SourceAlpha" operator="in" result="sp2"/>
+  <feDiffuseLighting in="b" surfaceScale="5" diffuseConstant="1" lighting-color="#fff" result="df"><feDistantLight azimuth="235" elevation="55"/></feDiffuseLighting>
+  <feComposite in="SourceGraphic" in2="df" operator="arithmetic" k1="1.15" result="lit"/>
+  <feComposite in="lit" in2="sp2" operator="arithmetic" k2="1" k3=".7" result="out"/>
+  <feDropShadow dx="2" dy="5" stdDeviation="4" flood-color="#000" flood-opacity=".5"/>
+  <feMerge><feMergeNode/><feMergeNode in="out"/></feMerge>
+ </filter>
+ <filter id="${id}en" x="0" y="0" width="100%" height="100%">
+  <feComponentTransfer in="SourceAlpha" result="inv"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+  <feGaussianBlur in="inv" stdDeviation="9" result="ib"/><feOffset dx="4" dy="6" result="io"/>
+  <feFlood flood-color="#000" flood-opacity=".4"/><feComposite in2="io" operator="in"/><feComposite in2="SourceAlpha" operator="in" result="ish"/>
+  <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="ish"/></feMerge>
+ </filter>
+ <radialGradient id="${id}gl" cx=".3" cy=".2" r=".6"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".35" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+ <clipPath id="${id}c">${shape}<circle cx="790" cy="790" r="80"/></clipPath>
+</defs>
+<g filter="url(#${id}bv)"><g fill="url(#${id}g)" stroke="url(#${id}g)" stroke-width="30" stroke-linejoin="round">${shape}</g></g>
+<g filter="url(#${id}en)">${fills.map(p=>`<path d="${p[0]}" fill="${col[p[1]]}"/>`).join('')}</g>
+<rect x="0" y="0" width="1024" height="1024" fill="url(#${id}gl)" clip-path="url(#${id}c)"/>
+<g filter="url(#${id}bv)" fill="none" stroke="url(#${id}g)" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">${pieces.map(p=>`<path d="${p[0]}"/>`).join('')}</g>
+<g filter="url(#${id}bv)"><circle cx="790" cy="790" r="74" fill="url(#${id}g)"/></g>
+<circle cx="790" cy="790" r="58" fill="${dark?dk:bgMix(lt,'#000000',.45)}"/>
+<text x="790" y="${num.length>2?812:818}" text-anchor="middle" font-family="Noto Serif CJK TC,Noto Serif TC,Times New Roman,serif" font-weight="900" font-size="${num.length>2?52:num.length>1?64:78}" fill="url(#${id}g)">${num}</text>
+${grid?`<g clip-path="url(#${id}c)">${grid}</g>`:''}
+</svg>`;
 }
-function pixSVG(art,filled,size,fresh){
-  const f=new Set(filled),nw=new Set(fresh||[]);
-  let r='';art.g.forEach((row,y)=>[...row].forEach((ch,x)=>{if(ch==='.')return;const i=y*8+x;
-    r+=f.has(i)?`<rect x="${x}" y="${y}" width="1" height="1" fill="${PIX_COLORS[ch]}" stroke="rgba(0,0,0,.12)" stroke-width=".04"${nw.has(i)?' class="pnew"':''}/>`
-               :`<rect x="${x+.06}" y="${y+.06}" width=".88" height=".88" fill="none" stroke="#9aa59a" stroke-width=".06" stroke-dasharray=".15 .1"/>`}));
-  return `<svg class="pix" viewBox="-.2 -.2 8.4 8.4" width="${size}" height="${size}" role="img" aria-label="${esc(art.name)}，塗了 ${filled.length} / ${pixCells(art).length} 格">${r}</svg>`;
+
+/* --- 徽章收集：答對一題（第一次就答對）揭開 2 格，揭完得到這個題庫的徽章；
+       標準、挑戰題答對的比例過半，得到深色的「進階徽章」。紀錄存在這台裝置 --- */
+const BADGE_GRID=6, BADGE_TARGET=15;   // 不論圖案大小，大約答對 15 題得到一枚
+const badgePer=meta=>Math.max(1,Math.round(badgeCells(meta).length/BADGE_TARGET));
+let BADGES=store.get('badges',{});
+const CN_DIGIT={一:1,二:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9,十:10};
+function cnNum(s){s=String(s||'');if(/^\d+$/.test(s))return +s;if(s==='十')return 10;if(s.startsWith('十'))return 10+(CN_DIGIT[s[1]]||0);if(s.includes('十'))return (CN_DIGIT[s[0]]||1)*10+(CN_DIGIT[s[2]]||0);return CN_DIGIT[s]||0}
+function unitNum(...ts){for(const t of ts){const m=String(t||'').match(/第\s*([一二三四五六七八九十\d]+)\s*(單元|課|章)|單元\s*([一二三四五六七八九十\d]+)|^\s*(\d+)/);if(m)return cnNum(m[1]||m[3]||m[4])}return 0}
+const PUB_SHORT={'學校自編':'自編','安親班講義':'安親班','補習班講義':'補習班','其他':''};
+function bankBadgeMeta(b){
+  const g=cnNum((String(b.grade||'').match(/[一二三四五六\d]/)||[''])[0]);
+  const pub=PUB_SHORT[b.publisher]!=null?PUB_SHORT[b.publisher]:String(b.publisher||'').slice(0,4);
+  return {title:b.title||bankInfo(b),subject:String(b.subject||'').slice(0,4)||'其他',grade:g||1,
+    term:g?['','一','二','三','四','五','六'][g]+(b.term||'年級'):'',pub,unit:unitNum(b.unit,b.title)};
 }
-function pixMini(p){
-  const total=pixCells(p.art).length;
-  return `<div class="pixrow">${pixSVG(p.art,p.filled,64,p.fresh)}<span>${p.done?`🎉 完成「${esc(p.art.name)}」！收進畫冊了`:`🎨 幫「${esc(p.art.name)}」塗了 ${p.fresh.length} 格（${p.filled.length} / ${total}）`}</span></div>`;
+const PLANT_BADGE={title:'植物小學堂',subject:'自然',grade:3,term:'三上',pub:'植物',unit:0};
+// 哪些格子落在徽章形狀裡（瀏覽器可以算；算不出來就全部格子）
+const badgeCellCache={};
+function badgeCells(meta){
+  const key=bgSubjectKey(meta.subject)+(meta.grade||1);
+  if(badgeCellCache[key])return badgeCellCache[key];
+  const all=Array.from({length:BADGE_GRID*BADGE_GRID},(_,i)=>i);let out=all;
+  try{
+    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
+    const ps=badgePieces(meta).filter(p=>p[1]!=='none').map(p=>{const e=document.createElementNS(ns,'path');e.setAttribute('d',p[0]);svg.appendChild(e);return e});
+    const disc=document.createElementNS(ns,'circle');disc.setAttribute('cx',790);disc.setAttribute('cy',790);disc.setAttribute('r',80);svg.appendChild(disc);ps.push(disc);
+    svg.style.cssText='position:absolute;width:0;height:0';document.body.appendChild(svg);
+    if(typeof ps[0].isPointInFill==='function'){
+      const st=BG_VB[2]/BADGE_GRID,inside=(x,y)=>ps.some(e=>e.isPointInFill(new DOMPoint(x,y)));
+      out=all.filter(i=>{const x=BG_VB[0]+(i%BADGE_GRID)*st,y=BG_VB[1]+Math.floor(i/BADGE_GRID)*st;
+        return [[.5,.5],[.25,.25],[.75,.25],[.25,.75],[.75,.75]].some(([a,b])=>inside(x+a*st,y+b*st))});
+      if(out.length<8)out=all;
+    }
+    svg.remove();
+  }catch(e){out=all}
+  return badgeCellCache[key]=out;
 }
-function pixBookPage(back){
+function badgeRec(key,meta){
+  const r=BADGES[key]||(BADGES[key]={cells:[],ok:[0,0,0],earned:[],meta});
+  r.meta=meta;return r;
+}
+const badgeDark=r=>{const t=r.ok[0]+r.ok[1]+r.ok[2];return t>0&&(r.ok[1]+r.ok[2])/t>=.5};
+// 答對一題：揭開格子；全部揭開就得到徽章，開始下一輪收集
+function badgeFill(q){
+  const key=CTX.pkey||CTX.key,meta=CTX.badge?CTX.badge():PLANT_BADGE,r=badgeRec(key,meta);
+  const cells=badgeCells(meta),left=cells.filter(c=>!r.cells.includes(c));
+  const per=badgePer(meta),fresh=shuffle(left).slice(0,per);
+  r.cells.push(...fresh);
+  const lv=[1,2,3].includes(q.lv)?q.lv:1;r.ok[lv-1]++;
+  let done=false,dark=badgeDark(r);
+  if(r.cells.length>=cells.length){done=true;r.earned.push({at:Date.now(),dark});r.cells=[];r.ok=[0,0,0]}
+  store.set('badges',BADGES);
+  return {meta,reveal:done?null:r.cells.slice(),fresh,done,dark,per,left:done?0:cells.length-r.cells.length};
+}
+const badgeOf=(meta,o)=>badgeSVG({...meta,alt:`${meta.title} 徽章`,...o});
+function badgeMini(p){
+  return `<div class="pixrow">${badgeOf(p.meta,{reveal:p.reveal,dark:p.dark,size:72})}<span>${p.done
+    ?`🎉 得到「${esc(p.meta.title)}」的${p.dark?'金色進階徽章':'銀色徽章'}！收進「我的徽章」了`
+    :`🏅 揭開了 ${p.fresh.length} 格，再答對 ${Math.ceil(p.left/p.per)} 題就得到徽章`}</span></div>`;
+}
+function badgeNow(){const key=CTX.pkey||CTX.key,meta=CTX.badge?CTX.badge():PLANT_BADGE,r=BADGES[key]||{cells:[],ok:[0,0,0],earned:[]};
+  const total=badgeCells(meta).length;return {meta,r,total,left:total-r.cells.length,dark:badgeDark(r)}}
+function badgeBookPage(back){
   if('speechSynthesis' in window)speechSynthesis.cancel();
-  const art=pixArt(),total=pixCells(art).length;
-  const counts={};PIX.done.forEach(d=>counts[d.id]=(counts[d.id]||0)+1);
+  const list=Object.entries(BADGES).map(([k,r])=>({k,...r})).filter(r=>r.meta);
+  const got=list.filter(r=>r.earned.length),doing=list.filter(r=>r.cells.length);
+  const nGot=got.reduce((n,r)=>n+r.earned.length,0);
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 返回</button></div>
-   <h1 class="pg">🖼 我的畫冊</h1>
-   <p class="lead">每答對一題，就幫畫塗 ${PIX_PER_OK} 格；塗滿一張就收進畫冊。</p>
-   <section class="card" style="text-align:center"><h2 class="ct">正在塗：${esc(art.name)}</h2>
-     ${pixSVG(art,PIX.filled,180)}<p class="lead" style="margin:6px 0 0">${PIX.filled.length} / ${total} 格，再答對 ${Math.ceil((total-PIX.filled.length)/PIX_PER_OK)} 題就完成</p></section>
-   <section class="card"><h2 class="ct">已完成（${PIX.done.length} 張）</h2>
-     ${PIX.done.length?`<div class="pixbook">${PIX_ART.filter(a=>counts[a.id]).map(a=>`<figure>${pixSVG(a,pixCells(a),90)}<figcaption>${esc(a.name)}${counts[a.id]>1?` ×${counts[a.id]}`:''}</figcaption></figure>`).join('')}</div>`
-       :'<p class="lead" style="margin:8px 0 0">還沒有完成的畫，開始練習吧！</p>'}</section>`;
+   <h1 class="pg">🏅 我的徽章</h1>
+   <p class="lead">每個題庫都有一枚自己的徽章，圖案依科目和年級不同。答對一題揭開幾格，大約答對 ${BADGE_TARGET} 題全部揭開，就得到銀色徽章；標準和挑戰題答對比較多，會得到金色的進階徽章。</p>
+   <section class="card"><h2 class="ct">已經得到（${nGot} 枚）</h2>
+     ${got.length?`<div class="pixbook">${got.map(r=>{const dk=r.earned.some(e=>e.dark),n=r.earned.length;
+       return `<figure>${badgeOf(r.meta,{dark:dk,size:120})}<figcaption>${esc(r.meta.title)}<br><small>${dk?'金色進階徽章':'銀色徽章'}${n>1?`・得到 ${n} 次`:''}</small></figcaption></figure>`}).join('')}</div>`
+       :'<p class="lead" style="margin:8px 0 0">還沒有徽章，開始練習吧！</p>'}</section>
+   ${doing.length?`<section class="card"><h2 class="ct">收集中</h2><div class="pixbook">${doing.map(r=>{const left=badgeCells(r.meta).length-r.cells.length;
+       return `<figure>${badgeOf(r.meta,{reveal:r.cells,dark:badgeDark(r),size:120})}<figcaption>${esc(r.meta.title)}<br><small>再答對 ${Math.ceil(left/badgePer(r.meta))} 題・${badgeDark(r)?'目前會得到金色':'目前會得到銀色'}</small></figcaption></figure>`}).join('')}</div></section>`:''}`;
   document.getElementById('bk').onclick=back;
   window.scrollTo(0,0);
 }
-const pixBtnHTML=()=>`<button class="ghost" id="pixb">🖼 我的畫冊（${PIX.done.length} 張）</button>`;
+const pixBtnHTML=()=>{const n=Object.values(BADGES).reduce((s,r)=>s+((r.earned&&r.earned.length)||0),0);return `<button class="ghost" id="pixb">🏅 我的徽章（${n} 枚）</button>`};
+const pixBookPage=badgeBookPage;
 
 /* --- 練習進度：每答一題存一次，中途離開可以接著做 --- */
 const progKey=ctx=>'progress-'+(ctx.pkey||ctx.key);
@@ -852,7 +1012,7 @@ function ask(){
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button><button class="iconbtn" id="arq" aria-pressed="${prefs.autoRead}">${prefs.autoRead?'🔊 自動念：開':'🔇 自動念：關'}</button><span class="counter">${rv?'🔁 複習剛剛錯的觀念':`第 ${Math.min(mainDone+1,S.total)} / ${S.total} 題`}</span></div>
    ${vine()}
-   ${!S.leaves.length&&!rv?`<p class="roundinfo">這次要做 <b>${S.total}</b> 題，答對一題幫「${esc(pixArt().name)}」塗 ${PIX_PER_OK} 格 🎨</p>`:''}
+   ${!S.leaves.length&&!rv?`<p class="roundinfo">這次要做 <b>${S.total}</b> 題，答對就幫徽章揭開幾格 🏅</p>`:''}
    <section class="card pop">
      <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
      ${flagOf(q)==='reported'?' <span class="tag warn">🚩 已有人回報，確認中</span>':''}
@@ -896,7 +1056,7 @@ function answer(btn){
     else if(ok){ st.mastered=true; note='🌟 這個觀念記住了！'; }
     else { if(schedule(c,stage,GAP_AGAIN(),q.id))note='沒關係，等一下再試一次。'; }
   }
-  if(ok)S.cur.pix=pixFill(PIX_PER_OK);
+  if(ok)S.cur.pix=badgeFill(q);
   }else note=S.cur.note||'';
   if(retry){
     S.cur.tried=true;S.cur.note=note;
@@ -916,7 +1076,7 @@ function answer(btn){
   const fb=document.getElementById('fb');
   fb.innerHTML=`<div class="feedback ${ok?'':'bad'} pop">
      <p class="fb-head">${ok?(second?'👍 這次答對了！':'🎉 答對了！'):(second?'正確答案是：':'🤔 再想想！正確答案是：')+esc(ansText)}</p>
-     ${S.cur.pix?pixMini(S.cur.pix):''}
+     ${S.cur.pix?badgeMini(S.cur.pix):''}
      <p class="fb-why">${esc(q.why)}</p>
      ${q.detail?`<details class="detail" id="det"><summary>📖 看詳細解題</summary><p>${esc(q.detail)}</p><button class="iconbtn" id="det-say">🔊 念詳解</button></details>`:''}
      ${note?`<p class="fb-why" style="margin-top:8px;color:var(--muted)">${note}</p>`:''}
@@ -947,7 +1107,7 @@ function finish(){
      <p class="score">${first} / ${total}</p>
      <p style="font-size:1.2rem;margin:0;color:var(--muted)">第一次就答對 ${first} 題</p>
      <p style="font-size:1.3rem">${msg}</p>
-     <div class="pixend">${pixSVG(pixArt(),PIX.filled,120)}<p>正在塗「${esc(pixArt().name)}」：${PIX.filled.length} / ${pixCells(pixArt()).length} 格・畫冊已有 ${PIX.done.length} 張</p></div>
+     ${(()=>{const b=badgeNow();return `<div class="pixend">${badgeOf(b.meta,{reveal:b.r.cells,dark:b.dark,size:130})}<p>${b.r.earned.length?`已經得到 ${b.r.earned.length} 次這枚徽章・`:''}再答對 ${Math.ceil(b.left/badgePer(b.meta))} 題得到${b.dark?'金色進階徽章':'銀色徽章'}</p></div>`})()}
    </section>
    ${mastered.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌟 錯了之後，複習到記住的觀念：</p><ul class="list">${mastered.map(li).join('')}</ul></section>`:''}
    ${notyet.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌱 還要再加油的觀念：</p><ul class="list">${notyet.map(li).join('')}</ul></section>`:''}
@@ -1630,7 +1790,7 @@ function bankHome(bank,msg){
 
 /* --- 練習：沿用植物小學堂的引擎（間隔複習、朗讀、音效） --- */
 function bankCtx(bank){return {
-  key:bank.id, pkey:(bank.__lib?'lib-':'')+bank.id, bank,
+  key:bank.id, pkey:(bank.__lib?'lib-':'')+bank.id, bank, badge:()=>bankBadgeMeta(bank),
   all:()=>bank.questions,
   origin:c=>bank.questions.find(q=>q.c===c&&q.src==='原題')||bank.questions.find(q=>q.c===c),
   label:q=>LV[q.lv]||'基礎',
