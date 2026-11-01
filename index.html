@@ -131,6 +131,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .beta-btn{display:inline-flex;align-items:center;gap:6px}
 .bankcard{display:flex;flex-direction:column;gap:4px;width:100%;text-align:left;margin-top:12px;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:16px 18px}
 .bk-title{font-size:1.3rem}.bk-meta{color:var(--muted);font-size:1rem}
+.bankcard{position:relative;padding-right:88px}.bk-badge{position:absolute;right:12px;top:50%;transform:translateY(-50%);line-height:0}
 .form label{display:flex;flex-direction:column;gap:6px;font-size:1.05rem;margin-top:12px}
 .form input:not([type=radio]):not([type=checkbox]):not([type=file]),.form select,.form textarea{font:inherit;font-size:1.1rem;color:var(--ink);background:var(--paper);border:2px solid var(--line);border-radius:12px;padding:10px 12px;min-height:46px;width:100%}
 .form input[type=file]{font:inherit;font-size:1rem;max-width:100%}
@@ -864,12 +865,20 @@ let BADGES=store.get('badges',{});
 const CN_DIGIT={一:1,二:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9,十:10};
 function cnNum(s){s=String(s||'');if(/^\d+$/.test(s))return +s;if(s==='十')return 10;if(s.startsWith('十'))return 10+(CN_DIGIT[s[1]]||0);if(s.includes('十'))return (CN_DIGIT[s[0]]||1)*10+(CN_DIGIT[s[2]]||0);return CN_DIGIT[s]||0}
 function unitNum(...ts){for(const t of ts){const m=String(t||'').match(/第\s*([一二三四五六七八九十\d]+)\s*(單元|課|章)|單元\s*([一二三四五六七八九十\d]+)|^\s*(\d+)/);if(m)return cnNum(m[1]||m[3]||m[4])}return 0}
+// 題庫設定的單元：下拉選第幾單元（0＝整冊／不分單元），名稱另外填
+const UNIT_CN=['','一','二','三','四','五','六','七','八','九','十'];
+const UNIT_OPTS=[...[1,2,3,4,5,6,7,8,9,10].map(n=>[n,`第${UNIT_CN[n]}單元`]),[0,'整冊／不分單元']];
+function unitSplit(b){
+  if(typeof b.unitNo==='number')return {no:b.unitNo,name:String(b.unit||'').replace(/^(第[一二三四五六七八九十\d]+單元|整冊)\s*/,'')};
+  const raw=String(b.unit||''),n=unitNum(raw);
+  return {no:n||(raw?null:null),name:raw.replace(/^\s*(第\s*[一二三四五六七八九十\d]+\s*(單元|課|章)|單元\s*[一二三四五六七八九十\d]+|\d+)\s*/,'')};
+}
 const PUB_SHORT={'學校自編':'自編','安親班講義':'安親班','補習班講義':'補習班','其他':''};
 function bankBadgeMeta(b){
   const g=cnNum((String(b.grade||'').match(/[一二三四五六\d]/)||[''])[0]);
   const pub=PUB_SHORT[b.publisher]!=null?PUB_SHORT[b.publisher]:String(b.publisher||'').slice(0,4);
   return {title:b.title||bankInfo(b),subject:String(b.subject||'').slice(0,4)||'其他',grade:g||1,
-    term:g?['','一','二','三','四','五','六'][g]+(b.term||'年級'):'',pub,unit:unitNum(b.unit,b.title)};
+    term:g?['','一','二','三','四','五','六'][g]+(b.term||'年級'):'',pub,unit:typeof b.unitNo==='number'?b.unitNo:unitNum(b.unit,b.title)};
 }
 const PLANT_BADGE={title:'植物小學堂',subject:'自然',grade:3,term:'三上',pub:'植物',unit:0};
 // 哪些格子落在徽章形狀裡（瀏覽器可以算；算不出來就全部格子）
@@ -938,6 +947,13 @@ function badgeBookPage(back){
 }
 const pixBtnHTML=()=>{const n=Object.values(BADGES).reduce((s,r)=>s+((r.earned&&r.earned.length)||0),0);return `<button class="ghost" id="pixb">🏅 我的徽章（${n} 枚）</button>`};
 const pixBookPage=badgeBookPage;
+const badgeCount=()=>Object.values(BADGES).reduce((s,r)=>s+((r.earned&&r.earned.length)||0),0);
+// 題庫卡片右側的徽章小圖：得到過就顯示完整徽章，否則顯示目前揭開的進度
+function bankBadgeThumb(key,meta){
+  const r=BADGES[key];
+  const got=r&&r.earned&&r.earned.length;
+  return `<span class="bk-badge" title="${got?'已得到徽章':'徽章收集中'}">${badgeOf(meta,got?{dark:r.earned.some(e=>e.dark),size:64}:{reveal:(r&&r.cells)||[],dark:r?badgeDark(r):false,size:64})}</span>`;
+}
 
 /* --- 練習進度：每答一題存一次，中途離開可以接著做 --- */
 const progKey=ctx=>'progress-'+(ctx.pkey||ctx.key);
@@ -1662,7 +1678,7 @@ async function betaHome(){
   // 沒有邀請碼：不能建立或匯入題庫，只提示輸入邀請碼；這台裝置上已有的舊題庫仍可練習
   if(!FAMILY.code){
     app.innerHTML=`
-     <div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div>
+     <div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button><button class="iconbtn" id="bdg">🏅 我的徽章（${badgeCount()}）</button></div>
      <h1 class="pg">我的題庫</h1>
      <section class="card"><h2 class="ct">🔒 需要家庭邀請碼</h2>
        <p class="lead" style="margin:8px 0 0">「我的題庫」可以上傳講義、用 AI 整理題目、產生親友閱讀碼，需要網站管理者提供的家庭邀請碼才能使用。</p>
@@ -1672,17 +1688,18 @@ async function betaHome(){
         <span class="bk-title">${esc(b.title||bankInfo(b)||'未命名題庫')}</span><span class="bk-meta">${b.questions.length} 題</span></button>`).join('')}`:''}`;
     document.getElementById('hm').onclick=libHome;
     document.getElementById('fam').onclick=()=>familyPage(betaHome);
+    document.getElementById('bdg').onclick=()=>badgeBookPage(betaHome);
     app.querySelectorAll('[data-b]').forEach(el=>el.onclick=()=>{const b=BANKS.find(x=>x.id===el.dataset.b);if(b.questions.length)startBank(b);else toast('這個題庫還沒有題目')});
     window.scrollTo(0,0);
     return;
   }
   const where=`☁️ 題庫存在雲端（${esc(FAMILY.name||FAMILY.code)}），換裝置輸入同一組家庭邀請碼就看得到。`;
   app.innerHTML=`
-   <div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button></div>
+   <div class="toprow"><button class="iconbtn" id="hm">📚 回題庫書架</button><button class="iconbtn" id="bdg">🏅 我的徽章（${badgeCount()}）</button></div>
    <h1 class="pg">我的題庫</h1>
    <p class="lead">上傳孩子的講義、考卷照片或解題字幕，AI 會整理成點選作答的練習題。大人確認過的題目才會給孩子練習。</p>
    <p class="lead" style="font-size:1rem">${where}${BS.note?'<br>'+esc(BS.note):''}</p>
-   ${BANKS.length?BANKS.map(b=>`<button class="bankcard" data-b="${esc(b.id)}">
+   ${BANKS.length?BANKS.map(b=>`<button class="bankcard" data-b="${esc(b.id)}">${bankBadgeThumb(b.id,bankBadgeMeta(b))}
       <span class="bk-title">${esc(b.title||bankInfo(b)||'未命名題庫')}</span>
       <span class="bk-meta">${esc(bankInfo(b))}</span>
       <span class="bk-meta">${b.questions.length} 題${b.pending.length?`・<b style="color:var(--coral-ink)">${b.pending.length} 題待確認</b>`:''}${b.questions.filter(q=>q.check&&q.check.s==='issue').length?`・<b style="color:var(--coral-ink)">⚠️ ${b.questions.filter(q=>q.check&&q.check.s==='issue').length} 題需要修正</b>`:''}${b.published?'・🌐 已公開':''}</span></button>`).join('')
@@ -1694,6 +1711,7 @@ async function betaHome(){
    <input type="file" id="impf" accept=".json,application/json" hidden>`;
   document.getElementById('hm').onclick=libHome;
   document.getElementById('rdr').onclick=readerAdminPage;
+  document.getElementById('bdg').onclick=()=>badgeBookPage(betaHome);
   document.getElementById('new').onclick=()=>bankForm(null);
   document.getElementById('fam').onclick=()=>familyPage(betaHome);
   app.querySelectorAll('[data-b]').forEach(el=>el.onclick=()=>bankHome(BANKS.find(b=>b.id===el.dataset.b)));
@@ -1717,7 +1735,8 @@ function bankForm(bank){
      <datalist id="subjects"><option>國語</option><option>數學</option><option>自然</option><option>社會</option><option>英語</option><option>生活</option></datalist>
      <label>版本（可從清單選，也可以直接輸入） <input id="f-pub" list="pubs" value="${esc(b.publisher||'')}" placeholder="例如：翰林"></label>
      <datalist id="pubs">${PUBS.map(x=>`<option>${x}</option>`).join('')}</datalist>
-     <label>單元 <input id="f-unit" value="${esc(b.unit||'')}" placeholder="例如：第二單元 植物的身體"></label>
+     ${(()=>{const parsed=unitSplit(b);return `<label>單元 <select id="f-unitno"><option value="">請選擇單元</option>${UNIT_OPTS.map(([v,t])=>`<option value="${v}"${parsed.no===v?' selected':''}>${t}</option>`).join('')}</select></label>
+     <label>單元名稱（可不填） <input id="f-unitname" value="${esc(parsed.name)}" placeholder="例如：植物的身體"></label>`})()}
      <label>題庫名稱（可不填） <input id="f-title" value="${esc(b.title||'')}" placeholder="例如：三上自然 植物"></label>
    </div>
    <button class="big" id="sv">${bank?'儲存':'建立題庫'}</button>`;
@@ -1725,8 +1744,10 @@ function bankForm(bank){
   document.getElementById('sv').onclick=async()=>{
     const v=id=>document.getElementById(id).value.trim();
     if(!v('f-subject')){toast('請填科目');return}
+    if(v('f-unitno')===''){toast('請選擇單元');document.getElementById('f-unitno').focus();return}
+    const uno=+v('f-unitno'),uname=v('f-unitname');
     const nb=bank||fixBank({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),createdAt:Date.now()});
-    Object.assign(nb,{grade:v('f-grade'),term:v('f-term'),subject:v('f-subject'),publisher:v('f-pub'),unit:v('f-unit'),title:v('f-title')});
+    Object.assign(nb,{grade:v('f-grade'),term:v('f-term'),subject:v('f-subject'),publisher:v('f-pub'),unitNo:uno,unit:[uno?`第${UNIT_CN[uno]}單元`:'整冊',uname].filter(Boolean).join(' '),title:v('f-title')});
     if(!bank)BANKS.unshift(nb);
     await busyRun(bank?'儲存中……':'建立題庫中……',()=>bsSave(nb));
     bankHome(nb);
@@ -2548,6 +2569,7 @@ async function libHome(){
   const shown=items.filter(b=>(!libFilter.g||gradeTag(b)===libFilter.g)&&(!libFilter.s||b.subject===libFilter.s)&&(!libFilter.p||b.publisher===libFilter.p));
   app.innerHTML=`
    <div class="toprow" style="justify-content:flex-end;gap:8px;flex-wrap:wrap">
+     <button class="iconbtn" id="bdg">🏅 我的徽章（${badgeCount()}）</button>
      <button class="iconbtn" id="codes">🔑 ${READER.code?'閱讀碼：'+esc(READER.code):FAMILY.code?'使用邀請碼':'輸入閱讀碼'}</button>
      <button class="iconbtn beta-btn" id="mine">🧪 我的題庫 <span class="tag" style="background:var(--sun-soft)">邀請碼</span></button>
    </div>
@@ -2558,12 +2580,13 @@ async function libHome(){
        <button class="big" id="rcgo" style="margin-top:10px">確認</button><p class="lead" id="rcmsg" style="margin:8px 0 0"></p></section>`:''}
    ${LIBERR?`<p class="lead" style="color:var(--coral-ink)">${esc(LIBERR)}</p>`:''}
    ${chipRow('g','年級',uniq(gradeTag))}${chipRow('s','科目',uniq(b=>b.subject))}${chipRow('p','版本',uniq(b=>b.publisher))}
-   <div style="margin-top:8px">${shown.map(b=>`<button class="bankcard" data-lib="${esc(b.id)}">
+   <div style="margin-top:8px">${shown.map(b=>`<button class="bankcard" data-lib="${esc(b.id)}">${bankBadgeThumb(b.builtin?'__plant':'lib-'+b.id,b.builtin?PLANT_BADGE:bankBadgeMeta(b))}
       <span class="bk-title">${esc(b.title||bankInfo(b))}${b.builtin?' <span class="tag">內建</span>':''}</span>
       <span class="bk-meta">${[gradeTag(b),b.subject,b.publisher,b.unit].filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')}</span>
       <span class="bk-meta">${b.count||0} 題</span></button>`).join('')||'<p class="lead">沒有符合的題庫。</p>'}</div>`;
   const $=id=>document.getElementById(id);
   $('mine').onclick=()=>betaHome();
+  $('bdg').onclick=()=>badgeBookPage(libHome);
   $('codes').onclick=()=>codePage();
   app.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{libFilter[b.dataset.f]=b.dataset.v;libHome()});
   app.querySelectorAll('[data-lib]').forEach(b=>b.onclick=()=>b.dataset.lib==='__plant'?home():openLib(b.dataset.lib));
