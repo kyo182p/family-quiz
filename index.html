@@ -331,6 +331,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .pixend p{margin:0;color:var(--muted);font-size:1rem}
 .pixbook{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px;margin-top:10px}
 .pixbook figure{margin:0;text-align:center}.pixbook figcaption{font-size:1rem;margin-top:4px}
+.pixbook figcaption .tip{color:var(--muted);font-size:.85rem}
 </style>
 </head>
 <body>
@@ -854,6 +855,9 @@ function badgeSVG(o){
 <circle cx="790" cy="790" r="58" fill="${dark?dk:bgMix(lt,'#000000',.45)}"/>
 <text x="790" y="${num.length>2?812:818}" text-anchor="middle" font-family="Noto Serif CJK TC,Noto Serif TC,Times New Roman,serif" font-weight="900" font-size="${num.length>2?52:num.length>1?64:78}" fill="url(#${id}g)">${num}</text>
 ${grid?`<g clip-path="url(#${id}c)">${grid}</g>`:''}
+${o.plus?(()=>{const w2=String(o.plus).length>1?300:250;return `<g filter="url(#${id}bv)"><rect x="${912-w2}" y="112" width="${w2}" height="150" rx="75" fill="url(#${id}g)"/></g>
+<rect x="${912-w2+14}" y="126" width="${w2-28}" height="122" rx="61" fill="#C0392B"/>
+<text x="${912-w2/2}" y="222" text-anchor="middle" font-family="Noto Sans CJK TC,Noto Sans TC,Arial,sans-serif" font-weight="900" font-size="100" fill="#FFFFFF">+${o.plus}</text>`})():''}
 </svg>`;
 }
 
@@ -935,12 +939,12 @@ function badgeFill(q){
   let done=false,dark=badgeDark(r);
   if(r.cells.length>=cells.length){done=true;r.earned.push({at:Date.now(),dark});r.cells=[];r.ok=[0,0,0]}
   save(done);
-  return {meta,reveal:done?null:r.cells.slice(),fresh,done,dark,per,left:done?0:cells.length-r.cells.length};
+  return {meta,reveal:done?null:r.cells.slice(),fresh,done,dark,per,times:r.earned.length,left:done?0:cells.length-r.cells.length};
 }
 const badgeOf=(meta,o)=>badgeSVG({...meta,alt:`${meta.title} 徽章`,...o});
 function badgeMini(p){
-  return `<div class="pixrow">${badgeOf(p.meta,{reveal:p.reveal,dark:p.dark,size:72})}<span>${p.done
-    ?`🎉 得到「${esc(p.meta.title)}」的${p.dark?'金色進階徽章':'銀色徽章'}！收進「我的徽章」了`
+  return `<div class="pixrow">${badgeOf(p.meta,{reveal:p.reveal,dark:p.dark,size:72,plus:p.done&&p.times>1?p.times-1:0})}<span>${p.done
+    ?(p.times>1?`🎉 又得到一次「${esc(p.meta.title)}」的${p.dark?'金色進階徽章':'銀色徽章'}！（+${p.times-1}）`:`🎉 得到「${esc(p.meta.title)}」的${p.dark?'金色進階徽章':'銀色徽章'}！收進「我的徽章」了`)
     :`🏅 揭開了 ${p.fresh.length} 格，再答對 ${Math.ceil(p.left/p.per)} 題就得到徽章`}</span></div>`;
 }
 function badgeNow(){const meta=CTX.badge?CTX.badge():PLANT_BADGE,r=(ownBank(CTX.bank)?bankBadgeRec(CTX.bank,false):BADGES[CTX.pkey||CTX.key])||{cells:[],ok:[0,0,0],earned:[]};
@@ -958,7 +962,8 @@ async function badgeBookPage(back){
    <p class="lead">每個題庫都有一枚自己的徽章，圖案依科目和年級不同。答對一題揭開幾格，大約答對 ${BADGE_TARGET} 題全部揭開，就得到銀色徽章；標準和挑戰題答對比較多，會得到金色的進階徽章。</p>
    <section class="card"><h2 class="ct">已經得到（${nGot} 枚）</h2>
      ${got.length?`<div class="pixbook">${got.map(r=>{const dk=r.earned.some(e=>e.dark),n=r.earned.length;
-       return `<figure>${badgeOf(r.meta,{dark:dk,size:120})}<figcaption>${esc(r.meta.title)}<br><small>${dk?'金色進階徽章':'銀色徽章'}${n>1?`・得到 ${n} 次`:''}</small></figcaption></figure>`}).join('')}</div>`
+       const ng=r.earned.filter(e=>e.dark).length,ns=n-ng;
+       return `<figure>${badgeOf(r.meta,{dark:dk,size:120,plus:n>1?n-1:0})}<figcaption>${esc(r.meta.title)}<br><small>${[ng?`金色 ${ng} 次`:'',ns?`銀色 ${ns} 次`:''].filter(Boolean).join('・')}</small>${dk?'':'<br><small class="tip">多答標準、挑戰題，下次可以拿金色</small>'}</figcaption></figure>`}).join('')}</div>`
        :'<p class="lead" style="margin:8px 0 0">還沒有徽章，開始練習吧！</p>'}</section>
    ${doing.length?`<section class="card"><h2 class="ct">收集中</h2><div class="pixbook">${doing.map(r=>{const left=badgeCells(r.meta).length-r.cells.length;
        return `<figure>${badgeOf(r.meta,{reveal:r.cells,dark:badgeDark(r),size:120})}<figcaption>${esc(r.meta.title)}<br><small>再答對 ${Math.ceil(left/badgePer(r.meta))} 題・${badgeDark(r)?'目前會得到金色':'目前會得到銀色'}</small></figcaption></figure>`}).join('')}</div></section>`:''}`;
@@ -972,7 +977,7 @@ const badgeCount=()=>allBadges().reduce((s,x)=>s+((x.r.earned&&x.r.earned.length
 function bankBadgeThumb(key,meta,rec){
   const r=rec||BADGES[key];
   const got=r&&r.earned&&r.earned.length;
-  return `<span class="bk-badge" title="${got?'已得到徽章':'徽章收集中'}">${badgeOf(meta,got?{dark:r.earned.some(e=>e.dark),size:64}:{reveal:(r&&r.cells)||[],dark:r?badgeDark(r):false,size:64})}</span>`;
+  return `<span class="bk-badge" title="${got?`已得到徽章 ${r.earned.length} 次`:'徽章收集中'}">${badgeOf(meta,got?{dark:r.earned.some(e=>e.dark),size:64,plus:r.earned.length>1?r.earned.length-1:0}:{reveal:(r&&r.cells)||[],dark:r?badgeDark(r):false,size:64})}</span>`;
 }
 
 /* --- 練習進度：每答一題存一次，中途離開可以接著做 --- */
@@ -1143,7 +1148,7 @@ function finish(){
      <p class="score">${first} / ${total}</p>
      <p style="font-size:1.2rem;margin:0;color:var(--muted)">第一次就答對 ${first} 題</p>
      <p style="font-size:1.3rem">${msg}</p>
-     ${(()=>{const b=badgeNow();return `<div class="pixend">${badgeOf(b.meta,{reveal:b.r.cells,dark:b.dark,size:130})}<p>${b.r.earned.length?`已經得到 ${b.r.earned.length} 次這枚徽章・`:''}再答對 ${Math.ceil(b.left/badgePer(b.meta))} 題得到${b.dark?'金色進階徽章':'銀色徽章'}</p></div>`})()}
+     ${(()=>{const b=badgeNow();return `<div class="pixend">${badgeOf(b.meta,{reveal:b.r.cells,dark:b.dark,size:130})}<p>${b.r.earned.length?`已經得到 ${b.r.earned.length} 次這枚徽章${b.r.earned.some(e=>e.dark)?'':'（目前都是銀色）'}・`:''}再答對 ${Math.ceil(b.left/badgePer(b.meta))} 題得到${b.dark?'金色進階徽章':'銀色徽章'}</p></div>`})()}
    </section>
    ${mastered.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌟 錯了之後，複習到記住的觀念：</p><ul class="list">${mastered.map(li).join('')}</ul></section>`:''}
    ${notyet.length?`<section class="card"><p style="font-size:1.2rem;margin:0">🌱 還要再加油的觀念：</p><ul class="list">${notyet.map(li).join('')}</ul></section>`:''}
