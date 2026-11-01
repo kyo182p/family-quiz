@@ -770,7 +770,8 @@ function adminPending(limit) {
   banks.forEach(x => { byId[String(x.bank.id)] = x; });
   const conText = (b, c) => ((b.concepts || []).filter(k => k.id === c)[0] || {}).text || '';
   const pack = (x, q) => ({ bankId: String(x.bank.id), bankInfo: [x.bank.grade, x.bank.term, x.bank.subject, x.bank.publisher, x.bank.unit].filter(Boolean).join(' '),
-    qId: String(q.id), concept: conText(x.bank, q.c), t: q.t, q: q.q, o: q.o || null, a: q.a, why: q.why || '', detail: q.detail || '' });
+    qId: String(q.id), concept: conText(x.bank, q.c), t: q.t, q: q.q, o: q.o || null, a: q.a, why: q.why || '', detail: q.detail || '',
+    ...(q.tpl ? { tpl: q.tpl } : {}) });   // 換數字題：q / o / a 只是一組範例，排程要檢查模板
   const reports = [];
   const rows = reportSheet().getDataRange().getValues();
   for (let i = 1; i < rows.length && reports.length < limit; i++) {
@@ -781,17 +782,19 @@ function adminPending(limit) {
     reports.push({ reportId: String(r[0]), bankId: String(r[2]), qId: String(r[3]), reason: String(r[7]), note: String(r[8]),
       snapshot: String(r[4]), current: q ? pack(x, q) : null });
   }
+  // 換數字題只判讀過範例（後端升級前判的）也要重判模板
+  const unjudged = q => !q.check || (q.tpl && !q.check.tpl);
   const questions = [];
   banks.forEach(x => (x.bank.questions || []).forEach(q => {
-    if (!q.check && questions.length < Math.max(0, limit - reports.length)) questions.push(pack(x, q));
+    if (unjudged(q) && questions.length < Math.max(0, limit - reports.length)) questions.push(pack(x, q));
   }));
-  const total = banks.reduce((n, x) => n + (x.bank.questions || []).filter(q => !q.check).length, 0);
+  const total = banks.reduce((n, x) => n + (x.bank.questions || []).filter(unjudged).length, 0);
   // 已判讀通過、但還沒有詳細解題的題目（判讀完再補，避免替有問題的題目寫詳解）
   const needDetail = [];
   banks.forEach(x => (x.bank.questions || []).forEach(q => {
-    if (!q.detail && q.check && q.check.s === 'pass' && needDetail.length < limit) needDetail.push(pack(x, q));
+    if (!q.detail && !q.tpl && q.check && q.check.s === 'pass' && needDetail.length < limit) needDetail.push(pack(x, q));
   }));
-  const detailTotal = banks.reduce((n, x) => n + (x.bank.questions || []).filter(q => !q.detail && q.check && q.check.s === 'pass').length, 0);
+  const detailTotal = banks.reduce((n, x) => n + (x.bank.questions || []).filter(q => !q.detail && !q.tpl && q.check && q.check.s === 'pass').length, 0);
   // 待驗算的重點講義（內容較大，每輪最多 2 份）
   const hoAll = hoRows().filter(x => x.meta.status === '待驗算');
   const handouts = hoAll.slice(0, 2).map(x => {
@@ -822,7 +825,7 @@ function adminVerdict(req) {
       const x = byId[bankId];
       const q = x && (x.bank.questions || []).filter(k => String(k.id) === qId)[0];
       if (!q) return false;
-      q.check = { s: s === 'issue' ? 'issue' : 'pass', note: String(note || '').slice(0, 300), at: now, by: model };
+      q.check = { s: s === 'issue' ? 'issue' : 'pass', note: String(note || '').slice(0, 300), at: now, by: model, ...(q.tpl ? { tpl: 1 } : {}) };
       if (fix && typeof fix === 'object') q.check.fix = { q: fix.q, o: fix.o, a: fix.a, why: fix.why, detail: fix.detail };
       dirty[bankId] = 1;
       return true;
