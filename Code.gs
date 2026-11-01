@@ -554,7 +554,7 @@ function currentBonus(fam) { return Number(familySheet().getRange(fam.row, 7).ge
 function setBonus(fam, n) { familySheet().getRange(fam.row, 7).setValue(Math.max(0, n)); }
 
 /* ===== 判讀結果合併 ===== */
-function qSig(q) { return JSON.stringify([q.t, q.q, q.o || [], q.a, q.why || '']); }
+function qSig(q) { return JSON.stringify([q.t, q.q, q.o || [], q.a, q.why || '', q.tpl || null]); }   // 換數字題改了題型也算修改
 // 用戶端的題庫不一定有最新的判讀結果：題目內容沒變就沿用伺服器上的判讀，內容變了就清除（等重新判讀）
 function mergeChecks(old, bank) {
   const changed = [];

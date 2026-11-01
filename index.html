@@ -2772,7 +2772,7 @@ function qView(q){
 }
 let CUR_BANK_KEY='';
 function qEditor(q){
-  return `<div class="form">${q.tpl?'<p class="lead" style="font-size:.95rem;margin:0 0 6px">🔢 這是換數字題，下面是其中一組數字。改了題目或選項，就會變成固定數字的題目，不再換數字（只改難度、解說不影響）。</p>':''}
+  return `<div class="form">${q.tpl?'<p class="lead" style="font-size:.95rem;margin:0 0 6px">🔢 這是換數字題，下面只是其中一組數字。練習時的題目、選項和解說都由「題型」產生，在這裡改解說不會改到練習畫面。<b>判讀有問題時，請關掉這個畫面，按題目下方的「🤖 依判讀意見修正這個題型」。</b>改了這裡的題目或選項，就會變成固定數字的題目，不再換數字。</p>':''}
     <label>題目<textarea id="e-q" rows="2">${esc(q.q)}</textarea></label>
     ${q.t==='tf'?`<label>答案 <select id="e-a"><option value="O"${q.a==='O'?' selected':''}>⭕ 對</option><option value="X"${q.a==='X'?' selected':''}>❌ 錯</option></select></label>`
       :`<p style="margin:6px 0">選項（點選正確答案；空白的選項會刪掉）</p>${[0,1,2,3].map(i=>`<label class="optrow"><input type="radio" name="e-ok" value="${i}" ${q.o[i]===q.a?'checked':''}><input id="e-o${i}" value="${esc(q.o[i]||'')}"></label>`).join('')}`}
@@ -2849,6 +2849,41 @@ function listBtnHTML(bank){
 }
 // 從外層進入：有需要修正的題目時，預設只顯示那些題目
 function openList(bank){LF={st:issueCounts(bank).issue?'issue':'',lv:0,t:'',src:'',rec:''};listEdit='';listDraft=null;listPage(bank)}
+// 判讀有問題的換數字題：把判讀意見交給 AI 改「題型」，程式重新試做 200 次，通過才換掉
+const tplIssues=bank=>bank.questions.filter(q=>q.tpl&&q.check&&q.check.s==='issue');
+function tplFixPrompt(bank,qs){
+  return `你是台灣的國小數學老師。下面是「${bankInfo(bank)}」題庫裡的換數字題題型（程式會依 vars 隨機換數字、用算式算答案），審題老師找到了問題。
+請依照判讀意見修正每個題型：可以改變數範圍、加條件（when）、改題目文字、改答案或錯誤選項的算式、改解說。解說和題目不能說出在某些數字下會錯的話（例如「其他位數不變」在會進位時就錯了），寧可說得精確一點。
+格式和原本一樣：vars（[最小,最大] 或 [最小,最大,間隔] 隨機整數，上下限可以是算式字串；字串是算式；中文字串陣列是隨機挑一個）、when（條件陣列）、text、ans、wrong、why、hint，{算式} 會換成數字。算式只能用 + - * / % ( ) 和 min max abs floor ceil round gcd lcm，比較用 < <= > >= == != && ||。
+
+${qs.map(q=>`[${q.id}] 觀念：${(bank.concepts.find(c=>c.id===q.c)||{}).text||''}
+題型：${JSON.stringify(q.tpl)}
+判讀意見：${q.check.note}`).join('\n\n')}
+
+只回傳 JSON 陣列，不要其他文字：
+[{"id":"題目代號","tpl":{"vars":{},"when":[],"text":"","ans":"","wrong":[],"why":"","hint":""}}]`;
+}
+async function fixTemplates(bank,qs){
+  qs=qs.filter(Boolean);if(!qs.length)return;
+  if(sampleBlocked()||!SAMPLE){toast('目前不能使用 AI，請確認家庭邀請碼');return}
+  let res;
+  try{res=await busyRun(`AI 正在修正 ${qs.length} 個題型……`,()=>SAMPLE.json(tplFixPrompt(bank,qs),{cache:false,modelTier:'default'}))}
+  catch(e){toast(aiErrMsg(e));return}
+  let fixed=0;const bad=[];
+  (Array.isArray(res)?res:[]).forEach(r=>{
+    const q=qs.find(x=>x.id===String(r&&r.id));if(!q||!r.tpl)return;
+    const t=r.tpl,tpl={vars:t.vars,when:t.when||[],text:String(t.text||''),ans:String(t.ans||''),wrong:t.wrong||[],why:String(t.why||''),hint:String(t.hint||'').slice(0,60)};
+    const ck=tplCheck(tpl);if(!ck.ok){bad.push(ck.why);return}
+    const s=ck.sample;
+    Object.assign(q,{tpl,kinds:ck.kinds,q:s.q,o:shuffle([s.a,...s.wrong]),a:s.a,why:s.why||q.why,...(s.hint?{hint:s.hint.slice(0,60)}:{})});
+    q.fixNote='依判讀意見修正：'+String(q.check.note||'').slice(0,120);
+    delete q.check;delete q.detail;fixed++;
+  });
+  if(fixed)await busyRun('儲存中……',async()=>{await bsSave(bank);delete FLAGS[bank.id];await loadFlags(bank.id)});
+  toast(fixed?`已修正 ${fixed} 個題型，恢復出題，下次掃題會再判讀一次${bad.length?`；${bad.length} 個沒通過程式檢查，請再試一次或刪除`:''}`:`修正後的題型沒通過程式檢查（${[...new Set(bad)].slice(0,2).join('、')||'格式不對'}），請再試一次或刪除`);
+  listPage(bank);
+}
+
 function listPage(bank){
   const r=bank.rec;CUR_BANK_KEY=bank.id;
   const Q=bank.questions,key=bank.id;
@@ -2873,7 +2908,7 @@ function listPage(bank){
   const item=q=>{
     if(listEdit===q.id)return `<li style="flex-direction:column;align-items:stretch">${qEditor(listDraft||q)}</li>`;
     const st=qStatus(q,key);
-    return `<li class="${st==='issue'?'qissue':st==='reported'?'qreported':''}"><span>${qView(q)}${q.check&&q.check.fix&&st==='issue'?`<br><button class="iconbtn" data-fix="${esc(q.id)}" style="margin-top:6px">🛠 套用 AI 建議修正</button>`:''}</span>
+    return `<li class="${st==='issue'?'qissue':st==='reported'?'qreported':''}"><span>${qView(q)}${q.check&&q.check.fix&&st==='issue'&&!q.tpl?`<br><button class="iconbtn" data-fix="${esc(q.id)}" style="margin-top:6px">🛠 套用 AI 建議修正</button>`:''}${q.tpl&&st==='issue'&&!bank.__lib?`<br><button class="iconbtn" data-tfix="${esc(q.id)}" style="margin-top:6px">🤖 依判讀意見修正這個題型</button>`:''}</span>
        <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><span class="cnt">${r[q.id]?(r[q.id].wrong?`錯 ${r[q.id].wrong} / ${r[q.id].seen} 次`:`<span style="color:var(--leaf-ink)">對 ${r[q.id].seen} 次</span>`):'<span style="color:var(--muted)">還沒練</span>'}</span>
        <button class="iconbtn" data-qed="${esc(q.id)}" aria-label="修改">✏️</button><button class="iconbtn" data-qdel="${esc(q.id)}" aria-label="刪除">🗑</button></span></li>`;
   };
@@ -2881,7 +2916,7 @@ function listPage(bank){
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
    <h1 class="pg">題目清單</h1>
    <p class="lead" style="font-size:1rem">依觀念分組；右邊是作答紀錄。修改題目後會清除 AI 判讀，等下次掃題重新判讀。</p>
-   ${c.issue?`<div class="fixbar"><span>⚠️ 有 <b>${c.issue}</b> 題需要修正，已暫停出題。</span>${LF.st!=='issue'?'<button class="iconbtn" id="only-issue">只看需要修正的題目</button>':''}</div>`:''}
+   ${c.issue?`<div class="fixbar"><span>⚠️ 有 <b>${c.issue}</b> 題需要修正，已暫停出題。</span>${LF.st!=='issue'?'<button class="iconbtn" id="only-issue">只看需要修正的題目</button>':''}${tplIssues(bank).length>1&&!bank.__lib?`<button class="iconbtn" id="tfix-all">🤖 一次修正 ${tplIssues(bank).length} 個換數字題</button>`:''}</div>`:''}
    <section class="card filters">${chips}
      <p class="lead" style="font-size:.95rem;margin:8px 0 0">顯示 ${shown.length} / ${Q.length} 題${Object.values(LF).some(Boolean)?'　<button class="iconbtn" id="lf-clr">清除篩選</button>':''}</p></section>
    ${bank.concepts.map(con=>{const qs=shown.filter(q=>q.c===con.id);if(!qs.length)return '';
@@ -2901,6 +2936,8 @@ function listPage(bank){
   app.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>{const q=Q[idx(b.dataset.fix)],f=q.check.fix;
     const d={...q};['q','o','a','why','detail'].forEach(k=>{if(f[k]!=null&&f[k]!=='')d[k]=f[k]});
     listDraft=d;listEdit=q.id;listPage(bank);toast('已帶入建議內容，請確認後按「儲存修改」')});
+  app.querySelectorAll('[data-tfix]').forEach(b=>b.onclick=()=>fixTemplates(bank,[Q[idx(b.dataset.tfix)]]));
+  if($('tfix-all'))$('tfix-all').onclick=()=>fixTemplates(bank,tplIssues(bank));
   app.querySelectorAll('[data-qdel]').forEach(b=>b.onclick=async()=>{if(!await confirmBox('確定要刪除這題嗎？'))return;bank.questions=bank.questions.filter(q=>q.id!==b.dataset.qdel);await busyRun('儲存中……',()=>bsSave(bank));listPage(bank)});
   if($('clr'))$('clr').onclick=async()=>{if(await confirmBox('確定要清除作答紀錄嗎？')){bank.rec={};await busyRun('儲存中……',()=>bsSave(bank));listPage(bank)}};
   if(!FLAGS[bank.id])loadFlags(bank.id).then(()=>{if(CUR_BANK_KEY===bank.id&&!listEdit&&document.querySelector('.filters'))listPage(bank)});
