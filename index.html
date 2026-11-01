@@ -1128,16 +1128,18 @@ function ask(){
   if(S.pos>=S.queue.length)return finish();
   if(zyWant(CTX.bank)&&!ZY){zyEnsure().finally(ask);return}
   ZYB=CTX.bank||null;
-  const item=S.queue[S.pos], q=item.q, rv=item.kind==='review';
+  const item=S.queue[S.pos], rv=item.kind==='review';
+  if(item.q.tpl&&!item.inst)item.inst=tplInstance(item.q);   // 換數字題：每次出現換一組數字（重畫畫面時不變）
+  const q=item.inst||item.q;
   const opts=q.t==='mc'?(q.o.includes('以上皆是')?shuffle(q.o.filter(x=>x!=='以上皆是')).concat('以上皆是'):shuffle(q.o)):null;
-  S.cur={...item,opts};
+  S.cur={...item,q,opts};
   const mainDone=S.leaves.length;
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button><button class="iconbtn" id="arq" aria-pressed="${prefs.autoRead}">${prefs.autoRead?'🔊 自動念：開':'🔇 自動念：關'}</button><span class="counter">${rv?'🔁 複習剛剛錯的觀念':`第 ${Math.min(mainDone+1,S.total)} / ${S.total} 題`}</span></div>
    ${vine()}
    ${!S.leaves.length&&!rv?`<p class="roundinfo">這次要做 <b>${S.total}</b> 題，答對就幫徽章揭開幾格 🏅</p>`:''}
    <section class="card pop">
-     <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
+     <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${q.tpl?' <span class="tag">🔢 換數字題</span>':''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
      ${flagOf(q)==='reported'?' <span class="tag warn">🚩 已有人回報，確認中</span>':''}
      <div class="qrow"><p class="qtext">${zyT(q.q)}</p><span class="qbtns"><button class="speak" id="sp" aria-label="念題目">🔊</button>${zyGrade(CTX.bank)?`<button class="speak zyb" id="zyt" aria-pressed="${zyOn(CTX.bank)}" aria-label="注音開關">ㄅ</button>`:''}${libCode()?`<button class="speak rp" id="rp" aria-label="回報題目有問題" ${flagOf(q)?'disabled':''}>🚩</button>`:''}</span></div>
      <div class="opts ${q.t==='tf'?'tf':''}" id="opts">
@@ -2148,11 +2150,13 @@ function morePage(bank){
    <h1 class="pg">產生更多題目</h1>
    <p class="lead">選擇新題目要從哪裡來。產生的題目會直接收進題庫，詳細解題由每天的排程自動補上。</p>
    <button class="ghost" id="m-up">📷 上傳新的資料<br><small style="color:var(--muted)">照片、字幕或文字，整理成題目</small></button>
-   <button class="ghost" id="m-gen" ${hasCon?'':'disabled'}>✨ 用已有的觀念出新題<br><small style="color:var(--muted)">${hasCon?`根據這個題庫的 ${bank.concepts.length} 個觀念換問法`:'還沒有觀念，請先上傳資料'}</small></button>`;
+   <button class="ghost" id="m-gen" ${hasCon?'':'disabled'}>✨ 用已有的觀念出新題<br><small style="color:var(--muted)">${hasCon?`根據這個題庫的 ${bank.concepts.length} 個觀念換問法`:'還沒有觀念，請先上傳資料'}</small></button>
+   ${isMathBank(bank)?`<button class="ghost" id="m-par" ${hasCon?'':'disabled'}>🔢 數學換數字題<br><small style="color:var(--muted)">${hasCon?'AI 寫題型、程式算答案，每次練習都換數字':'還沒有觀念，請先上傳資料'}</small></button>`:''}`;
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>bankHome(bank);
   $('m-up').onclick=()=>uploadPage(bank);
   if(hasCon)$('m-gen').onclick=()=>genPage(bank);
+  if(hasCon&&$('m-par'))$('m-par').onclick=()=>paramPage(bank);
   window.scrollTo(0,0);
 }
 
@@ -2252,10 +2256,235 @@ async function runGen(bank){
   genPage(bank);
 }
 
+/* ===== 數學參數題：AI 只寫題型模板，數字、答案、錯誤選項都由程式算 =====
+   模板格式（存在題目的 tpl 欄位，q / o / a / why 是一組範例數字，給清單、講義、排程判讀用）：
+   {"vars":{"b":[2,9],"q":[2,9],"a":"b*q","who":["小明","小華"]},   // [最小,最大] 或 [最小,最大,間隔] 隨機整數（上下限可以是算式）；字串是算式；字串陣列是隨機挑一個
+    "when":["a<=81"],                                                // 都要成立，不成立就重抽
+    "text":"{who}有 {a} 顆糖，平分給 {b} 人，每人幾顆？", "ans":"{q} 顆", "wrong":["{a-b} 顆","{q+1} 顆"],
+    "why":"{a}÷{b}={q}", "hint":"想想除法"}
+   算式只支援數字、變數、+ - * / % ( )、比較、&& || !、min max abs floor ceil round gcd lcm，不會執行任何程式碼。 */
+const TPL_FN={min:Math.min,max:Math.max,abs:Math.abs,floor:Math.floor,ceil:Math.ceil,round:Math.round,
+  gcd:(a,b)=>{a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b]}return a},
+  lcm:(a,b)=>{const g=TPL_FN.gcd(a,b);return g?Math.abs(a*b)/g:0}};
+function tplCompile(src){
+  const s=String(src),toks=[];let i=0;
+  while(i<s.length){
+    const c=s[i];
+    if(/\s/.test(c)){i++;continue}
+    const m=/^(\d+(?:\.\d+)?)/.exec(s.slice(i));if(m){toks.push({t:'n',v:+m[1]});i+=m[1].length;continue}
+    const w=/^([A-Za-z_][A-Za-z0-9_]*)/.exec(s.slice(i));if(w){toks.push({t:'id',v:w[1]});i+=w[1].length;continue}
+    const op=/^(<=|>=|==|!=|&&|\|\||[-+*/%()<>!,×÷])/.exec(s.slice(i));if(op){toks.push({t:'op',v:op[1]==='×'?'*':op[1]==='÷'?'/':op[1]});i+=op[1].length;continue}
+    throw new Error('看不懂的符號：'+c);
+  }
+  let p=0;const peek=()=>toks[p],eat=v=>{const t=toks[p];if(!t||t.v!==v)throw new Error('缺少 '+v);p++};
+  const BP={'||':1,'&&':2,'==':3,'!=':3,'<':4,'<=':4,'>':4,'>=':4,'+':5,'-':5,'*':6,'/':6,'%':6};
+  const prim=()=>{
+    const t=toks[p++];if(!t)throw new Error('算式不完整');
+    if(t.t==='n'){const v=t.v;return()=>v}
+    if(t.t==='id'){
+      if(peek()&&peek().v==='('){const f=TPL_FN[t.v];if(!f)throw new Error('不支援的函式：'+t.v);p++;const args=[];
+        if(peek()&&peek().v!==')'){args.push(expr(0));while(peek()&&peek().v===','){p++;args.push(expr(0))}}eat(')');return e=>f(...args.map(a=>a(e)))}
+      const k=t.v;return e=>{if(!(k in e))throw new Error('沒有定義的變數：'+k);return e[k]}}
+    if(t.v==='('){const x=expr(0);eat(')');return x}
+    if(t.v==='-'){const x=prim();return e=>-x(e)}
+    if(t.v==='+')return prim();
+    if(t.v==='!'){const x=prim();return e=>x(e)?1:0}
+    throw new Error('算式寫法有誤');
+  };
+  const expr=min=>{
+    let l=prim();
+    while(peek()&&peek().t==='op'&&BP[peek().v]>min){
+      const o=toks[p++].v,r=expr(BP[o]),L=l;
+      l={'+':e=>L(e)+r(e),'-':e=>L(e)-r(e),'*':e=>L(e)*r(e),'/':e=>L(e)/r(e),'%':e=>L(e)%r(e),
+         '<':e=>+(L(e)<r(e)),'<=':e=>+(L(e)<=r(e)),'>':e=>+(L(e)>r(e)),'>=':e=>+(L(e)>=r(e)),
+         '==':e=>+(Math.abs(L(e)-r(e))<1e-9),'!=':e=>+(Math.abs(L(e)-r(e))>=1e-9),'&&':e=>+(L(e)&&r(e)),'||':e=>+(L(e)||r(e))}[o];
+    }
+    return l;
+  };
+  const f=expr(0);if(p!==toks.length)throw new Error('算式寫法有誤');return f;
+}
+// 數字轉成題目上的寫法：整數照寫，小數最多 3 位；算出 1.23456 這種醜數字就當作不合格
+function tplNum(x){
+  if(typeof x!=='number'||!isFinite(x))return null;
+  const r=Math.round(x*1000)/1000;if(Math.abs(r-x)>1e-7)return null;
+  return String(+r.toFixed(3));
+}
+function tplPrep(t){
+  if(!t||typeof t!=='object')throw new Error('不是模板');
+  const vars=Object.entries(t.vars||{}).map(([k,v])=>{
+    if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)||TPL_FN[k])throw new Error('變數名稱不行：'+k);
+    const isRange=Array.isArray(v)&&(v.length===2||v.length===3)&&v.every(x=>typeof x==='number'||(typeof x==='string'&&/^[\x20-\x7e]+$/.test(x)));
+    if(isRange)return {k,lo:tplCompile(v[0]),hi:tplCompile(v[1]),st:v[2]!=null?tplCompile(v[2]):null};
+    if(Array.isArray(v)&&v.length)return {k,pick:v.slice(0,30)};
+    if(v&&typeof v==='object'&&Array.isArray(v.pick)&&v.pick.length)return {k,pick:v.pick.slice(0,30)};
+    if(typeof v==='string'||typeof v==='number')return {k,ex:tplCompile(v)};
+    throw new Error('變數寫法有誤：'+k);
+  });
+  const fmt=str=>{const parts=[];String(str||'').replace(/\{([^{}]+)\}|([^{}]+)/g,(m,e,lit)=>{parts.push(e!=null?{f:tplCompile(e),raw:e.trim()}:{lit});return m});return parts};
+  const wrong=(Array.isArray(t.wrong)?t.wrong:[]).slice(0,6).map(fmt);
+  return {vars,when:(Array.isArray(t.when)?t.when:[]).map(tplCompile),text:fmt(t.text),ans:fmt(t.ans),wrong,why:fmt(t.why),hint:fmt(t.hint)};
+}
+const tplCache=new Map();
+const tplGet=t=>{const k=JSON.stringify(t);if(!tplCache.has(k))tplCache.set(k,tplPrep(t));return tplCache.get(k)};
+// 用一個亂數產生器做出一組數字；條件不成立就重抽，最多 80 次
+function tplRoll(P,rnd){
+  const fill=(parts,e)=>{let out='';for(const x of parts){if(x.lit!=null){out+=x.lit;continue}
+    const v=x.f(e);if(typeof v==='string'){out+=v;continue}const n=tplNum(v);if(n==null)return null;out+=n}return out};
+  for(let tries=0;tries<80;tries++){
+    const e={};let bad=false;
+    for(const v of P.vars){
+      if(v.pick){e[v.k]=v.pick[Math.floor(rnd()*v.pick.length)];continue}
+      if(v.ex){const x=v.ex(e);if(typeof x==='number'&&!isFinite(x)){bad=true;break}e[v.k]=x;continue}
+      const lo=Math.ceil(v.lo(e)),hi=Math.floor(v.hi(e)),st=v.st?Math.max(1,Math.floor(v.st(e))):1;
+      if(!isFinite(lo)||!isFinite(hi)||hi<lo){bad=true;break}
+      const n=Math.floor((hi-lo)/st)+1;e[v.k]=lo+st*Math.floor(rnd()*n);
+    }
+    if(bad||!P.when.every(w=>w(e)))continue;
+    const q=fill(P.text,e),a=fill(P.ans,e),why=fill(P.why,e)||'';
+    if(!q||!a)continue;
+    let wr=[...new Set(P.wrong.map(w=>fill(w,e)).filter(x=>x&&x!==a))];
+    // 錯誤選項不夠：把答案裡的數字加減一點補上
+    const num=/-?\d+(?:\.\d+)?/.exec(a);
+    if(wr.length<3&&num){const n=+num[0];for(const d of [1,-1,10,-10,2]){if(wr.length>=3)break;const z=tplNum(n+d);if(z==null||+z<0)continue;
+      const s=a.slice(0,num.index)+z+a.slice(num.index+num[0].length);if(s!==a&&!wr.includes(s))wr.push(s)}}
+    if(wr.length<2)continue;
+    wr=wr.slice(0,3);
+    if(q.length>160||[a,...wr].some(x=>x.length>40))continue;
+    return {q,a,wrong:wr,why,hint:fill(P.hint,e)||''};
+  }
+  return null;
+}
+// 一題參數題換一組新的數字（seed 一樣就是同一組，列印練習卷用）
+function tplInstance(q,seed){
+  try{
+    const rnd=seed==null?Math.random:seedRng(seed);
+    const r=tplRoll(tplGet(q.tpl),rnd);if(!r)return q;
+    const o=(seed==null?shuffle:(a=>seedShuffle(a,rnd)))([r.a,...r.wrong]);
+    return {...q,q:r.q,o,a:r.a,why:r.why||q.why,hint:r.hint||q.hint,detail:undefined,inst:true};
+  }catch(e){return q}
+}
+// 程式檢查模板：跑 200 組，幾乎每組都要做得出來，答案不能和錯誤選項一樣，也要有足夠多種不同的題目
+function tplCheck(t){
+  let P;try{P=tplPrep(t)}catch(e){return {ok:false,why:e.message}}
+  if(!P.text.length||!P.ans.length)return {ok:false,why:'缺少題目或答案'};
+  const texts=new Set();let fail=0,first=null;
+  for(let s=1;s<=200;s++){
+    let r;try{r=tplRoll(P,seedRng(s*7919))}catch(e){return {ok:false,why:e.message}}
+    if(!r){fail++;continue}
+    if(!first)first=r;texts.add(r.q);
+  }
+  if(fail>10)return {ok:false,why:`200 組裡有 ${fail} 組做不出合格的數字`};
+  if(texts.size<5)return {ok:false,why:`只做得出 ${texts.size} 種不同的題目`};
+  return {ok:true,kinds:texts.size,sample:first};
+}
+
+function paramPrompt(bank,count,only){
+  const cons=bank.concepts.filter(x=>!only||only.has(x.id)).map(x=>{
+    const ex=bank.questions.filter(q=>q.c===x.id&&!q.tpl).slice(0,3).map(q=>`    例題：${q.q}（答案：${ansStr(q)}）`).join('\n');
+    return `【${x.id}】${x.text}${ex?'\n'+ex:''}`;}).join('\n');
+  const exist=bank.questions.filter(q=>q.tpl).map(q=>'- '+q.tpl.text).join('\n');
+  return `你是台灣的國小數學老師。題庫：${bankInfo(bank)}。
+請根據下面的觀念，寫 ${count} 個「題型模板」。程式會依模板隨機換數字、自動算答案，讓孩子同一種題型可以一直練。
+你只負責寫模板，不要自己算答案，所有數字和答案都要用變數和算式表示。
+
+模板格式（JSON 物件）：
+- c：觀念代號（必須是清單裡的代號）。lv：1 基礎、2 標準、3 挑戰。
+- vars：變數，依序定義，後面的變數可以用前面的。
+  · [最小, 最大] 或 [最小, 最大, 間隔]：隨機整數，上下限可以是算式字串，例如 ["1", "a-1"]。
+  · "算式"：由前面的變數算出來。
+  · ["小明","小華","阿美"]：從中文字串裡隨機挑一個（人名、物品、單位等情境）。
+- when：條件陣列（都要成立，不成立程式會重抽），例如 ["a>b", "a%10<b%10"]。
+- text：題目，用 {變數} 或 {算式} 放數字，例如「{who}有 {a} 元，買了 {b} 元的筆，還剩幾元？」。
+- ans：正確答案，例如 "{a-b} 元"。
+- wrong：2～3 個錯誤選項，請依照孩子常犯的錯來設計（例如忘了退位、加減弄反、乘除弄反、單位沒換算），例如 ["{a+b} 元", "{a-b+10} 元"]。
+- why：一兩句解說，用 {算式} 帶入數字，小朋友看得懂，60 字以內。
+- hint：一句提示（20 字以內），不能說出答案。
+
+重要規則：
+- 數字要乾淨：除法請「先決定除數和商，再相乘得到被除數」，不要先亂取被除數；減法讓結果不小於 0；分數、小數題也用倒推的方式讓答案漂亮。
+- 數字範圍和限制要符合 ${bank.grade||'這個年級'}和這個單元（例如單元教不退位，就用 when 限制不退位）。
+- 算式只能用 + - * / % ( ) 和 min max abs floor ceil round gcd lcm，比較用 < <= > >= == !=，並且用 && ||。不能寫程式。
+- 只出能用選擇題作答的計算題或應用題；需要畫圖、寫過程的題型不要出。
+- 每個模板是不同的題型或情境，不要和「已經有的模板」重複。
+
+觀念清單：
+${cons}
+
+已經有的模板：
+${exist||'（還沒有）'}
+
+只回傳 JSON 陣列，不要其他文字，例如：
+[{"c":"k1","lv":2,"vars":{"b":[2,9],"q":[2,9],"a":"b*q","who":["小明","小華","阿美"]},"when":[],"text":"{who}把 {a} 顆糖平分給 {b} 個人，每人分到幾顆？","ans":"{q} 顆","wrong":["{a-b} 顆","{q+1} 顆","{a*b} 顆"],"why":"{a}÷{b}={q}，每人分到 {q} 顆。","hint":"平分要用除法"}]`;
+}
+// 把通過檢查的模板收進題庫（範例數字當作 q / o / a，給清單、講義、排程判讀用）
+function addTemplates(bank,arr){
+  const ids=new Set(bank.concepts.map(c=>c.id)),seen=new Set(bank.questions.concat(bank.pending).filter(q=>q.tpl).map(q=>q.tpl.text));
+  let added=0;const bad=[],newIds=[];
+  (Array.isArray(arr)?arr:[]).forEach(t=>{
+    if(!t||!ids.has(String(t.c))){bad.push('觀念代號不對');return}
+    const tpl={vars:t.vars,when:t.when||[],text:String(t.text||''),ans:String(t.ans||''),wrong:t.wrong||[],why:String(t.why||''),hint:String(t.hint||'').slice(0,60)};
+    if(seen.has(tpl.text)){bad.push('和已有的模板重複');return}
+    const ck=tplCheck(tpl);if(!ck.ok){bad.push(ck.why);return}
+    const s=ck.sample;
+    const q={c:String(t.c),t:'mc',q:s.q,o:shuffle([s.a,...s.wrong]),a:s.a,why:s.why||'',lv:[1,2,3].includes(+t.lv)?+t.lv:2,src:'AI',ansByAI:false,icon:'🔢',
+      ...(s.hint?{hint:s.hint.slice(0,60)}:{}),tpl,kinds:ck.kinds};
+    const nid=newId(bank,'q');bank.questions.push({...q,id:nid});newIds.push(nid);seen.add(tpl.text);added++;
+  });
+  return {added,bad,ids:newIds};
+}
+
+let paramState={count:10,phase:'idle',msg:'',ctl:null};
+function paramPage(bank){
+  if(!paramState.cons||paramState.bid!==bank.id){paramState.cons=defaultConcepts(bank);paramState.bid=bank.id}
+  const nT=bank.questions.filter(q=>q.tpl).length;
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="bk">← 產生更多題目</button></div>
+   <h1 class="pg">🔢 數學換數字題</h1>
+   <p class="lead">AI 只寫「題型」，數字、答案和錯誤選項都由程式算，所以<b>答案不會算錯</b>。每一題每次練習都會換一組數字，可以一直練；列印練習卷時換卷號，數字也會跟著換。${nT?`<br>這個題庫已經有 ${nT} 個換數字題。`:''}</p>
+   ${sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
+   <div class="section-title">要練哪些觀念</div>
+   <div id="p-cp">${conceptPickerHTML(bank,paramState.cons)}</div>
+   <div class="section-title">要幾種題型</div>
+   <div class="chips">${[5,10,15].map(v=>`<button class="chip" data-pc="${v}" aria-pressed="${paramState.count===v}">${v} 種</button>`).join('')}</div>
+   <p class="lead" style="font-size:1rem;margin-top:8px">寫題型算 1 次 AI 使用次數，另外抽一組數字驗算題意約 1 次。程式會先把每種題型試做 200 次，數字不乾淨、變化太少的題型會自動丟掉。</p>
+   <div id="p-act" style="margin-top:16px"></div>`}`;
+  const $=id=>document.getElementById(id);
+  $('bk').onclick=()=>{if(paramState.ctl)paramState.ctl.abort();morePage(bank)};
+  if(sampleBlocked()||SAMPLE===undefined){if(SAMPLE===undefined)setTimeout(()=>paramPage(bank),1500);return}
+  bindConceptPicker($('p-cp'),paramState.cons);
+  app.querySelectorAll('[data-pc]').forEach(b=>b.onclick=()=>{if(paramState.phase==='working')return;paramState.count=+b.dataset.pc;paramPage(bank)});
+  const act=$('p-act');
+  if(paramState.phase==='working'){
+    act.innerHTML=`<div class="feedback"><p class="fb-head" id="p-prog">Claude 正在寫題型……</p><p class="fb-why">大約要等 20～60 秒，請不要關掉畫面。</p><button class="ghost" id="p-stop">停止</button></div>`;
+    $('p-stop').onclick=()=>paramState.ctl&&paramState.ctl.abort();
+  }else{
+    act.innerHTML=quotaNote+`<button class="big" id="p-start">🔢 產生 ${paramState.count} 種換數字題</button>${paramState.msg?`<p class="lead" style="margin-top:12px">${esc(paramState.msg)}</p>`:''}`;
+    $('p-start').onclick=()=>{if(!paramState.cons.size){toast('請至少選一個觀念');return}paramState.msg='';runParam(bank)};
+  }
+  window.scrollTo(0,0);
+}
+async function runParam(bank){
+  paramState.phase='working';paramPage(bank);
+  const ctl=new AbortController();paramState.ctl=ctl;
+  const prog=t=>{const p=document.getElementById('p-prog');if(p)p.textContent=t};
+  let r={added:0,bad:[],ids:[]},err=null,v={checked:0,moved:0};
+  try{
+    const res=await SAMPLE.json(paramPrompt(bank,paramState.count,paramState.cons.size<bank.concepts.length?paramState.cons:null),{signal:ctl.signal,cache:false,modelTier:'default'});
+    prog('程式正在試做每一種題型……');
+    r=addTemplates(bank,res);
+    if(r.added){await bsSave(bank);prog('AI 正在驗算題意……');v=await verifyNew(bank,r.ids,ctl.signal)}
+  }catch(e){err=e}
+  paramState.phase='idle';paramState.ctl=null;
+  if(r.added){paramState.msg='';
+    bankHome(bank,`新增 ${r.added-v.moved} 種換數字題，每次練習都會換數字。${r.bad.length?`另有 ${r.bad.length} 種題型沒通過程式檢查，已經丟掉。`:''}${v.moved?`有 ${v.moved} 種題意可能有問題，放在「待確認的題目」。`:''}`);return}
+  paramState.msg=err?aiErrMsg(err):`這次的題型都沒通過程式檢查（${[...new Set(r.bad)].slice(0,3).join('、')||'格式不對'}），請再試一次。`;
+  paramPage(bank);
+}
+
 /* --- 頁面：待確認（可修改） --- */
 let editIdx=-1;
 function qView(q){
-  const tags=`<span class="tag">${LV[q.lv]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span> <span class="tag">${q.src==='原題'?'原題':q.src==='改寫'?'由填空等改寫':'AI 新題'}</span>${needAnsCheck(q)?' <span class="tag warn">⚠️ 答案由 AI 判斷，請確認</span>':''}`;
+  const tags=`<span class="tag">${LV[q.lv]}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span> <span class="tag">${q.src==='原題'?'原題':q.src==='改寫'?'由填空等改寫':'AI 新題'}</span>${needAnsCheck(q)?' <span class="tag warn">⚠️ 答案由 AI 判斷，請確認</span>':''}${q.tpl?` <span class="tag">🔢 換數字題${q.kinds?`（約 ${q.kinds>=100?'100+':q.kinds} 種數字）`:''}</span>`:''}`;
   const ans=q.t==='tf'?`答案：${q.a==='O'?'⭕ 對':'❌ 錯'}`:q.o.map(o=>o===q.a?`<b style="color:var(--leaf-ink)">✔ ${esc(o)}</b>`:esc(o)).join('　');
   const ck=q.check?(q.check.s==='pass'?' <span class="tag">✅ AI 判讀通過</span>':` <span class="tag warn">⚠️ AI 判讀有問題</span>`):'';
   const fl=FLAGS[CUR_BANK_KEY]&&FLAGS[CUR_BANK_KEY].f[q.id];
@@ -2266,7 +2495,7 @@ function qView(q){
 }
 let CUR_BANK_KEY='';
 function qEditor(q){
-  return `<div class="form">
+  return `<div class="form">${q.tpl?'<p class="lead" style="font-size:.95rem;margin:0 0 6px">🔢 這是換數字題，下面是其中一組數字。改了題目或選項，就會變成固定數字的題目，不再換數字（只改難度、解說不影響）。</p>':''}
     <label>題目<textarea id="e-q" rows="2">${esc(q.q)}</textarea></label>
     ${q.t==='tf'?`<label>答案 <select id="e-a"><option value="O"${q.a==='O'?' selected':''}>⭕ 對</option><option value="X"${q.a==='X'?' selected':''}>❌ 錯</option></select></label>`
       :`<p style="margin:6px 0">選項（點選正確答案；空白的選項會刪掉）</p>${[0,1,2,3].map(i=>`<label class="optrow"><input type="radio" name="e-ok" value="${i}" ${q.o[i]===q.a?'checked':''}><input id="e-o${i}" value="${esc(q.o[i]||'')}"></label>`).join('')}`}
@@ -2287,6 +2516,7 @@ function readEditor(q){
     const a=ck?raw[+ck.value]:'';
     out.o=raw.filter(Boolean); out.a=a;
   }
+  if(q.tpl&&(out.q!==q.q||out.a!==q.a||JSON.stringify(out.o)!==JSON.stringify(q.o))){delete out.tpl;delete out.kinds}   // 改了題目數字就變成固定題
   return normQ(out)?{...out,...normQ(out),id:q.id,c:q.c}:null;
 }
 function reviewPage(bank,msg){
@@ -3324,7 +3554,8 @@ function sheetPool(bank,sp){
 function buildSheet(bank,sp,no){
   const rnd=seedRng(no*2654435761+bank.questions.length);
   const pool=seedShuffle(sheetPool(bank,sp),rnd);
-  const pick=(sp.n?pool.slice(0,sp.n):pool).map(q=>{
+  const pick=(sp.n?pool.slice(0,sp.n):pool).map(q0=>{
+    const q=q0.tpl?tplInstance(q0,Math.floor(rnd()*1e9)):q0;   // 換數字題：數字跟著卷號換
     const o=q.t==='mc'?(q.o.includes('以上皆是')?seedShuffle(q.o.filter(x=>x!=='以上皆是'),rnd).concat('以上皆是'):seedShuffle(q.o,rnd)):null;
     return {q,o};
   });
