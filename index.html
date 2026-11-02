@@ -1456,6 +1456,7 @@ const AI_ERR={
   daily_limit:'今天的 AI 使用次數已經用完了，明天再試。',
   no_credit:'網站的 AI 額度用完了，請通知網站管理者儲值。',
   network:'連不上後端，請檢查網路後再試。',
+  empty_reply:'Claude 這次沒有寫出內容（沒有扣使用次數），請再試一次。',
   already_reported:'這題已經有人回報了，正在確認中。',
   report_limit:'今天的回報次數已經用完了，明天再試。',
   not_configured:'網站尚未設定後端網址。',
@@ -2558,7 +2559,7 @@ async function runParam(bank){
     let res=null;
     for(let t=0;t<2&&!res;t++){   // 連線斷掉時自動重試一次
       try{res=await SAMPLE.json(paramPrompt(bank,want,only),{signal:ctl.signal,cache:false,modelTier:'default'});err=null}
-      catch(e){err=e;if(e&&(e.code==='cancelled'||e.code!=='network'&&e.code!=='invalid_json'))break}
+      catch(e){err=e;if(e&&(e.code==='cancelled'||!['network','invalid_json','empty_reply'].includes(e.code)))break}
     }
     if(!res)break;
     prog('程式正在試做每一種題型……');
@@ -2775,7 +2776,7 @@ async function runReading(bank,nQ){
     let res=null;
     for(let t=0;t<2&&!res;t++){
       try{res=await SAMPLE.json(readPrompt(bank,genre,readState.topic.trim(),nQ),{signal:ctl.signal,cache:false,modelTier:'default'});err=null}
-      catch(e){err=e;if(e&&(e.code==='cancelled'||e.code!=='network'&&e.code!=='invalid_json'))break}
+      catch(e){err=e;if(e&&(e.code==='cancelled'||!['network','invalid_json','empty_reply'].includes(e.code)))break}
     }
     if(!res)break;
     const r=addReading(bank,res,genre);bad.push(...r.bad);held+=r.held||0;

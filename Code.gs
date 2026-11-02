@@ -37,7 +37,10 @@ const PRICE = {
   'claude-sonnet-5-5': [2, 10],
   'claude-haiku-4-5-20251001': [1, 5],
 };
-const MAX_TOKENS = 8000;
+const MAX_TOKENS = 12000;
+// Sonnet 5.5 預設會先思考（adaptive thinking），思考也算在 max_tokens 裡，長文章會思考到上限、沒有輸出文字。
+// 出題不需要先思考，改用 between_tools（這個模型最低的思考設定；沒有工具時只回文字）
+const NO_THINK = /^claude-(sonnet|opus)-5-5/;
 const MAX_IMAGES = 5;
 const MAX_PROMPT_CHARS = 150000;
 const CHUNK = 45000;          // 試算表單一儲存格上限 50,000 字元，保留緩衝
@@ -269,7 +272,8 @@ function aiCall(fam, req) {
     method: 'post',
     contentType: 'application/json',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    payload: JSON.stringify({ model, max_tokens: MAX_TOKENS, messages: [{ role: 'user', content }] }),
+    payload: JSON.stringify(Object.assign({ model, max_tokens: MAX_TOKENS, messages: [{ role: 'user', content }] },
+      NO_THINK.test(model) ? { thinking: { type: 'between_tools' } } : {})),
     muteHttpExceptions: true,
   });
   const status = res.getResponseCode();
@@ -287,6 +291,10 @@ function aiCall(fam, req) {
 
   const text = (body.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
   logUsage(fam, model, images.length, body.usage || {});
+  if (!text.trim()) {   // 沒有輸出任何文字（例如思考用完 max_tokens、或被拒絕）：不算次數
+    if (usedBonus) setBonus(fam, currentBonus(fam) + 1); else refundCount(fam);
+    return { ok: false, code: 'empty_reply', message: 'Claude 沒有回傳內容（' + String(body.stop_reason || '') + '）' };
+  }
   return { ok: true, text, truncated: body.stop_reason === 'max_tokens', remaining: Math.max(0, left - 1) };
 }
 function refundCount(fam) {
