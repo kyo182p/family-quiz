@@ -1166,7 +1166,7 @@ function ask(){
   const item=S.queue[S.pos], rv=item.kind==='review';
   if(item.q.tpl&&!item.inst)item.inst=tplInstance(item.q);   // 換數字題：每次出現換一組數字（重畫畫面時不變）
   const q=item.inst||item.q;
-  const opts=q.t==='mc'?(q.o.includes('以上皆是')?shuffle(q.o.filter(x=>x!=='以上皆是')).concat('以上皆是'):shuffle(q.o)):null;
+  const opts=q.t==='mc'?(q.o.includes('以上皆是')?shuffle(q.o.filter(x=>x!=='以上皆是')).concat('以上皆是'):orderOpts(q.o,shuffle)):null;
   S.cur={...item,q,opts};
   const mainDone=S.leaves.length;
   app.innerHTML=`
@@ -1768,6 +1768,12 @@ const JSON_RULES=`題型規則：
 - why：一兩句解說，小朋友看得懂，不超過 60 字。
 - icon：一個適合這題的 emoji，沒有適合的就給空字串。
 - hint：一句提示（20 字以內），引導孩子想到關鍵，但不能直接說出答案。`;
+// 參考真實段考卷的出題方式（2026-11 分析 9 份國小段考）。原題照抄時不套用，只用在改寫和 AI 出的題目
+const STYLE_RULES=b=>`出題風格（比照學校段考）：
+- 題幹用中性短句：一般題 12～30 字，應用題、情境題 30～50 字；常用「下列何者正確？」「哪一個……？」這類問法，不要加「小朋友」「加油」之類的口吻；人名用小美、小華、強強這類常見名字。
+- 錯誤選項：每個錯誤選項都要對應孩子一種具體的錯誤想法，例如概念弄混（直徑和半徑、相近的名詞）、只算一半的結果、差一或頭尾算錯、餘數該不該進位、單位弄錯、把文中其他細節換上；不要用隨便湊的相近數字。
+- 選項數依題意：比較大小、二選一的情況（例如上午／下午、甲／乙／一樣大）只給 2～3 個選項，其他給 4 個；選項長度相近，正確答案不能特別長或特別詳細。${/自然|科學/.test(String(b.subject||'')+String(b.title||''))?`
+- 自然科：大約三成的題目用反向問法（「下列何者不正確？」「哪一個最不可能……？」），「不」字要清楚寫在題目裡。`:''}`;
 
 function analyzePrompt(bank,text,note,nImages,aiLv){
   const cons=bank.concepts.map(x=>`${x.id}：${x.text}`).join('\n')||'（還沒有）';
@@ -1791,6 +1797,9 @@ ${note?'家長補充：'+note:''}
 
 ${JSON_RULES}
 
+改寫題和 AI 補充題請遵守（原題照抄，不要改）：
+${STYLE_RULES(bank)}
+
 已經有的觀念：
 ${cons}
 
@@ -1811,6 +1820,7 @@ function genPrompt(bank,lv,count,only){
 - 是非題和選擇題都要有。${lvText}
 - 不要和「已經有的題目」重複，要換問法、換角度。
 - 錯誤選項必須根據清單明確是錯的，不能有兩個都說得通的選項。
+${STYLE_RULES(bank)}
 
 ${JSON_RULES}
 
@@ -2505,11 +2515,18 @@ function tplRoll(P,rnd){
   return null;
 }
 // 一題參數題換一組新的數字（seed 一樣就是同一組，列印練習卷用）
+// 選項都是數字（可以帶相同單位，例如「35 個」）時，比照考卷由小到大排；其他選項打亂
+function optNum(x){const m=/^\s*(-?\d+(?:\.\d+)?)(?:\s*\/\s*(\d+))?\s*(.*)$/.exec(String(x));if(!m)return null;const v=m[2]?(+m[1])/(+m[2]):+m[1];return isFinite(v)?{v,u:m[3].trim()}:null}
+function orderOpts(o,mix){
+  const ns=o.map(optNum);
+  if(o.length>=2&&ns.every(Boolean)&&ns.every(n=>n.u===ns[0].u)&&!/[\u4e00-\u9fff]{3,}/.test(ns[0].u))return o.map((x,i)=>[x,ns[i].v]).sort((a,b)=>a[1]-b[1]).map(x=>x[0]);
+  return mix(o);
+}
 function tplInstance(q,seed){
   try{
     const rnd=seed==null?Math.random:seedRng(seed);
     const r=tplRoll(tplGet(q.tpl),rnd);if(!r)return q;
-    const o=(seed==null?shuffle:(a=>seedShuffle(a,rnd)))([r.a,...r.wrong]);
+    const o=orderOpts([r.a,...r.wrong],seed==null?shuffle:(a=>seedShuffle(a,rnd)));
     return {...q,q:r.q,o,a:r.a,why:r.why||q.why,hint:r.hint||q.hint,detail:undefined,inst:true};
   }catch(e){return q}
 }
@@ -2552,6 +2569,8 @@ function paramPrompt(bank,count,only){
 
 重要規則：
 - 數字要乾淨：除法請「先決定除數和商，再相乘得到被除數」，不要先亂取被除數；減法讓結果不小於 0；分數、小數題也用倒推的方式讓答案漂亮。
+- 但計算題、應用題要比照學校段考，刻意安排這個單元的難點，並用 when 保證每一組數字都真的出現這個難點：例如連續退位、跨 0 退位（1000－370）、商中間有 0（648÷6）、有餘數、「最少需要幾個」要把餘數進位、接近整百的估算（299 元）。單純的概念選擇題數字維持好算。
+- 題目是中性短句，應用題 30～50 字；人名用小美、小華、強強這類常見名字；每一題最好是兩步以上的計算（例如先合起來再平分），單步驟的題型不要超過一半。
 - 數字範圍和限制要符合 ${bank.grade||'這個年級'}和這個單元（例如單元教不退位，就用 when 限制不退位）。
 - 算式只能用 + - * / % ( ) 和 min max abs floor ceil round gcd lcm，比較用 < <= > >= == !=，並且用 && ||。不能寫程式。
 - 只出能用選擇題作答的計算題或應用題；需要畫圖、寫過程的題型不要出。
@@ -2668,8 +2687,8 @@ function readingConcepts(bank){
 // 中年級往提取、推論調高；108 課綱「分辨事實與意見」「議論文」到五、六年級才出現
 const READ_LEVEL={
   3:{len:[350,500],sent:'句子短（大多 20 字以內），用三年級學過的常用字詞，成語最多 1 個且要常見',mix:[2,2,1,0],eval:''},
-  4:{len:[450,650],sent:'句子以 25 字以內為主，可以有少數常見成語',mix:[1,2,1,1],eval:'比較評估題只考「從文中找出支持某個看法的理由」'},
-  5:{len:[600,850],sent:'句子長短交錯，可以有較多描寫與常見成語，生難詞要能從上下文猜出意思',mix:[1,2,2,1],eval:'比較評估題可以考作者的寫法與用意，或分辨哪一句是事實、哪一句是意見'},
+  4:{len:[400,550],sent:'句子以 25 字以內為主，可以有少數常見成語',mix:[1,2,1,1],eval:'比較評估題只考「從文中找出支持某個看法的理由」'},
+  5:{len:[450,700],sent:'句子長短交錯，可以有較多描寫與常見成語，生難詞要能從上下文猜出意思',mix:[1,2,2,1],eval:'比較評估題可以考作者的寫法與用意，或分辨哪一句是事實、哪一句是意見'},
   6:{len:[750,1000],sent:'可以有轉折、對比、象徵等寫法，詞彙符合六年級程度',mix:[1,2,2,1],eval:'比較評估題可以考作者的寫法、立場與用意，或分辨事實與意見'},
 };
 const readLevel=b=>READ_LEVEL[Math.min(6,Math.max(3,gradeNum(b)||4))];
@@ -3975,7 +3994,7 @@ function buildSheet(bank,sp,no){
   const pool=seedShuffle(sheetPool(bank,sp),rnd);
   const pick=(sp.n?pool.slice(0,sp.n):pool).map(q0=>{
     const q=q0.tpl?tplInstance(q0,Math.floor(rnd()*1e9)):q0;   // 換數字題：數字跟著卷號換
-    const o=q.t==='mc'?(q.o.includes('以上皆是')?seedShuffle(q.o.filter(x=>x!=='以上皆是'),rnd).concat('以上皆是'):seedShuffle(q.o,rnd)):null;
+    const o=q.t==='mc'?(q.o.includes('以上皆是')?seedShuffle(q.o.filter(x=>x!=='以上皆是'),rnd).concat('以上皆是'):orderOpts(q.o,a=>seedShuffle(a,rnd))):null;
     return {q,o};
   });
   // 是非題放前面、選擇題放後面，比較像學校考卷
