@@ -327,6 +327,12 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .zyc:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 .zyctx{font-size:1.3rem}
 .zyctx mark{background:var(--sun);color:#222;border-radius:3px;padding:0 2px}
+/* --- 上傳試卷檔 --- */
+.doclist{list-style:none;padding:0;margin:8px 0 0}
+.doclist li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.doclist small{display:block;color:var(--muted);font-size:.85rem}
+.docbtns{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.docbtns .chip{margin:0}
 /* --- 閱讀測驗 --- */
 .passage mark.ev{background:var(--sun);color:#222;border-radius:4px;padding:1px 2px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 .evnote{color:var(--muted)}
@@ -1780,7 +1786,7 @@ ${note?'家長補充：'+note:''}
 6. 每題用 c 標出觀念。已經有的觀念請沿用代號；新觀念用 "n1"、"n2"…，並在 concepts 用一句話寫出觀念重點（只能根據資料）。
 7. 只能根據資料內容，不可以加入資料以外的知識。
 8. 資料不是題目、只是課文或講解時，就根據內容出幾題，src 為 "AI"。${aiLv?`這些 AI 補充題全部出「${LV[aiLv]}」難度，lv 一律為 ${aiLv}（${['','直接回想','要分辨相近的觀念','反過來問、應用或結合兩個觀念'][aiLv]}）。`:''}
-9. 這一次最多整理 15 題；題目太多時，優先抄錄有答案的原題。
+9. 這一次最多整理 ${nImages?15:40} 題；題目太多時，優先抄錄有答案的原題。考卷的答案常放在最後（解答、參考答案），要對回前面的題號。
 10. 閱讀測驗（一篇文章配好幾題）：把文章全文照抄放進 passages（id 用 "p1"、"p2"…，title 是文章標題，text 是全文、段落之間用 \n 分開），這些題目加上 p 為文章代號；可以的話再加 rl 標出提問層次（1 提取訊息、2 推論、3 詮釋整合、4 比較評估）。文章照片看不清楚的字用□代替，不要自己編。
 
 ${JSON_RULES}
@@ -2058,13 +2064,57 @@ async function toJpeg(file){
     return blob;
   }catch(e){return null}
 }
+/* --- 試卷檔（PDF、Word）：在瀏覽器裡讀出文字；掃描的 PDF 或題目有圖時改成逐頁轉成圖片 --- */
+const PDFJS='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/';
+const MAMMOTH='https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js';
+const DOC_MAX_PAGES=20;
+async function pdfLib(){
+  if(!window.pdfjsLib){await loadScript(PDFJS+'pdf.min.js');window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS+'pdf.worker.min.js'}
+  return window.pdfjsLib;
+}
+async function readPdf(file){
+  const lib=await pdfLib();
+  const pdf=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer()),cMapUrl:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',cMapPacked:true}).promise;
+  const n=Math.min(pdf.numPages,DOC_MAX_PAGES),pages=[];
+  for(let i=1;i<=n;i++){
+    const tc=await (await pdf.getPage(i)).getTextContent();
+    pages.push(tc.items.map(it=>(it.str||'')+(it.hasEOL?'\n':'')).join('').replace(/[ \t]+\n/g,'\n').trim());
+  }
+  const chars=pages.join('').replace(/\s/g,'').length;
+  return {kind:'pdf',pdf,pages,total:pdf.numPages,scanned:chars<n*40};   // 每頁平均不到 40 字，多半是掃描檔
+}
+async function pdfPageImages(doc){
+  const out=[];
+  for(let i=1;i<=doc.pages.length;i++){
+    const page=await doc.pdf.getPage(i),v0=page.getViewport({scale:1}),k=Math.min(2.5,1600/Math.max(v0.width,v0.height));
+    const vp=page.getViewport({scale:k}),c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+    const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+    await page.render({canvasContext:ctx,viewport:vp}).promise;
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));if(blob)out.push(blob);
+  }
+  return out;
+}
+async function readDocx(file){
+  if(!window.mammoth)await loadScript(MAMMOTH);
+  const r=await window.mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()});
+  return {kind:'docx',pages:[String(r.value||'').replace(/\n{3,}/g,'\n\n').trim()],total:1,scanned:false};
+}
+async function readExamFile(file){
+  const name=file.name||'試卷',ext=(name.split('.').pop()||'').toLowerCase();
+  if(ext==='doc')throw new Error('舊版 Word（.doc）讀不出來，請在 Word 另存成 .docx 或 PDF 再選一次');
+  if(ext==='pdf'||file.type==='application/pdf'){const d=await readPdf(file);return {...d,name,mode:d.scanned?'image':'text'}}
+  if(ext==='docx'){const d=await readDocx(file);return {...d,name,mode:'text'}}
+  throw new Error('只支援 PDF 和 Word（.docx）');
+}
+const docText=d=>d.pages.map((p,i)=>d.pages.length>1?`（第 ${i+1} 頁）\n${p}`:p).join('\n\n');
+
 /* --- 頁面：上傳資料 --- */
-let upState={files:[],text:'',note:'',phase:'idle',msg:'',ctl:null};
+let upState={files:[],docs:[],text:'',note:'',phase:'idle',msg:'',ctl:null};
 let upLv=store.get('custom-up-lv',0); // AI 補充題的難度：0 由 AI 判斷
 let upCount=store.get('custom-up-count',20); // 目標題數：原題不夠時用觀念補足
 function cleanSubtitle(t){return t.split(/\r?\n/).filter(l=>!/^\s*\d+\s*$/.test(l)&&!/-->/.test(l)&&l.trim()).join(' ').replace(/\s+/g,' ').trim()}
 async function uploadPage(bank,keep){
-  if(!keep)upState={files:[],text:'',note:'',phase:'idle',msg:'',ctl:null};
+  if(!keep)upState={files:[],docs:[],text:'',note:'',phase:'idle',msg:'',ctl:null};
   let caps=null,capsWhy=''; if(SAMPLE){try{caps=await SAMPLE.limits(); if(!caps||!caps.images)capsWhy='images_unavailable'}catch(e){capsWhy='limits_failed:'+((e&&(e.code||e.message))||e)}}
   const imgOK=!!(caps&&caps.images);
   const maxN=imgOK?caps.images.maxCount:0;
@@ -2072,7 +2122,7 @@ async function uploadPage(bank,keep){
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← ${esc(bank.title||bankInfo(bank))}</button></div>
    <h1 class="pg">上傳資料產生題目</h1>
-   <p class="lead">可以只放照片、只貼文字，或兩個一起。照片上有答案（訂正過的考卷、解答頁）最準確。</p>
+   <p class="lead">可以放照片、試卷檔（PDF、Word），或貼文字，也可以一起放。附答案的考卷（訂正過的、有解答頁的）最準確。</p>
    ${sampleBlocked()||SAMPLE===undefined?aiUnavailableHTML():`
    <section class="card form">
      <p style="margin:0 0 8px;font-size:1.15rem">📷 照片${imgOK?'（每 2 張一批分析，張數越多等越久）':''}</p>
@@ -2091,6 +2141,11 @@ async function uploadPage(bank,keep){
            <p style="margin-top:10px"><b>💬 或把照片傳到 Claude 對話</b>，請 Claude 整理成「題庫檔（.json）」，再到自訂題庫按「匯入題庫檔」。</p>
          </div>
          <p class="lead" style="font-size:.9rem;margin:6px 0 0">狀態代碼：${esc(capsWhy||'unknown')}</p>`}
+     <p style="margin:16px 0 8px;font-size:1.15rem">📑 試卷檔（PDF、Word）</p>
+     <label class="pickbtn">📑 選擇下載的試卷（.pdf、.docx）<input type="file" id="u-doc" accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple ${busy?'disabled':''} hidden></label>
+     ${upState.docs.length?`<ul class="doclist">${upState.docs.map((d,i)=>`<li><span>📄 ${esc(d.name)}<small>${d.kind==='pdf'?`${d.pages.length} 頁${d.total>d.pages.length?`（只讀前 ${d.pages.length} 頁）`:''}`:'Word'}・${d.mode==='image'?'🖼 用圖片讀':`📝 用文字讀（約 ${d.pages.join('').replace(/\s/g,'').length} 字）`}</small></span>
+        <span class="docbtns">${d.kind==='pdf'&&imgOK?`<button class="chip" data-dmode="${i}" aria-pressed="${d.mode==='image'}" ${busy?'disabled':''}>${d.mode==='image'?'改用文字讀':'改用圖片讀'}</button>`:''}<button class="iconbtn" data-drm="${i}" aria-label="移除" ${busy?'disabled':''}>✕</button></span></li>`).join('')}</ul>`:''}
+     <p class="lead" style="font-size:.95rem;margin:6px 0 0">PDF 先讀出文字，一份考卷通常只算 1 次 AI 使用次數。掃描的 PDF 會自動改用圖片；題目有圖表（例如自然、數學圖形題）時，按「改用圖片讀」，比較準，但每 2 頁算 1 次。答案寫在最後幾頁的考卷，用文字讀比較能對上答案。</p>
      <p style="margin:16px 0 8px;font-size:1.15rem">📝 文字（字幕檔、逐字稿、課文）</p>
      <label class="pickbtn">📄 選擇字幕或文字檔（.srt、.txt）<input type="file" id="u-txt" accept=".srt,.txt,.vtt,text/plain" ${busy?'disabled':''} hidden></label>
      <textarea id="u-text" rows="6" placeholder="也可以直接貼上文字（例如用原況文字拷貝的講義內容）" ${busy?'disabled':''}>${esc(upState.text)}</textarea>
@@ -2118,6 +2173,14 @@ async function uploadPage(bank,keep){
     if(bad)toast(`有 ${bad} 張照片這個瀏覽器讀不出來（常見於 Chrome 開 HEIC），請改用 Safari，或先轉成 JPG。`);
     uploadPage(bank,true)};
   app.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{sync();upState.files.splice(+b.dataset.rm,1);uploadPage(bank,true)});
+  if($('u-doc'))$('u-doc').onchange=async e=>{
+    sync();const list=[...e.target.files];
+    await busyRun('正在讀取試卷……',async()=>{for(const f of list){
+      try{const d=await readExamFile(f);if(d.mode==='text'&&!d.pages.join('').trim())throw new Error('讀不到文字');if(d.mode==='image'&&!imgOK)throw new Error('這是掃描的 PDF，這個畫面不能傳圖片');upState.docs.push(d)}
+      catch(err){toast(`「${f.name}」${err&&err.message?err.message:'讀取失敗'}`)}}});
+    uploadPage(bank,true)};
+  app.querySelectorAll('[data-drm]').forEach(b=>b.onclick=()=>{sync();upState.docs.splice(+b.dataset.drm,1);uploadPage(bank,true)});
+  app.querySelectorAll('[data-dmode]').forEach(b=>b.onclick=()=>{sync();const d=upState.docs[+b.dataset.dmode];if(d.scanned&&d.mode==='image'){toast('這是掃描的 PDF，只能用圖片讀');return}d.mode=d.mode==='image'?'text':'image';uploadPage(bank,true)});
   $('u-txt').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{sync();const t=String(r.result);upState.text=(upState.text?upState.text+'\n':'')+(/-->/.test(t)?cleanSubtitle(t):t);uploadPage(bank,true)};r.readAsText(f)};
   const act=$('u-act');
   if(busy){
@@ -2125,13 +2188,19 @@ async function uploadPage(bank,keep){
     $('u-stop').onclick=()=>upState.ctl&&upState.ctl.abort();
   }else{
     act.innerHTML=quotaNote+`<button class="big" id="u-start">🤖 開始產生題目</button>${upState.msg?`<p class="lead" style="margin-top:12px">${esc(upState.msg)}</p>`:''}`;
-    $('u-start').onclick=()=>{sync();if(!upState.files.length&&!upState.text.trim()){toast('請先放照片或貼上文字');return}upState.msg='';runAnalyze(bank,maxN)};
+    $('u-start').onclick=()=>{sync();if(!upState.files.length&&!upState.docs.length&&!upState.text.trim()){toast('請先放照片、試卷檔或貼上文字');return}upState.msg='';runAnalyze(bank,maxN)};
   }
   window.scrollTo(0,0);
 }
 async function runAnalyze(bank,maxN){
   upState.phase='working';upState.msg='Claude 正在看資料……';uploadPage(bank,true);
-  const files=upState.files.slice(), text=upState.text.trim().slice(0,60000), note=upState.note.trim().slice(0,300);
+  // 試卷檔：用文字讀的併進文字；用圖片讀的逐頁轉成圖片
+  const files=upState.files.slice();let docTxt='';
+  for(const d of upState.docs){
+    if(d.mode==='image'){try{files.push(...await busyRun(`正在把「${d.name}」轉成圖片……`,()=>pdfPageImages(d)))}catch(e){toast(`「${d.name}」轉成圖片失敗，改用文字`);docTxt+=`\n\n【試卷：${d.name}】\n${docText(d)}`}}
+    else docTxt+=`\n\n【試卷：${d.name}】\n${docText(d)}`;
+  }
+  const text=(upState.text.trim()+docTxt).trim().slice(0,60000), note=upState.note.trim().slice(0,300);
   const per=Math.min(maxN||2,2);
   const batches=[]; if(files.length){for(let i=0;i<files.length;i+=per)batches.push(files.slice(i,i+per))} else batches.push([]);
   let tot={added:0,dropped:0,skipped:0,ids:[]},err=null;
@@ -2168,7 +2237,7 @@ async function runAnalyze(bank,maxN){
   }
   upState.ctl=null;upState.phase='idle';
   if(tot.added||tot.skipped){
-    upState.files=[];upState.text='';upState.note='';
+    upState.files=[];upState.docs=[];upState.text='';upState.note='';
     const all=tot.added+extra-v.moved;
     bankHome(bank,`新增 ${all} 題，已收進題庫（資料原題 ${tot.added} 題${extra?`、AI 補題 ${extra} 題`:''}）${tot.skipped?`；另有 ${tot.skipped} 題不適合點選作答`:''}${tot.dropped?`；${tot.dropped} 題格式不合格或重複，已略過`:''}${tot.cut?`。有 ${tot.cut} 批內容太多，後段題目可能沒整理到，可以把那幾張照片再上傳一次`:''}${tot.failed?`。第 ${tot.failed.join('、')} 批沒有成功（${aiErrMsg(err)}），可以把那幾張照片再上傳一次`:''}${extra+tot.added<upCount&&err&&!tot.failed?`。補題沒有完成（${aiErrMsg(err)}）`:''}。${verifyMsg(v)}詳細解題會在每天的排程自動補上。`);
     return;
