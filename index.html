@@ -102,6 +102,13 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .opt:disabled{cursor:default}
 .opt:disabled:not(.correct):not(.wrong){opacity:.5}
 .feedback{margin-top:18px;border-radius:18px;padding:16px;border:3px solid var(--leaf);background:var(--leaf-soft)}
+.opt.sel{border-color:var(--leaf-strong);background:var(--leaf-soft);box-shadow:inset 0 0 0 2px var(--leaf-strong)}
+/* 閱讀測驗整篇一起作答 */
+.gq{margin-top:14px}
+.gq .qno{display:inline-grid;place-items:center;min-width:34px;height:34px;border-radius:50%;background:var(--leaf-strong);color:var(--on-leaf);font-weight:700;margin-right:6px}
+.gq .opts{margin-top:14px}
+.gsum{text-align:center}
+.gleft{text-align:center;color:var(--muted);margin:10px 0 0}
 .feedback.bad{border-color:var(--coral);background:var(--coral-soft)}
 .fb-head{font-size:1.5rem;margin:0 0 8px;display:flex;align-items:center;gap:10px}
 .fb-why{font-size:1.25rem;line-height:1.7;margin:0}
@@ -1146,7 +1153,20 @@ function schedule(c,stage,gap,prevId){
   st.reviews++; S.used.add(q.id);
   const at=Math.min(S.pos+1+gap,S.queue.length);
   S.queue.splice(at,0,{q,kind:'review',stage});
+  keepPassagesTogether();
   return true;
+}
+// 複習題不要插在同一篇文章的題目中間：移到那篇文章的最後一題後面
+function keepPassagesTogether(){
+  const Q=S.queue;
+  for(let i=S.pos+1;i<Q.length;i++){
+    const a=Q[i-1];if(Q[i].kind!=='review'||a.kind!=='main'||!a.q.p)continue;
+    let j=i;while(j<Q.length&&Q[j].kind==='review')j++;
+    if(j<Q.length&&Q[j].kind==='main'&&Q[j].q.p===a.q.p){
+      const rv=Q.splice(i,j-i);let k=i;while(k<Q.length&&Q[k].kind==='main'&&Q[k].q.p===a.q.p)k++;
+      Q.splice(k,0,...rv);i=k+rv.length-1;
+    }
+  }
 }
 
 function vine(){
@@ -1164,6 +1184,8 @@ function ask(){
   if(zyWant(CTX.bank)&&!ZY){zyEnsure().finally(ask);return}
   ZYB=CTX.bank||null;
   const item=S.queue[S.pos], rv=item.kind==='review';
+  // 閱讀測驗：同一篇文章接連的題目，整篇一起作答（像考卷），選完再一起對答案
+  if(!rv&&item.q.p&&!item.q.tpl&&passageOf(CTX.bank,item.q)){const g=groupAt(S.pos);if(g.length>1)return askGroup(g)}
   if(item.q.tpl&&!item.inst)item.inst=tplInstance(item.q);   // 換數字題：每次出現換一組數字（重畫畫面時不變）
   const q=item.inst||item.q;
   const opts=q.t==='mc'?(q.o.includes('以上皆是')?shuffle(q.o.filter(x=>x!=='以上皆是')).concat('以上皆是'):orderOpts(q.o,shuffle)):null;
@@ -1196,6 +1218,82 @@ function ask(){
   app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>answer(b));
   if(prefs.autoRead)setTimeout(()=>speak((rv?'複習題。':'')+(q.t==='tf'?q.q+'。對，還是錯？':q.q+'。'+opts.map((o,i)=>NUMS[i]+'，'+o).join('。'))),250);
   window.scrollTo(0,0);
+}
+
+// 從 pos 開始，同一篇文章、接連的正式題（不含複習題）
+function groupAt(pos){
+  const p=S.queue[pos].q.p,out=[];
+  for(let i=pos;i<S.queue.length;i++){const it=S.queue[i];if(it.kind!=='main'||it.q.p!==p||it.q.tpl)break;out.push(it)}
+  return out;
+}
+function askGroup(g){
+  const pas=passageOf(CTX.bank,g[0].q),from=S.pos;
+  const items=g.map(it=>{const q=it.q;return {q,opts:q.t==='mc'?(q.o.includes('以上皆是')?shuffle(q.o.filter(x=>x!=='以上皆是')).concat('以上皆是'):orderOpts(q.o,shuffle)):null,pick:null}});
+  S.grp={from,items};
+  const a=S.leaves.length+1,b=S.leaves.length+items.length;
+  const optHTML=(it,gi)=>it.q.t==='tf'
+    ?`<button class="opt" data-gi="${gi}" data-v="O" aria-pressed="false"><span class="sym">⭕</span>對</button><button class="opt" data-gi="${gi}" data-v="X" aria-pressed="false"><span class="sym">❌</span>錯</button>`
+    :it.opts.map((o,i)=>`<button class="opt" data-gi="${gi}" data-v="${esc(o)}" aria-pressed="false"><span class="n">${i+1}</span><span>${zyT(o)}</span></button>`).join('');
+  app.innerHTML=`
+   <div class="toprow"><button class="iconbtn" id="hm">🏠 回首頁</button><span class="counter">第 ${a}～${b} / ${S.total} 題</span></div>
+   ${vine()}
+   ${!S.leaves.length?`<p class="roundinfo">這次要做 <b>${S.total}</b> 題。先讀文章，把這篇的 ${items.length} 題都選好，再一起對答案 📖</p>`:`<p class="roundinfo">這篇有 ${items.length} 題，都選好再一起對答案</p>`}
+   <details class="passage" id="pas" open><summary>📖 ${esc(pas.title)}<small>先讀文章，再回答下面的題目（按這裡可以收起來）</small></summary><div class="ptext">${paraHTML(pas.text,zyT)}</div><button class="iconbtn" id="rdp">🔊 念文章</button></details>
+   ${items.map((it,gi)=>{const q=it.q;return `<section class="card gq" id="gq${gi}">
+     <span class="qno">${gi+1}</span><span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.rl?` <span class="tag">${RL_NAME[q.rl]}</span>`:''}${flagOf(q)==='reported'?' <span class="tag warn">🚩 已有人回報，確認中</span>':''}
+     <div class="qrow"><p class="qtext">${zyT(q.q)}</p><span class="qbtns"><button class="speak" data-sp="${gi}" aria-label="念第 ${gi+1} 題">🔊</button>${libCode()?`<button class="speak rp" data-rp="${gi}" aria-label="回報題目有問題" ${flagOf(q)?'disabled':''}>🚩</button>`:''}</span></div>
+     <div class="opts ${q.t==='tf'?'tf':''}">${optHTML(it,gi)}</div>
+     <div class="gfb" role="status" aria-live="polite"></div>
+   </section>`}).join('')}
+   <div id="gact"><button class="big" id="gok" disabled>對答案</button><p class="gleft" id="gleft">還有 ${items.length} 題沒選</p></div>`;
+  document.getElementById('hm').onclick=()=>CTX.home();
+  document.getElementById('rdp').onclick=()=>speak(pas.title+'。'+pas.text.replace(/\n+/g,'。'));
+  app.querySelectorAll('[data-sp]').forEach(btn=>btn.onclick=()=>{const it=items[+btn.dataset.sp];readQuestion(it.q,it.opts||[])});
+  app.querySelectorAll('[data-rp]').forEach(btn=>btn.onclick=()=>reportBox(items[+btn.dataset.rp].q));
+  const refresh=()=>{const left=items.filter(it=>it.pick==null).length;document.getElementById('gok').disabled=!!left;document.getElementById('gleft').textContent=left?`還有 ${left} 題沒選`:'都選好了，可以對答案了'};
+  app.querySelectorAll('.opt[data-gi]').forEach(btn=>btn.onclick=()=>{
+    if(S.grp.done)return;const gi=+btn.dataset.gi;items[gi].pick=btn.dataset.v;
+    app.querySelectorAll(`.opt[data-gi="${gi}"]`).forEach(o=>{const on=o===btn;o.classList.toggle('sel',on);o.setAttribute('aria-pressed',on)});
+    refresh();
+  });
+  document.getElementById('gok').onclick=gradeGroup;
+  window.scrollTo(0,0);
+}
+function gradeGroup(){
+  const G=S.grp;if(!G||G.done)return;G.done=true;
+  const items=G.items;let okN=0,pix=null,wrongAny=false;
+  S.pos=G.from+items.length-1;   // 複習題排在這篇之後
+  items.forEach(it=>{
+    const q=it.q,ok=it.pick===q.a;
+    CTX.bump(q.id,ok,ok?null:it.pick);S.leaves.push(ok);
+    if(ok){okN++;pix=badgeFill(q)}
+    else{wrongAny=true;if(!S.missed.includes(q.c))S.missed.push(q.c);schedule(q.c,1,GAP_FIRST(),q.id)}
+  });
+  S.justAdded=true;
+  items.forEach((it,gi)=>{
+    const q=it.q,ok=it.pick===q.a,sec=document.getElementById('gq'+gi);
+    sec.querySelectorAll('.opt').forEach(o=>{o.disabled=true;o.classList.remove('sel');if(o.dataset.v===q.a)o.classList.add('correct');else if(o.dataset.v===it.pick)o.classList.add('wrong')});
+    const ansText=q.t==='tf'?(q.a==='O'?'⭕ 對':'❌ 錯'):q.a;
+    sec.querySelector('.gfb').innerHTML=`<div class="feedback ${ok?'':'bad'}">
+      <p class="fb-head">${ok?'🎉 答對了！':'正確答案是：'+(q.t==='tf'?esc(ansText):zyT(ansText))}</p>
+      <p class="fb-why">${zyT(q.why)}</p>
+      ${q.detail?`<details class="detail"><summary>📖 看詳細解題</summary><p>${esc(q.detail)}</p></details>`:''}
+      ${q.ev?`<button class="iconbtn" data-ev="${gi}">📍 在文章標出依據</button>`:''}
+    </div>`;
+  });
+  app.querySelectorAll('[data-ev]').forEach(btn=>btn.onclick=()=>{const q=items[+btn.dataset.ev].q,pas=passageOf(CTX.bank,q);if(!pas||!markEvidence(pas,q.ev))toast('文章裡找不到這句依據');else document.getElementById('pas').scrollIntoView({behavior:'smooth',block:'start'})});
+  okN===items.length?sndOK():sndNO();
+  const last=S.pos+1>=S.queue.length;
+  document.getElementById('gact').innerHTML=`<section class="card gsum pop">
+     <p class="fb-head">這篇答對 ${okN} / ${items.length} 題${okN===items.length?'，全對！🎉':''}</p>
+     ${pix?badgeMini(pix):''}
+     ${wrongAny?'<p class="fb-why" style="color:var(--muted)">答錯的觀念，過幾題會換個問法再考你一次喔！</p>':''}
+     <button class="big" id="nx">${last?'看結果':'下一篇'}</button></section>`;
+  const vineEl=app.querySelector('.vine');if(vineEl)vineEl.outerHTML=vine();
+  S.justAdded=false;
+  saveProgress();
+  document.getElementById('nx').onclick=()=>{S.grp=null;S.pos++;ask()};
+  const first=app.querySelector('.feedback.bad')||document.getElementById('gact');first.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
 // 答錯時的提示：題目自帶的 hint，或這題的觀念
