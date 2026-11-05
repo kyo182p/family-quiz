@@ -66,10 +66,11 @@ function doPost(e) {
   }
   // 題庫書架：閱讀碼或邀請碼都可以使用（只能讀，不能寫、不能用 AI）
   // 定期掃題（管理者金鑰）
-  if (req.action === 'adminPending' || req.action === 'adminVerdict') {
+  if (['adminPending', 'adminVerdict', 'adminIssueSetupCode', 'adminResetPin'].indexOf(req.action) >= 0) {
     const token = PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN');
     if (!token || String(req.token || '') !== token) return out({ ok: false, code: 'bad_token', message: '管理者金鑰錯誤' });
     try {
+      if (req.action === 'adminIssueSetupCode' || req.action === 'adminResetPin') return out(adminParent(req));
       return out(req.action === 'adminPending' ? adminPending(Number(req.limit) || 60) : adminVerdict(req));
     } catch (err) {
       console.error(err);
@@ -135,6 +136,8 @@ function doPost(e) {
   const fam = findFamily(req.code);
   if (!fam) return out({ ok: false, code: 'bad_code', message: '邀請碼不正確或已停用' });
   try {
+    if (['parentStatus','parentSetPin','parentLogin','parentLogout'].indexOf(req.action) >= 0) return out(parentAction(fam, req));
+    if (['playerDisable','playerRestore','playerPurge'].indexOf(req.action) >= 0) return out(managePlayer(fam, req));
     switch (req.action) {
       case 'playerList':
         return out(withLock(() => { ensureP1(fam.code); return {ok:true, players:readPlayers(fam.code).sort((a,b) => (a.status === '停用') - (b.status === '停用') || a.order-b.order)}; }));
@@ -212,6 +215,7 @@ function setup() {
   if (String(fam.getRange(1, 7).getValue()) === '') fam.getRange(1, 7).setValue('獎勵 AI 次數').setFontWeight('bold');
   ensure(SHEET_REPORT, ['回報ID', '時間', '題庫ID', '題目ID', '題目快照', '回報者代碼', '身分', '原因', '說明', '狀態', 'AI 判讀意見', '判讀時間', '獎勵']);
   const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('PEPPER')) props.setProperty('PEPPER', parentRandom());
   if (!props.getProperty('ADMIN_TOKEN')) props.setProperty('ADMIN_TOKEN', Utilities.getUuid().replace(/-/g, ''));
   ensure(SHEET_HANDOUT, ['講義ID', '邀請碼', '題庫ID', '標題', '觀念', '建立時間', '狀態', '驗算意見', '驗算時間', 'JSON 分段數', 'JSON1']);
   const badge = ensure(SHEET_BADGE, ['代碼', '身分', '更新時間', '徽章 JSON', '玩家ID']);
@@ -1001,6 +1005,117 @@ function badgeSync(code, role, incoming, pid) {
       if (row) sh.getRange(row,1,1,values.length).setValues([values]); else sh.appendRow(values);
     }
     return {ok:true, badges:merged};
+  });
+}
+/* ===== 家長憑證與玩家管理 ===== */
+function parentRandom() { return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, ''); }
+function parentHex(bytes) { return bytes.map(b => ('0' + (b & 255).toString(16)).slice(-2)).join(''); }
+function parentHash(value) { return parentHex(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, value)); }
+function parentPinHash(salt, pin, pepper) { return parentHex(Utilities.computeHmacSha256Signature(salt + pin, pepper)); }
+function adminParent(req) {
+  return withLock(() => {
+    const fam = findFamily(req.family);
+    if (!fam) return {ok:false, code:'not_found'};
+    const props = PropertiesService.getScriptProperties();
+    if (req.action === 'adminResetPin') {
+      ['pin:','pinfail:','pinsetup:'].forEach(prefix => props.deleteProperty(prefix + fam.code));
+      return {ok:true};
+    }
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    // Fresh UUID's first eight bytes avoid its fixed version/variant bits.
+    const bytes = Utilities.getUuid().replace(/-/g,'').slice(0,16).match(/../g);
+    const setupCode = bytes.map(b => alphabet[parseInt(b,16) % alphabet.length]).join('');
+    props.setProperty('pinsetup:' + fam.code, parentHash(setupCode));
+    return {ok:true, setupCode};
+  });
+}
+function parentAction(fam, req) {
+  return withLock(() => {
+    const props = PropertiesService.getScriptProperties(), code = fam.code;
+    const pepper = props.getProperty('PEPPER');
+    if (!pepper) return {ok:false, code:'server_error', message:'請管理者執行 setup'};
+    const pin = JSON.parse(props.getProperty('pin:' + code) || 'null');
+    const failKey = 'pinfail:' + code;
+    let fail = JSON.parse(props.getProperty(failKey) || '{"n":0,"until":0}');
+    if (fail.until && fail.until <= Date.now()) {
+      fail = {n:0, until:0}; props.setProperty(failKey, JSON.stringify(fail));
+    }
+    const minutes = Math.max(0, Math.ceil((fail.until - Date.now()) / 60000));
+    if (req.action === 'parentStatus') return Object.assign({ok:true, hasPin:!!pin, locked:minutes > 0, minutes}, pin ? {} : {needSetup:true});
+    if (req.action === 'parentLogout') {
+      if (typeof req.session === 'string' && !requireSession(fam, req)) CacheService.getScriptCache().remove('ps:' + parentHash(req.session));
+      return {ok:true};
+    }
+    if (minutes) return {ok:false, code:'locked', minutes};
+    const failed = code => {
+      fail.n++; fail.until = fail.n >= 5 ? Date.now() + 900000 : 0;
+      props.setProperty(failKey, JSON.stringify(fail));
+      return {ok:false, code, left:Math.max(0, 5-fail.n)};
+    };
+    let credential = pin;
+    if (req.action === 'parentSetPin') {
+      if (pin) return {ok:false, code:'pin_exists'};
+      const setupHash = props.getProperty('pinsetup:' + code);
+      if (!setupHash || typeof req.setupCode !== 'string' || parentHash(req.setupCode) !== setupHash) return failed('bad_setup_code');
+      if (typeof req.pin !== 'string' || !/^\d{4,6}$/.test(req.pin)) return {ok:false, code:'bad_pin_format'};
+      const salt = parentRandom();
+      credential = {salt, h:parentPinHash(salt, req.pin, pepper)};
+      props.setProperty('pin:' + code, JSON.stringify(credential));
+      props.deleteProperty('pinsetup:' + code);
+    } else {
+      if (!pin) return {ok:false, code:'no_pin'};
+      if (typeof req.pin !== 'string' || !/^\d{4,6}$/.test(req.pin) || parentPinHash(pin.salt, req.pin, pepper) !== pin.h) return failed('bad_pin');
+    }
+    props.setProperty(failKey, JSON.stringify({n:0, until:0}));
+    const session = parentRandom();
+    CacheService.getScriptCache().put('ps:' + parentHash(session), code + '|' + credential.salt, 1800);
+    return {ok:true, session};
+  });
+}
+function requireSession(fam, req) {
+  const pin = JSON.parse(PropertiesService.getScriptProperties().getProperty('pin:' + fam.code) || 'null');
+  if (pin && typeof req.session === 'string' && CacheService.getScriptCache().get('ps:' + parentHash(req.session)) === fam.code + '|' + pin.salt) return null;
+  return {ok:false, code:'no_session', message:'請重新輸入家長 PIN'};
+}
+// T-004 will implement redemption changes; callers already hold the script lock.
+function cancelPendingFor(code, pid) {}
+function purgeRedeemsFor(code, pid) {}
+function managePlayer(fam, req) {
+  return withLock(() => {
+    const err = requireSession(fam, req);
+    if (err) return err;
+    const pid = req.playerId;
+    if (typeof pid !== 'string' || !/^p[a-z0-9]{1,12}$/.test(pid) || (pid === 'p1' && req.action !== 'playerRestore')) return {ok:false, code:'bad_request'};
+    const sh = SpreadsheetApp.getActive().getSheetByName('玩家');
+    const rows = sh ? sh.getDataRange().getValues() : [];
+    const row = rows.findIndex((r,i) => i > 0 && String(r[0]) === fam.code && String(r[1]) === pid);
+    if (row < 1) return {ok:false, code:'bad_player'};
+    if (req.action === 'playerPurge') {
+      listBanks(fam).forEach(bank => {
+        if (bank.players && Object.prototype.hasOwnProperty.call(bank.players,pid)) {
+          delete bank.players[pid];
+          const result = putBank(fam, bank, true);
+          if (!result.ok) throw new Error('玩家資料清除失敗');
+        }
+      });
+      const remove = (name, matches) => {
+        const sheet = SpreadsheetApp.getActive().getSheetByName(name);
+        if (!sheet) return;
+        const data = sheet.getDataRange().getValues();
+        for (let i=data.length-1; i>0; i--) if (String(data[i][0]) === fam.code && matches(data[i])) sheet.deleteRow(i+1);
+      };
+      remove('徽章', r => String(r[1]) === '家庭' && String(r[4] || 'p1') === pid);
+      remove('徽章入帳', r => String(r[1]) === pid);
+      purgeRedeemsFor(fam.code, pid);
+      PropertiesService.getScriptProperties().deleteProperty('ledgerinit:' + fam.code + ':' + pid);
+      sh.deleteRow(row+1);
+    } else {
+      const disabled = req.action === 'playerDisable';
+      sh.getRange(row+1,6).setValue(safeCell(disabled ? '停用' : '啟用'));
+      sh.getRange(row+1,8,1,2).setValues([[new Date(),disabled ? new Date() : '']]);
+      if (disabled) cancelPendingFor(fam.code, pid);
+    }
+    return {ok:true};
   });
 }
 function safeCell(s) { s = String(s == null ? '' : s); return s === '' ? '' : "'" + s; }

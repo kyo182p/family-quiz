@@ -1,9 +1,8 @@
-# REVIEW T-002 第 2 輪
+# REVIEW T-003 第 1 輪
 
 自審(環境沒有 GEMINI_API_KEY,依派工指示不走異質審核)
 
-第 1 輪審查成立 4 項:safeCell 空字串寫入單獨引號、題目表超範圍加引號、邀請碼 badges 遇怪鍵整包拒絕、balance 不觸發補入。本輪全部修復。第 1 輪的 HANDOFF/REPORT 因歸檔腳本拒絕多編號工單而未歸檔,內容已被覆蓋。
-
-- 〔實測〕`node --test` 36/36 通過,Orchestrator 親自重跑。
-- 〔實測〕對抗抽測(Executor 未寫過):`__proto__` 徽章鍵不污染、字串 at 與數字 at 去重、1e308 at 判異常、別家庭 pid 查 balance 回 bad_player、players 為字串或數字時 saveBank 不噴錯。全數通過。
-- 偏離仲裁:saveBank 多一行「相同玩家資料直接保留」,有失敗測試支撐,接受。
+- 〔實測〕`node --test` 49/49 通過,Orchestrator 親自重跑;Code.gs diff 全文讀過。
+- 〔實測〕對抗抽測(Executor 未寫過):數字型 PIN、全形數字、7 位、陣列 PIN 全被拒;session 用物件、陣列、布林、0、空字串、超長字串都回 no_session;空 token 回 bad_token;快取鍵不含明文 token;用自己的 session 刪別家玩家回 bad_player。全數通過。
+- 偏離仲裁:B3 字面要求 props 搜不到 PEPPER,與 PEPPER 必須存在 Properties 互斥,是工單寫錯,接受。發碼回應 setupCode 的豁免與禁止事項一致,接受。
+- 無新問題。

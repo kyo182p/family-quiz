@@ -532,3 +532,219 @@ test('source injection: removing the lock exposes an interleaving that the real 
   env.onSheetOp(null);
   assert.deepEqual(post(env, 'listBanks').banks.map(b => b.id), ['outer']);
 });
+
+// T-003 credentials use deliberately fake PINs and the fake environment's clock only.
+const fakePin = '907314';
+const otherCode = 'OTHER-HOME';
+const admin = (env, action, extra={}) => post(env,action,{token:env.props.getProperty('ADMIN_TOKEN'),family:code,...extra});
+function issue(env, family=code) { return admin(env,'adminIssueSetupCode',{family}).setupCode; }
+function parentSession(env, family=code) {
+  return post(env,'parentSetPin',{code:family,setupCode:issue(env,family),pin:fakePin}).session;
+}
+function addOtherFamily(env) { env.sheets.get('家庭').appendRow([otherCode,'另一家庭',10,true,'',false]); }
+const snapshot = env => JSON.stringify({sheets:[...env.sheets].map(([k,s])=>[k,s.getDataRange().getValues()]),props:env.props.getProperties()});
+
+test('T003 B1: setup codes are required, hashed, replaced, single-use and invalidated by reset', () => {
+  const env = setup();
+  const pepper = env.props.getProperty('PEPPER');
+  assert.match(pepper,/^[a-f0-9]{64}$/);
+  env.run('setup'); assert.equal(env.props.getProperty('PEPPER'),pepper);
+  assert.deepEqual(post(env,'parentStatus'),{ok:true,hasPin:false,locked:false,minutes:0,needSetup:true});
+  assert.equal(post(env,'parentLogin',{pin:fakePin}).code,'no_pin');
+  assert.equal(env.props.getProperty('pinfail:'+code),null);
+  assert.equal(post(env,'parentSetPin',{setupCode:'MISSING!',pin:fakePin}).code,'bad_setup_code');
+  const old = issue(env), current = issue(env);
+  assert.match(current,/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
+  assert.equal(env.props.getProperty('pinsetup:'+code),env.run('parentHash',current));
+  assert.equal(post(env,'parentSetPin',{setupCode:old,pin:fakePin}).code,'bad_setup_code');
+  const fails = env.props.getProperty('pinfail:'+code);
+  for (const pin of ['abc','123','1234567',123456,'１２３４']) {
+    assert.equal(post(env,'parentSetPin',{setupCode:current,pin}).code,'bad_pin_format');
+    assert.equal(env.props.getProperty('pinfail:'+code),fails);
+  }
+  const result = post(env,'parentSetPin',{setupCode:current,pin:fakePin});
+  assert.ok(result.session); assert.equal(env.props.getProperty('pinsetup:'+code),null);
+  assert.equal(post(env,'parentSetPin',{setupCode:current,pin:fakePin}).code,'pin_exists');
+  admin(env,'adminResetPin');
+  assert.equal(post(env,'parentSetPin',{setupCode:current,pin:fakePin}).code,'bad_setup_code');
+  const unused = issue(env); admin(env,'adminResetPin');
+  assert.equal(post(env,'parentSetPin',{setupCode:unused,pin:fakePin}).code,'bad_setup_code');
+});
+
+test('T003 B2: fifth wrong PIN locks the family through 14:59; unlock at exactly 15:00', () => {
+  const env = setup(); parentSession(env);
+  for (let i=1;i<=5;i++) assert.deepEqual(post(env,'parentLogin',{pin:'000000'}),{ok:false,code:'bad_pin',left:5-i});
+  assert.deepEqual(post(env,'parentLogin',{pin:fakePin}),{ok:false,code:'locked',minutes:15});
+  assert.deepEqual(post(env,'parentStatus'),{ok:true,hasPin:true,locked:true,minutes:15});
+  env.clock.advance(899000);
+  assert.deepEqual(post(env,'parentLogin',{pin:fakePin}),{ok:false,code:'locked',minutes:1});
+  env.clock.advance(1000);
+  assert.equal(post(env,'parentLogin',{pin:fakePin}).ok,true);
+  assert.deepEqual(JSON.parse(env.props.getProperty('pinfail:'+code)),{n:0,until:0});
+});
+
+test('T003 B2 extension: wrong or absent setup code shares family lock; correct setup cannot bypass it', () => {
+  const env = setup(); const setupCode = issue(env);
+  for(let i=1;i<=5;i++) assert.deepEqual(post(env,'parentSetPin',{setupCode:'WRONG!!!',pin:fakePin}),{ok:false,code:'bad_setup_code',left:5-i});
+  assert.deepEqual(post(env,'parentSetPin',{setupCode,pin:fakePin}),{ok:false,code:'locked',minutes:15});
+  assert.equal(post(env,'parentLogin',{pin:fakePin}).code,'locked');
+  env.clock.advance(900000);
+  assert.equal(post(env,'parentSetPin',{setupCode,pin:fakePin}).ok,true);
+});
+
+test('T003 B3: secrets stay out of sheets, logs, responses and non-secret properties; cache uses hashes', () => {
+  const env = setup(), responses = [], secrets = [fakePin, env.props.getProperty('PEPPER'),env.props.getProperty('ADMIN_TOKEN')];
+  const record = result => {
+    const copy = {...result};
+    if (copy.session) { secrets.push(copy.session); delete copy.session; }
+    if (copy.setupCode) { secrets.push(copy.setupCode); delete copy.setupCode; }
+    responses.push(copy); return result;
+  };
+  const setupCode = record(admin(env,'adminIssueSetupCode')).setupCode;
+  const session = record(post(env,'parentSetPin',{setupCode,pin:fakePin})).session;
+  record(post(env,'parentStatus')); record(post(env,'playerList'));
+  record(post(env,'parentLogout',{session}));
+  record(post(env,'playerPurge',{session,playerId:'p2'}));
+  record(post(env,'parentLogin',{pin:'000000'}));
+  const login = record(post(env,'parentLogin',{pin:fakePin}));
+  record(post(env,'parentLogout',{session:login.session}));
+  const properties = env.props.getProperties(); delete properties.PEPPER; delete properties.ADMIN_TOKEN;
+  const haystack = JSON.stringify({properties,logs:env.logs,sheets:[...env.sheets].map(([k,s])=>[k,s.getDataRange().getValues()]),responses});
+  for(const secret of secrets) assert.equal(haystack.includes(secret),false,'secret escaped its designated field');
+  const credential = JSON.parse(env.props.getProperty('pin:'+code));
+  assert.deepEqual(Object.keys(credential).sort(),['h','salt']);
+  assert.match(credential.h,/^[a-f0-9]{64}$/);
+  assert.match(credential.salt,/^[a-f0-9]{64}$/);
+  assert.equal(env.cache.get('ps:'+session),null);
+  // Independent crypto oracle also checks signed-byte-to-hex conversion and HMAC construction.
+  const crypto = require('node:crypto');
+  assert.equal(credential.h,crypto.createHmac('sha256',env.props.getProperty('PEPPER')).update(credential.salt+fakePin).digest('hex'));
+});
+
+test('T003 B3 bait: equal PINs have different family hashes; changing PEPPER breaks old PIN', () => {
+  const env = setup(); addOtherFamily(env); parentSession(env); parentSession(env,otherCode);
+  assert.notEqual(JSON.parse(env.props.getProperty('pin:'+code)).h,JSON.parse(env.props.getProperty('pin:'+otherCode)).h);
+  env.props.setProperty('PEPPER','fake-replacement-pepper');
+  assert.equal(post(env,'parentLogin',{pin:fakePin}).code,'bad_pin');
+});
+
+test('T003 B4: missing, random and foreign sessions reject every player mutation without data changes', () => {
+  const env = setup(); seedP2(env); addOtherFamily(env);
+  const foreign = parentSession(env,otherCode); parentSession(env);
+  for(const action of ['playerDisable','playerRestore','playerPurge']) for(const session of [undefined,'fake-random-session',foreign]) {
+    const before = snapshot(env);
+    assert.deepEqual(post(env,action,{playerId:'p2',session}),{ok:false,code:'no_session',message:'請重新輸入家長 PIN'});
+    assert.equal(snapshot(env),before);
+  }
+});
+
+test('T003 session: fixed TTL accepts 29:59, expires 30:00; logout and reset invalidate immediately', () => {
+  const env = setup(); seedP2(env); let session = parentSession(env);
+  const hash = require('node:crypto').createHash('sha256').update(session).digest('hex');
+  const salt = JSON.parse(env.props.getProperty('pin:'+code)).salt;
+  assert.equal(env.cache.get('ps:'+hash),code+'|'+salt);
+  env.clock.advance(1799000);
+  assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).ok,true);
+  env.clock.advance(1000);
+  assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).code,'no_session');
+  session = post(env,'parentLogin',{pin:fakePin}).session;
+  assert.deepEqual(post(env,'parentLogout',{session}),{ok:true});
+  assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).code,'no_session');
+  assert.deepEqual(post(env,'parentLogout',{session:'invalid'}),{ok:true});
+  session = post(env,'parentLogin',{pin:fakePin}).session;
+  admin(env,'adminResetPin');
+  assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).code,'no_session');
+  parentSession(env);
+  assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).code,'no_session');
+});
+
+test('T003 A3: disable sorts last and blocks writes, restore clears timestamp; p1 is protected', () => {
+  const env = setup(); seedP2(env); const session = parentSession(env); newPlayer(env);
+  assert.equal(post(env,'playerDisable',{session,playerId:'p2'}).ok,true);
+  assert.equal(post(env,'playerList').players.at(-1).id,'p2');
+  let row = env.sheets.get('玩家').getDataRange().getValues().find(r=>r[1]==='p2');
+  assert.ok(row[8] instanceof Date);
+  assert.equal(post(env,'saveBank',{playerId:'p2',bank:bank()}).code,'player_disabled');
+  assert.equal(post(env,'badges',{playerId:'p2',badges:{demo:earned(100)}}).code,'player_disabled');
+  assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).ok,true);
+  row = env.sheets.get('玩家').getDataRange().getValues().find(r=>r[1]==='p2');
+  assert.equal(row[8],'');
+  assert.equal(post(env,'saveBank',{playerId:'p2',bank:bank()}).ok,true);
+  assert.equal(post(env,'badges',{playerId:'p2',badges:{demo:earned(100)}}).ok,true);
+  for(const action of ['playerDisable','playerPurge']) assert.equal(post(env,action,{session,playerId:'p1'}).code,'bad_request');
+  assert.equal(post(env,'playerPurge',{session,playerId:'punknown'}).code,'bad_player');
+  assert.equal(post(env,'playerRestore',{session,playerId:'bad:id'}).code,'bad_request');
+});
+
+test('T003 A4: purge removes only target family player everywhere and stale saves cannot resurrect', () => {
+  const env = setup(); seedP2(env); addOtherFamily(env); const session = parentSession(env); const other = newPlayer(env);
+  env.sheets.get('玩家').appendRow([otherCode,'p2','同名','🐢',1,'啟用',new Date(),new Date(),'']);
+  for(const family of [code,otherCode]) {
+    for(const id of ['bank-one','bank-two']) post(env,'saveBank',{code:family,bank:{...bank(id),players:{p2:{rec:'p2-data',updatedAt:100},...(family===code ? {[other]:{rec:'keep',updatedAt:100}} : {})}}});
+    for(const playerId of ['p1','p2',...(family===code ? [other] : [])]) post(env,'badges',{code:family,playerId,badges:{demo:earned(100)}});
+  }
+  const stale = post(env,'listBanks').banks[0];
+  const otherBefore = snapshotFamily(env,otherCode);
+  const keepRows = name => env.sheets.get(name).getDataRange().getValues().filter((r,i)=>i>0 && r[0]===code && r[name==='徽章'?4:1]!=='p2');
+  const playersBefore = keepRows('玩家'), badgesBefore = keepRows('徽章'), ledgerBefore = keepRows('徽章入帳');
+  const banksBefore = post(env,'listBanks').banks.map(b=>{ const copy=plain(b); delete copy.players.p2; return copy; });
+  assert.equal(post(env,'playerPurge',{session,playerId:'p2'}).ok,true);
+  assert.deepEqual(keepRows('玩家'),playersBefore); assert.deepEqual(keepRows('徽章'),badgesBefore); assert.deepEqual(keepRows('徽章入帳'),ledgerBefore);
+  assert.equal(snapshotFamily(env,otherCode),otherBefore);
+  assert.deepEqual(post(env,'listBanks').banks,banksBefore);
+  for(const name of ['玩家','徽章','徽章入帳']) {
+    const target = env.sheets.get(name).getDataRange().getValues().filter(r=>r[0]===code);
+    assert.equal(JSON.stringify(target).includes('p2'),false);
+  }
+  assert.equal(JSON.stringify(Object.entries(env.props.getProperties()).filter(([k])=>k.includes(code))).includes('p2'),false);
+  assert.equal(post(env,'saveBank',{playerId:'p2',bank:stale}).code,'bad_player');
+  assert.equal(post(env,'saveBank',{bank:stale}).ok,true);
+  assert.equal(post(env,'listBanks').banks.some(b=>b.players && b.players.p2),false);
+});
+function snapshotFamily(env, family) {
+  return JSON.stringify({sheets:[...env.sheets].map(([name,s])=>[name,s.getDataRange().getValues().filter(r=>r[0]===family)]),props:Object.entries(env.props.getProperties()).filter(([k])=>k.includes(family))});
+}
+
+test('T003 configuration: missing PEPPER rejects parent actions without regeneration; legacy ping works', () => {
+  const env = setup(); env.props.deleteProperty('PEPPER');
+  for(const action of ['parentLogin','parentStatus','parentSetPin','parentLogout']) assert.deepEqual(post(env,action,{pin:fakePin}),{ok:false,code:'server_error',message:'請管理者執行 setup'});
+  assert.equal(env.props.getProperty('PEPPER'),null);
+  assert.equal(post(env,'ping').ok,true);
+});
+
+test('T003 admin: bad tokens do not issue/reset credentials; absent families return not_found', () => {
+  const env = setup();
+  for(const action of ['adminIssueSetupCode','adminResetPin']) {
+    const before = snapshot(env);
+    assert.equal(admin(env,action,{token:'fake-bad-admin-token'}).code,'bad_token');
+    assert.equal(snapshot(env),before);
+    assert.equal(admin(env,action,{family:'missing-family'}).code,'not_found');
+  }
+});
+
+test('T003 lock: parent/admin/player mutations return busy without changes; concurrent failures serialize', () => {
+  const env = setup(); seedP2(env); const session = parentSession(env);
+  let injected = false;
+  env.onSheetOp(({sheet}) => {
+    if(sheet !== '玩家' || injected) return;
+    injected = true;
+    // This hook runs in managePlayer after the session is checked under its lock.
+    assert.deepEqual(post(env,'parentLogin',{pin:'000000'}),{deferred:true});
+  });
+  assert.equal(post(env,'playerDisable',{session,playerId:'p2'}).ok,true);
+  env.onSheetOp(null);
+  assert.equal(injected,true);
+  assert.deepEqual(env.runDeferred(),[{ok:false,code:'bad_pin',left:4}]);
+  const busy = setup({lockMode:'busy'});
+  for(const action of ['parentStatus','parentLogin','parentSetPin','parentLogout','playerDisable','playerRestore','playerPurge','adminIssueSetupCode','adminResetPin']) {
+    const before = snapshot(busy);
+    const result = action.startsWith('admin') ? admin(busy,action) : post(busy,action,{session:'fake-session',playerId:'p2',pin:fakePin});
+    assert.equal(result.code,'busy'); assert.equal(snapshot(busy),before);
+  }
+});
+
+test('T003 session isolation: foreign-family logout cannot revoke the owning family session', () => {
+  const env = setup(); seedP2(env); addOtherFamily(env); const session = parentSession(env);
+  assert.deepEqual(post(env,'parentLogout',{code:otherCode,session}),{ok:true});
+  assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).ok,true);
+});
