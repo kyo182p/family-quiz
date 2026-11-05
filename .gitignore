@@ -1,2 +1,4 @@
 
 .claude/ops.log
+dist/
+node_modules/

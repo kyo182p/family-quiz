@@ -1,8 +1,10 @@
-# REVIEW T-004 第 1 輪
+# REVIEW T-005 第 1 輪
 
 自審(環境沒有 GEMINI_API_KEY,依派工指示不走異質審核)
 
-- 〔實測〕`node --test` 70/70 通過,Orchestrator 親自重跑;Code.gs diff 全文讀過;H1 三個反證都確實用 `assert.throws` 要求違反。
-- 〔實測〕對抗抽測(Executor 未寫過):週鍵被手動改成 Date 仍算進額度;別的玩家不能取消;41 字 emoji 原因截到 40 字且不切半;核准後不能取消或改拒絕且餘額不動;價格字串、null、1e400、路徑式 ID 全被拒;小孩端清單不含邀請碼、看不到停用獎項、亂數 session 也看不到;餘額守恆(入帳＝可用＋保留＋已核准)。全數通過。
-- 問題(不擋本輪,併入 T-005):T003 A4 測試 `includes('p2')` 碰到隨機 ID 以 p2 開頭會誤判,約 1/16 機率。
-- 建議(不打回):`rewardList` 每個獎項重讀一次兌換表,獎項多時會慢;拒絕用的 reason `reward_disabled` 是代碼,前端要對映成白話。
+- 〔實測〕`npm run build` 成功;`node --test` 84/84 通過,Orchestrator 親自重跑;index.html diff 全文讀過。
+- 〔實測〕刪除本機鍵的正則 `^p[a-z0-9]{1,12}:` 不會命中現有鍵:掃過 index.html 全部字串,唯一符合形狀的是 CSS `position:`,不是 localStorage 鍵。
+- 成立,併入 T-006 修復(同區域):
+  1. `BANKS.forEach(localPut)` 把所有雲端題庫寫進本機。別台裝置刪掉的題庫,這台下次開站會當成「本機有、雲端沒有」傳回去,讓刪除失效;也可能塞爆 localStorage。
+  2. 開站 `refreshPlayers` 帶 `withBalance:true`,每次開站對每位玩家重算並觸發補入;應該只在打開玩家底板時才帶。
+- 偏離仲裁:無偏離;補充選擇(快取不放餘額、被拒玩家不改以 p1 重送)合理,接受。

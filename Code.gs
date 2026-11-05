@@ -144,7 +144,7 @@ function doPost(e) {
     if (['rewardList','rewardSave','redeemRequest','redeemCancel','myRedeems','redeemList','redeemDecide','parentLog'].indexOf(req.action) >= 0) return out(rewardAction(fam, req));
     switch (req.action) {
       case 'playerList':
-        return out(withLock(() => { ensureP1(fam.code); return {ok:true, players:readPlayers(fam.code).sort((a,b) => (a.status === '停用') - (b.status === '停用') || a.order-b.order)}; }));
+        return out(withLock(() => { ensureP1(fam.code); return {ok:true, players:readPlayers(fam.code).map(p => { if(req.withBalance === true) { syncLedger(fam.code,p.id,{}); p.balance=playerBalance(fam.code,p.id); } return p; }).sort((a,b) => (a.status === '停用') - (b.status === '停用') || a.order-b.order)}; }));
       case 'playerSave':
         return out(playerSave(fam.code, req));
       case 'balance':

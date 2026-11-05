@@ -3,82 +3,95 @@
 > Orchestrator 每輪填寫,交給 Executor。Executor 只做本工單範圍內的事。
 
 ## 任務編號
-T-004 第 1 輪
+T-005 第 1 輪
 
 ## 任務類型
-整合輪(資料正確性:餘額算錯或重複扣,整個獎勵系統就不可信)
+整合輪(前端資料分流:做錯會把 A 小孩的作答存到 B 小孩,或蓋掉雲端)
 
 ## 難度評分
-錯誤成本高、推理深度高、判斷空間低 → 深推理層|Codex 預設模型
+錯誤成本高、推理深度高、判斷空間中 → 深推理層|Codex 預設模型
 
 ## 任務描述
-後端獎勵與兌換:`rewardList`、`rewardSave`、`balance`(接上保留與已扣)、`redeemRequest`、`redeemCancel`、`myRedeems`、`redeemList`、`redeemDecide`、家長紀錄;填入上一張留的 `cancelPendingFor`、`purgeRedeemsFor`。只改後端與測試,不動 index.html。
+前端第一步:玩家切換(畫面 1)、localStorage 依玩家分開、題庫作答依玩家分開、`npm run build` 與假後端、jsdom 前端測試基礎。獎勵兌換頁與家長頁在後面的工單,這張不做。
 
 ## 涉及檔案
-- `Code.gs`
+- `index.html`
+- `Code.gs`(只加 `playerList` 的 `withBalance`)
+- `tools/build.js`(新增)
+- `tools/mock-backend.js`(新增)
+- `test/fake-gas.js`
 - `test/backend.test.js`
+- `test/frontend.test.js`(新增)
+- `package.json`
+- `package-lock.json`(新增)
+- `.gitignore`
 - `REPORT.md`
 
+窮舉證據(`index.html` 全部 localStorage 鍵,由 Orchestrator 掃描):
+- **依玩家分開**:`badges`(953,1004,1007,1020)、`progress-*` 即 `progKey`(1109,1112,1114)、`libLocalKey`(3433,3434)、`g3plants-rec`(668,674,1408)
+- **不分開**:`ui-style`、`g3plants-prefs`、`family`、`last-ai-raw`、`AI_KEY`、`PENDING_KEY`、`custom-prefs`、`custom-up-lv`、`custom-up-count`、`reader`、`HJ_KEY`、`zy-*`、`sheet-prefs`、`tour-done`、`resume`、`LS_BANKS`(本機題庫快取,存完整格式,含所有玩家)
+- 1112 是直接呼叫 `localStorage.removeItem`,不經過 `store`,也要處理。
+
 ## 具體步驟
-1. 讀 `docs/REWARD-CONTRACT.md` 第一、二、七節與 `docs/dispatch/SPEC.md` 的「新增工作表」「計算規則」「後端 action」。合約第七節是實扣與文字的權威。
-2. `setup` 補「獎勵」「兌換」「兌換紀錄」表,欄位順序照 SPEC 表格。
-3. 實作下列 action。ID 格式照合約第一節;所有列都比對家庭。
-   - `rewardSave {session, reward:{id?, name, silver, gold, goldForSilver, weeklyLimit, enabled}}`:要 session。名稱 trim 後 1–20 字;銀、金各為 0–99 的整數且合計 ≥ 1;上限 0–14 的整數。不合法回 `bad_request`。沒有 `id` 就新增(ID 用 `'w'`＋uuid 去掉 `-` 的前 12 碼);帶 `id` 但不屬於本家庭回 `not_found`。回 `{ok:true, reward}`。
-   - `rewardList {playerId}`:邀請碼可呼叫。回 `{ok:true, rewards:[{id,name,silver,gold,goldForSilver,weeklyLimit,enabled,weekUsed,weekLeft,canRedeem,reason,pay:{silver,gold}}], balance}`。小孩端只回啟用中的。帶有效 `session` 時回全部(含停用),供家長管理,此時 `canRedeem` 等欄位仍依 `playerId` 計算。`weekLeft` 在上限 0 時為 `null`。`reason` 是合約第七節的逐字文字,可換時是空字串。`pay` 是若現在申請的實扣。
-   - `balance {playerId}`:`silver`、`gold` 各回 `{available, held, total}`。
-   - `redeemRequest {playerId, rewardId, requestId}`:整段鎖內。順序:requestId 查重 → 玩家啟用 → 獎項存在且啟用 → 次數 → 計算實扣與餘額 → 寫入兌換列(狀態「待核准」、版本 1、週鍵用**現在**時間)與紀錄列(舊狀態空白、新狀態待核准、操作者 child)→ flush。回 `{ok:true, redeem, balance}`。
-   - `redeemCancel {playerId, id}`:只能取消自己這位玩家的。不是待核准回 `conflict`(已取消回 `{ok:true, already:true}`)。紀錄操作者 child。
-   - `myRedeems {playerId}`:回該玩家所有申請,新的在前。
-   - `redeemList {session, status?}`:要 session。回本家庭申請(預設只回待核准),新的在前,每筆附 `playerName`、`playerIcon`、目前的 `balance`、`weekUsed`(該玩家該獎項**當前週**已用)。並回 `pendingCount`。
-   - `redeemDecide {session, id, decision:'approve'|'reject', reason}`:要 session。鎖內重讀;已是同決定回 `{ok:true, already:true}`,不寫紀錄;是其他終態回 `{ok:false, code:'conflict', status}`。核准時重算,可用銀或金 < 0 回 `insufficient`,狀態不變。拒絕原因 trim 後最多 40 字(超過截斷)。更新決定時間、版本加 1,寫紀錄(操作者 parent)。
-   - `parentLog {session}`:要 session。回 `{ok:true, entries}`:最近 50 筆決定(兌換紀錄中新狀態為核准/拒絕者,附玩家暱稱、獎項名稱快照)與該家庭入帳異常列(玩家、徽章鍵、at、顏色、異常原因),各自新的在前。
-4. `playerBalance`:依合約第七節接上兌換表。`rewardList`、`redeemRequest`、`redeemDecide` 計算前都先 `syncLedger(code,pid,{})` 確保補入完成。
-5. `cancelPendingFor`:把該玩家的待核准改為取消,寫紀錄(操作者 parent)。`purgeRedeemsFor`:刪除該玩家的兌換列,以及對應兌換ID 的兌換紀錄列。
-6. 所有文字欄位(名稱快照、拒絕原因、週鍵、狀態、requestId…)寫入都經 `safeCell`。週鍵讀回時可能是 Date(舊資料或手動編輯),比較前一律正規化成 `yyyy-MM-dd`。`金可抵銀` 欄布林值用 `isTrue` 讀。
-7. 補測試(編號寫在測試名稱),寫 `REPORT.md`。
+1. 讀 `docs/REWARD-CONTRACT.md` 第三、四、八節;`docs/dispatch/SPEC.md` 畫面 1 與「設計規則」;`docs/dispatch/DESIGN.html` 第一支手機(玩家切換)、色票與元件區。讀 `index.html` 時用搜尋,不要整檔讀(36 萬字)。
+2. **玩家鍵**:在 `store` 定義前加 `ACTIVE_PLAYER`(讀 localStorage `player`,預設 `p1`;閱讀碼模式一律 `p1`)。加 `scopeKey(k)`:`k` 屬於上面「依玩家分開」的集合且玩家不是 p1,回傳 `pid + ':' + k`,否則原樣。`store.get/set` 與 1112 都走它。舊資料不搬。
+3. **題庫視圖**(整份工單最容易錯的地方):
+   - 記憶體裡的 `bank.rec/days/summary/badge` 永遠是**目前玩家**的。若有其他 per-player 欄位,請搜尋確認(工單假設只有這四個)。
+   - `applyView(b)`:目前玩家不是 p1 時,把頂層這四欄與 `p1At` 收進 `b.__p1`,換成 `b.players[pid]` 的內容(沒有就空的),並標 `b.__view = pid`。
+   - `toWire(b, keepTime)`:回傳要存的物件。有 `__view` 時把 `__p1` 還原回頂層,目前玩家的四欄放進 `players[pid]`(不是 keepTime 就更新其 `updatedAt`)。p1 時(不是 keepTime)更新 `p1At`。一律帶 `players` 鍵,否則後端會當舊前端。去掉 `__p1`、`__view`。
+   - `bsSave`:`localPut` 存完整 wire(含全部 players);送 `saveBank` 時帶 `playerId`,`players` 只送目前玩家(p1 時送 `{}`)。
+   - `bsLoad`:`applyView` 只在合併完成後做。本機較新時(1739)要送的是未套用視圖的本機版本,而且記憶體用的版本不可以用舊本機資料蓋掉雲端 `players` 裡比較新的玩家:逐位比 `updatedAt`、p1 比 `p1At`,取新的。
+   - 搜尋所有用到 `clone(bank)`、`JSON.stringify(bank` 的地方,不可以把 `__p1`、`__view` 送到別的 API 或匯出。
+4. **徽章同步**:`badgeSync` 的 `libApi('badges', ...)` 帶 `playerId`(閱讀碼不帶)。
+5. **玩家切換畫面(畫面 1)**,只有 `FAMILY.code` 存在時顯示:
+   - 首頁右上玩家圓鈕(目前玩家 emoji),點開底板:清單顯示暱稱、圖示、`銀 n・金 n`;目前玩家標「使用中」;停用的灰、置底、不能點。新增表單:暱稱(placeholder `不要填真名`)、12 個圖示選擇;改名與改圖示共用表單。不用 `confirm()`。
+   - 依 SPEC 色票與元件;可點元件 ≥ 44×44px;文字不用術語。
+   - 切換:存完未完成的儲存(`recTimers` 與 `saving`)後,寫 `player`、`location.reload()`。
+   - 開站時背景呼叫 `playerList`:成功時更新 `players-cache`,刪除本機不在清單內玩家的所有 `pid:` 鍵;目前玩家已停用或不存在時切回 p1 並提示「這位玩家已被停用，先切回 玩家名」。呼叫失敗不做任何刪除。`saveBank` 或 `badges` 回 `player_disabled`、`bad_player` 時同樣切回。
+6. **`Code.gs`**:`playerList` 接受 `withBalance:true`,每位玩家多回 `balance`。
+7. **`tools/build.js`、`npm run build`**:把 `index.html`、`zhuyin-tw.txt` 複製到 `dist/`。`dist/index.html` 把 `CONFIG.API_URL` 換成 `mock://gas`,在主程式前內嵌假後端(`test/fake-gas.js`、`Code.gs`、`tools/mock-backend.js` 的內容,跳脫 `</script>`)。**`dist/` 只有假後端,不可以留真實部署網址**;找不到 `CONFIG` 那一行或替換後仍有 `script.google.com` 就讓 build 失敗。根目錄 `index.html` 不可以有任何假後端程式。`.gitignore` 加 `dist/`、`node_modules/`。
+8. **`test/fake-gas.js` 改成可在瀏覽器跑**:`node:vm`、`Buffer`、`crypto` 都不可以在頂層用。`options.evaluate(source, globals)` 注入執行方式,預設 node vm;瀏覽器用 `new Function`(把 `Date` 等當參數傳入)。`env.snapshot()`、`env.restore(data)` 匯出匯入工作表、屬性、快取(Date 要保留型別)。Node 端既有測試不改行為。
+9. **`tools/mock-backend.js`**:攔截 `fetch('mock://gas')`,每次請求前把時鐘設成現在,呼叫 `env.doPost`,狀態存 localStorage `mock-gas-state`(reload 不會消失)。雜湊用簡單的純 JS 實作,註明只給假後端用。第一次開啟自動 `setup`,種入:假邀請碼 `TEST-0000`(也寫入 `family`)、p1「小葉子」與 p2「小石頭」、假徽章(p1 銀 5、金 2;p2 銀 1)、三個獎項(只銀、只金、銀＋金)。假設定碼固定 `MOCK2345`,用一條小橫幅顯示「假後端示範。家長設定碼：MOCK2345」。網址參數:`?mock=offline`(fetch 失敗)、`?mock=slow`(延遲 1500ms)、`?mock=empty`(不種獎項)。
+10. **`test/frontend.test.js`**:用 `jsdom`(加 devDependency,`runScripts:'dangerously'`,不啟動瀏覽器;用 `tools/build.js` 匯出的函式把 dist 建到暫存資料夾或 repo 的 `dist/`)載入 `dist/index.html`。補 jsdom 缺的 API(`scrollTo`、`matchMedia`、`speechSynthesis`…),只補最少。
+11. **修既有測試的隨機失敗**:`test/backend.test.js` 第 697、699 行 `includes('p2')` 改成精確比對該玩家 ID 欄位,不可以放寬驗證目的。
+12. 寫 `REPORT.md`。
 
 ## 驗收標準(全部達成才算完成)
-- [ ] [測試] `node --test` 全數通過
-- [ ] [測試] B4:沒有 session 呼叫 `rewardSave`、`redeemDecide`、`redeemList`、`parentLog` 都回 `no_session`,資料不變
-- [ ] [測試] C2:每週上限 2,第 3 次回 `quota`,reason 為 `本週額度用完，下週一再來`。以台北時間 2026-11-08(日)23:59:59 申請、2026-11-09(一)00:00:00 核准:週鍵仍是 `2026-11-02`,新的一週額度完整。下週一可再申請
-- [ ] [測試] 週鍵邊界:台北 2026-11-09 00:00:00 的週鍵是 `2026-11-09`;台北 2026-11-08 23:59:59 是 `2026-11-02`;UTC 2026-11-08 16:00:00 視為台北週一。週鍵寫入後讀回仍能正確計次(驗證假環境轉型沒有破壞比對)
-- [ ] [測試] D2:送出後可用立刻減少、保留增加、狀態待核准;拒絕後退回;取消後退回
-- [ ] [測試] D3:同 requestId 送兩次只產生一列,第二次回原筆與 `duplicate:true`;別的玩家用同一個 requestId 回 `bad_request`,回應不含別人的資料
-- [ ] [測試] D4:種子固定的隨機交錯 200 次。每次在 `onSheetOp` 內隨機插入多個申請、核准、拒絕、取消,跑完 `runDeferred` 後驗證:每位玩家可用銀、可用金 ≥ 0;每週已用 ≤ 上限;每筆申請的狀態轉移合法
-- [ ] [測試] D5:兩位家長同時核准同一筆,實扣只算一次;後到的若決定相同回 `already`,若決定不同回 `conflict`;紀錄表只有一筆決定
-- [ ] [測試] D7:只銀、只金、銀＋金三種獎項,`rewardList` 與 `redeemList` 顯示的枚數一致
-- [ ] [測試] D8:金可抵銀開著,有銀 1、金 2、獎項要銀 2 → 可申請,實扣銀 1＋金 1。關掉時同情況不能申請,reason 為 `還差銀 1`。有銀 5、金 0、獎項要金 1 → 不能申請,reason 為 `還差金 1`(銀不能抵金)。有銀 0、金 1、獎項要銀 2、可抵 → reason 為 `還差銀 1`。有銀 0、金 0、獎項要銀 1＋金 1、可抵 → reason 為 `還差銀 1、金 1`。有銀 0、金 2、獎項要銀 2＋金 1、可抵 → reason 為 `還差銀 1`
-- [ ] [測試] D9:拒絕或取消退回的銀、金與當初實扣一致;核准後才改獎項價格,或申請後改價格與關掉金可抵銀,都不影響已送出的申請
-- [ ] [測試] H1:用 `lockMode:'none'` 跑 D4/D5 的情境,測試斷言**必須**失敗(用「預期失敗」的方式寫,記錄實際違反了哪一條);用 `options.source` 把 requestId 查重函式覆寫成永遠找不到,D3 **必須**失敗。兩個反證都要寫成會跑的測試
-- [ ] [測試] A3 接上:停用玩家時他的待核准變取消、餘額退回;還原後不會變回待核准。停用中的玩家申請回 `player_disabled`
-- [ ] [測試] A4 接上:永久刪除後兌換、兌換紀錄都搜不到該玩家的列與兌換ID;別的玩家的不受影響
-- [ ] [測試] 對抗:獎項名稱 `=HYPERLINK("x")`、拒絕原因 `+cmd`、`@a` 不進 `env.formulaCells`,讀回與輸入相同;別家庭的獎項不能申請(`not_found`);別家庭的兌換 ID 不能決定、不能取消
-- [ ] [測試] 價格驗證:銀 0 金 0、銀 100、金 -1、銀 1.5、上限 15、名稱 21 字、名稱全空白都回 `bad_request`
-- [ ] [測試] 負數調整列使可用變負時,`redeemDecide` 核准回 `insufficient`,新的 `redeemRequest` 被拒,`available` 回報真實數字
-- [ ] [測試] `lockMode:'busy'` 時 `redeemRequest`、`redeemDecide` 回 `busy`,沒有寫入
-- [ ] [複核] `index.html` 沒有變更
+- [ ] [測試] `npm run build` 成功,`dist/index.html` 存在,內含 `mock://gas`,不含 `script.google.com`
+- [ ] [測試] 誘餌:給 build 一份沒有 `CONFIG` 行的 HTML 會失敗;根目錄 `index.html` 不含 `mock://gas`、`createGasEnv`
+- [ ] [測試] `node --test` 全數通過,連跑 5 次都綠(隨機失敗已修)
+- [ ] [測試] 語法:`dist/index.html` 與 `index.html` 的每段內嵌 script 都能被 `new vm.Script` 編譯
+- [ ] [測試] jsdom 開站無未捕捉例外;假後端回應正常;玩家圓鈕顯示目前玩家
+- [ ] [測試] A2:新增玩家、改名、選圖示;切換後 `localStorage.player` 改變;作答寫入 `bank.rec` 時,p2 的內容進 `players[p2]`、雲端頂層 p1 的 `rec` 不變;切回 p1 看到 p1 的數字
+- [ ] [測試] `scopeKey`:p1 的 `badges` 不加前綴;p2 是 `p2xxx:badges`;`family`、`ui-style` 不加前綴;`clearProgress` 清的是目前玩家的鍵
+- [ ] [測試] A4 本機部分:`playerList` 回應不含某玩家時,該玩家所有 `pid:` 鍵被刪,別的玩家與 p1 的鍵不動;`playerList` 失敗時什麼都不刪
+- [ ] [測試] 閱讀碼模式:不顯示玩家圓鈕,`badges` 請求不帶 `playerId`
+- [ ] [測試] 送到後端的 `saveBank` 內容不含 `__p1`、`__view`,且一定有 `players` 鍵
+- [ ] [測試] 對抗:p2 使用中時裝置離線存檔(`?mock=offline`),本機快取的 p1 `rec` 不被 p2 的內容污染
+- [ ] [人工] 390×844、375×667 實際版面、觸控大小由雲端測試確認,本機不驗
 
 ## 假設與未知
-- 假設:獎項只能停用,不提供刪除(SPEC 只寫新增/修改/停用)。
-- 假設:停用獎項時既有待核准不變,家長仍可決定。
-- 假設:核准與否不影響週鍵,週鍵永遠是申請當下。
-- 假設:SPEC 的「本週已換」以當前週、該玩家、該獎項計;不同獎項的額度各自獨立。
-- 未知:D4 的隨機插入可能因為 `real` 模式全部排隊而看起來過於簡單,這正是鎖的效果;反證測試負責證明沒有鎖會壞。若 `none` 模式跑不出違反,調整插入點(例如在讀完餘額之後的寫入前),不得把斷言改鬆。
-- 遇到未知:選保守方案(不讓餘額變多、不讓次數超限)、記到 REPORT.md「偏離事項」、繼續,不得擴大範圍。
+- 假設:per-player 欄位只有 `rec`、`days`、`summary`、`badge`。搜尋後若發現別的欄位,記到「偏離事項」並說明處理。
+- 假設:植物與書架作答依玩家分開但留在裝置(SPEC 明定)。
+- 未知:jsdom 能不能跑完這支 36 萬字的主程式。若某些瀏覽器 API 缺失,在測試裡補 stub,不可以改 `index.html` 去遷就 jsdom。jsdom 完全跑不起來時,改用最小 DOM stub,記到偏離事項,不得刪除這類驗收。
+- 未知:npm 安裝失敗時,記到偏離事項,其他項目照做,前端測試標明未跑,不得假裝通過。
+- 遇到未知:選保守方案、記到 REPORT.md「偏離事項」、繼續,不得擴大範圍。
 
 ## 禁止事項
-- 不得修改「涉及檔案」以外的檔案;不得新增相依;不得連線真實服務;不得啟動瀏覽器
+- 不得修改「涉及檔案」以外的檔案;不得改 `docs/dispatch/`、`docs/REWARD-CONTRACT.md`
+- 不得啟動瀏覽器(Edge、Chrome、Playwright、Puppeteer);不得連線真的試算表或 Apps Script
+- 除了 `jsdom` 不得新增其他相依;不得新增框架、打包工具
 - 不得 git commit、git push
-- 不得新增撤銷已核准、手動加減徽章、匯出等 SPEC 列為「不做」的功能
-- 不得為測試在 Code.gs 加任何開關;反證一律用 `options.source`、`lockMode` 在測試層完成
-- 不得放寬既有測試或安全檢查
+- 不得改變既有題庫、徽章、AI、書架、講義功能的行為;p1 使用者的體驗除了多一個圓鈕以外不變
+- 不得做獎勵兌換頁、家長頁(後面工單)
+- 不得把真實網址、邀請碼、PIN 放進 `tools/` 或測試
 - 最簡解原則:能少寫就少寫
 
 ## 上下文 / 已知的坑
-- `playerBalance` 目前在 `Code.gs` 尾段,`held`、`available` 尚未扣兌換。
-- `cancelPendingFor`、`purgeRedeemsFor` 是空函式,呼叫端已持鎖。
-- `balance` 的 action 目前已呼叫 `syncLedger` 再算餘額。
-- 上一張的鎖交錯經驗:`onSheetOp` 在讀家庭表時尚未取得鎖,要在鎖內的工作表操作才看得到 deferred。
+- 主程式所有函式都掛在全域(頂層 `function`),`const`、`let` 不是。測試可以用 `window.eval` 取。
+- 開站 3 秒後有 `setTimeout(badgeSync,3000)`;`hookTours` 會包 `libHome` 等函式。
+- `node --test` 會把 `test/` 底下所有 js 當測試跑,`test/fake-gas.js` 不可以有副作用。
+- 目前 `Code.gs` 的 `saveBank(fam, bank, pid)` 用 `req.playerId` 只做玩家檢查,實際合併看 `bank.players`。
 
 ## 完成後回報格式(寫入 REPORT.md)
 1. 修改了哪些檔案(逐一列出)

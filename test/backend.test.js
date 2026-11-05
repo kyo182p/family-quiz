@@ -694,9 +694,9 @@ test('T003 A4: purge removes only target family player everywhere and stale save
   assert.deepEqual(post(env,'listBanks').banks,banksBefore);
   for(const name of ['玩家','徽章','徽章入帳']) {
     const target = env.sheets.get(name).getDataRange().getValues().filter(r=>r[0]===code);
-    assert.equal(JSON.stringify(target).includes('p2'),false);
+    assert.equal(target.some(r=>r[name==='徽章'?4:1]==='p2'),false);
   }
-  assert.equal(JSON.stringify(Object.entries(env.props.getProperties()).filter(([k])=>k.includes(code))).includes('p2'),false);
+  assert.equal(Object.keys(env.props.getProperties()).some(k=>k==='ledgerinit:'+code+':p2'),false);
   assert.equal(post(env,'saveBank',{playerId:'p2',bank:stale}).code,'bad_player');
   assert.equal(post(env,'saveBank',{bank:stale}).ok,true);
   assert.equal(post(env,'listBanks').banks.some(b=>b.players && b.players.p2),false);

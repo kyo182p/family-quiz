@@ -400,6 +400,16 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .bgo:hover,.bgo:focus-visible{border-color:var(--sun)}
 .bgo-tag{display:inline-block;margin:2px 0 4px;padding:2px 10px;border-radius:999px;background:var(--sun);color:#222;font-size:.85rem;font-weight:700;white-space:nowrap}.pixbook figcaption{font-size:1rem;margin-top:4px}
 .pixbook figcaption .tip{color:var(--muted);font-size:.85rem}
+
+.player-overlay{position:fixed;inset:0;z-index:1100;background:rgba(10,25,16,.42);display:flex;align-items:flex-end;justify-content:center}
+.player-panel{width:min(100%,540px);max-height:90dvh;overflow:auto;background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:24px 24px 0 0;padding:16px;padding-bottom:max(20px,env(safe-area-inset-bottom));box-sizing:border-box}
+.player-panel .toprow{justify-content:space-between}.player-panel h2{margin:0;font-size:1.4rem}
+.player-panel button,.player-panel input{min-height:44px;min-width:44px}.player-panel input{width:100%;box-sizing:border-box}
+.player-row{display:flex;gap:6px;margin:8px 0;align-items:center}.player-pick{flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-align:left;white-space:normal}
+.player-pick span:nth-child(2){flex:1;overflow-wrap:anywhere}.player-pick small{display:block;font-size:.9rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.player-avatar{font-size:1.8rem}.player-off{opacity:.6}.player-icons{display:grid;grid-template-columns:repeat(6,minmax(44px,1fr));gap:4px;margin:12px 0}
+.player-icons [aria-pressed=true]{background:var(--leaf-soft);outline:2px solid var(--leaf-strong)}
+@media(max-width:360px){.player-icons{grid-template-columns:repeat(4,minmax(44px,1fr))}}
 </style>
 </head>
 <body>
@@ -661,9 +671,11 @@ const PICS={
 function renderPic(key){ if(!key) return ''; const [k,arg]=key.split(':'); return PICS[k]?PICS[k](arg):''; }
 
 /* ===== 紀錄（存在這台裝置） ===== */
+const ACTIVE_PLAYER=(()=>{try{return JSON.parse(localStorage.getItem('reader')||'{}').code?'p1':JSON.parse(localStorage.getItem('player')||'"p1"')}catch(e){return 'p1'}})()||'p1';
+function scopeKey(k){return ACTIVE_PLAYER!=='p1'&&(k==='badges'||k==='g3plants-rec'||k.startsWith('progress-')||k.startsWith('lib-rec:'))?ACTIVE_PLAYER+':'+k:k}
 const store={
-  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
-  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  get(k,d){try{const v=localStorage.getItem(scopeKey(k));return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(scopeKey(k),JSON.stringify(v))}catch(e){}}
 };
 let rec=store.get('g3plants-rec',{});
 let prefs=store.get('g3plants-prefs',{autoRead:false,unit:'all',count:10});
@@ -1014,7 +1026,7 @@ function badgeSync(){
   if(badgeSyncing)return badgeSyncing;
   const own=new Set(BANKS.filter(ownBank).map(b=>b.id));
   const send={};Object.entries(BADGES).forEach(([k,r])=>{if(r&&!own.has(k))send[k]=r});
-  badgeSyncing=libApi('badges',{badges:send}).then(j=>{
+  badgeSyncing=libApi('badges',{badges:send,...(READER.code?{}:{playerId:ACTIVE_PLAYER})}).then(j=>{
     const got=j.badges||{};
     Object.entries(got).forEach(([k,r])=>{if(!own.has(k))BADGES[k]=r});   // 送出後這台裝置才有的新紀錄保留下一輪再送
     store.set('badges',BADGES);return true;
@@ -1109,7 +1121,7 @@ function saveProgress(){
   store.set(progKey(CTX),{queue:S.queue.slice(S.pos+1).map(x=>({id:x.q.id,kind:x.kind,stage:x.stage||0})),
     total:S.total,leaves:S.leaves,used:[...S.used],cs:S.cs,missed:S.missed,t:Date.now()});
 }
-function clearProgress(ctx){try{localStorage.removeItem(progKey(ctx))}catch(e){}}
+function clearProgress(ctx){try{localStorage.removeItem(scopeKey(progKey(ctx)))}catch(e){}}
 function getProgress(ctx){
   const p=store.get(progKey(ctx),null);
   if(!p||!Array.isArray(p.queue))return null;
@@ -1457,7 +1469,7 @@ async function api(action,data,signal){
     throw {code:'network',message:'連不上後端'};
   }
   let j; try{j=await res.json()}catch(e){throw {code:'server_error',message:'後端回應格式錯誤'}}
-  if(!j.ok)throw {code:j.code||'server_error',message:j.message||''};
+  if(!j.ok){if(['saveBank','badges'].includes(action)&&['player_disabled','bad_player'].includes(j.code))fallbackPlayer();throw {code:j.code||'server_error',message:j.message||''};}
   return j;
 }
 function parseJSONLoose(t){
@@ -1727,23 +1739,51 @@ function localPut(b){const all=localBanks();all[b.id]=clone(b);store.set(LS_BANK
 function localDel(id){const all=localBanks();delete all[id];store.set(LS_BANKS,all)}
 function toLocal(note){BS.mode='local';BS.note=note;}
 
+const PLAYER_FIELDS=['rec','days','summary','badge'];
+function playerData(b){return Object.fromEntries(PLAYER_FIELDS.map(k=>[k,clone(b[k]??(k==='rec'||k==='days'?{}:null))]))}
+function applyView(b){
+  if(ACTIVE_PLAYER==='p1'||b.__view)return b;
+  b.__p1={...playerData(b),p1At:b.p1At??b.updatedAt??0};
+  Object.assign(b,playerData((b.players||{})[ACTIVE_PLAYER]||{}));b.__view=ACTIVE_PLAYER;return b;
+}
+function toWire(b,keepTime){
+  const d=clone(b);d.players=d.players||{};
+  if(d.__view){
+    d.players[d.__view]={...playerData(d),updatedAt:keepTime?((d.players[d.__view]||{}).updatedAt||0):Date.now()};
+    Object.assign(d,d.__p1);
+  }else if(!keepTime)d.p1At=Date.now();
+  delete d.__view;delete d.__p1;return d;
+}
+function currentWire(b){const d=clone(b);d.players=ACTIVE_PLAYER==='p1'?{}:{[ACTIVE_PLAYER]:(d.players||{})[ACTIVE_PLAYER]||{}};return d}
+function mergeLocalBank(cloud,local){
+  const d=clone((local.updatedAt||0)>(cloud.updatedAt||0)?local:cloud);
+  const p=(local.p1At??local.updatedAt??0)>(cloud.p1At??cloud.updatedAt??0)?local:cloud;
+  Object.assign(d,playerData(p));d.p1At=p.p1At??p.updatedAt;
+  d.players={...(cloud.players||{})};
+  for(const [pid,v] of Object.entries(local.players||{}))if(!d.players[pid]||(v.updatedAt||0)>(d.players[pid].updatedAt||0))d.players[pid]=clone(v);
+  return d;
+}
 async function bsLoad(){
   await bsReady;
   const loc=localBanks();
   if(BS.mode==='cloud'){
     try{
-      const j=await api('listBanks');
-      const map={};
+      const j=await api('listBanks'),map={};
       (j.banks||[]).forEach(b=>{if(b&&b.id)map[b.id]=b});
-      // 本機有、雲端沒有或比較新的，補上雲端
-      Object.values(loc).forEach(b=>{ if(!map[b.id]||(b.updatedAt||0)>(map[b.id].updatedAt||0)){map[b.id]=b;bsSave(b,true)} });
-      BANKS=Object.values(map);
-    }catch(e){
-      toLocal('目前連不上雲端，先顯示這台裝置上的題庫。');
-      BANKS=Object.values(loc);
-    }
+      for(const b of Object.values(loc)){
+        const cloud=map[b.id];
+        const merged=cloud?mergeLocalBank(cloud,b):b;
+        if(!cloud||(b.updatedAt||0)>(cloud.updatedAt||0))await bsSave(b,true);
+        else {
+          const playerAt=x=>ACTIVE_PLAYER==='p1'?(x.p1At??x.updatedAt??0):((x.players||{})[ACTIVE_PLAYER]?.updatedAt||0);
+          if(playerAt(b)>playerAt(cloud))await bsSave(merged,true);
+        }
+        map[b.id]=merged;
+      }
+      BANKS=Object.values(map);BANKS.forEach(localPut);
+    }catch(e){toLocal('目前連不上雲端，先顯示這台裝置上的題庫。');BANKS=Object.values(loc)}
   }else BANKS=Object.values(loc);
-  BANKS.forEach(fixBank);
+  BANKS.forEach(b=>{fixBank(b);applyView(b)});
   BANKS.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
 }
 function fixBank(b){b.concepts=b.concepts||[];b.questions=b.questions||[];b.pending=b.pending||[];b.skipped=b.skipped||[];b.rec=b.rec||{};b.seq=b.seq||0;b.days=b.days||{};return b}
@@ -1752,14 +1792,16 @@ const saving={};
 function bsSave(bank,keepTime){
   if(bank.__lib){libSaveLocal(bank);return Promise.resolve()}
   if(!keepTime)bank.updatedAt=Date.now();
-  localPut(bank);
+  const wire=toWire(bank,keepTime);
+  if(bank.__view)bank.players=clone(wire.players);else bank.p1At=wire.p1At;
+  localPut(wire);
   if(BS.mode!=='cloud')return Promise.resolve();
   const s=saving[bank.id]||(saving[bank.id]={busy:null,next:null});
-  s.next=clone(bank);
+  s.next=currentWire(wire);
   if(!s.busy)s.busy=(async()=>{
     while(s.next){
       const d=s.next;s.next=null;
-      try{await api('saveBank',{bank:d});}
+      try{await api('saveBank',{bank:d,playerId:ACTIVE_PLAYER});}
       catch(e){
         const c=e&&e.code;
         if(c==='too_large')toast('題庫太大，雲端存不下，這次先存在這台裝置。');
@@ -1778,7 +1820,7 @@ async function bsDelete(bank){
   if(BS.mode==='cloud'){try{await api('deleteBank',{id:bank.id})}catch(e){}}
 }
 const recTimers={};
-function scheduleSave(bank){if(bank.__lib){libSaveLocal(bank);return}clearTimeout(recTimers[bank.id]);recTimers[bank.id]=setTimeout(()=>bsSave(bank),6000)}
+function scheduleSave(bank){if(bank.__lib){libSaveLocal(bank);return}clearTimeout(recTimers[bank.id]);recTimers[bank.id]=setTimeout(()=>{delete recTimers[bank.id];bsSave(bank)},6000)}
 
 /* --- 讀取中畫面：等後端回應時蓋住整個畫面，避免重複按 --- */
 let busyN=0;
@@ -2033,7 +2075,7 @@ function bankForm(bank){
     const uno=+v('f-unitno'),uname=v('f-unitname');
     const nb=bank||fixBank({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),createdAt:Date.now()});
     Object.assign(nb,{grade:v('f-grade'),term:v('f-term'),subject:v('f-subject'),publisher:v('f-pub'),unitNo:uno,unit:[uno?`第${UNIT_CN[uno]}單元`:'整冊',uname].filter(Boolean).join(' '),title:v('f-title')});
-    if(!bank)BANKS.unshift(nb);
+    if(!bank){applyView(nb);BANKS.unshift(nb);}
     await busyRun(bank?'儲存中……':'建立題庫中……',()=>bsSave(nb));
     bankHome(nb);
   };
@@ -3221,7 +3263,7 @@ function importBank(file){
       const ids=new Set(nb.concepts.map(c=>c.id));
       nb.questions=(Array.isArray(src.questions)?src.questions:[]).map(q=>{const n=normQ(q,ids);return n?{...n,id:newId(nb,'q')}:null}).filter(Boolean);
       if(!nb.questions.length)throw 0;
-      BANKS.unshift(nb); await bsSave(nb);
+      applyView(nb);BANKS.unshift(nb); await bsSave(nb);
       toast(`已匯入 ${nb.questions.length} 題`); bankHome(nb);
     }catch(e){toast('這個檔案不是可以匯入的題庫檔')}
   };
@@ -3426,7 +3468,7 @@ async function libApi(action,data){
   try{res=await fetch(CONFIG.API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,code:libCode(),...(data||{})}),redirect:'follow'})}
   catch(e){throw {code:'network'}}
   const j=await res.json().catch(()=>({ok:false,code:'server_error'}));
-  if(!j.ok)throw {code:j.code||'server_error',message:j.message||''};
+  if(!j.ok){if(['saveBank','badges'].includes(action)&&['player_disabled','bad_player'].includes(j.code))fallbackPlayer();throw {code:j.code||'server_error',message:j.message||''};}
   return j;
 }
 const libLocalKey=id=>'lib-rec:'+id;
@@ -3477,7 +3519,7 @@ async function verifyReader(code,msgEl){
   if(!code){msgEl.textContent='請輸入閱讀碼';return}
   msgEl.textContent='確認中……';
   const old=READER;READER={code,name:''};
-  try{LIB=(await busyRun('確認閱讀碼中……',()=>libApi('libList'))).banks||[];LIBERR='';store.set('reader',READER);libHome()}
+  try{LIB=(await busyRun('確認閱讀碼中……',()=>libApi('libList'))).banks||[];LIBERR='';store.set('reader',READER);if(ACTIVE_PLAYER!=='p1'){await flushPlayerSaves();location.reload()}else libHome()}
   catch(e){READER=old;msgEl.textContent=e.code==='bad_code'?'❌ 閱讀碼不正確或已停用':e.code==='not_configured'?'❌ 網站尚未設定後端網址':'❌ 連不上後端，請稍後再試'}
 }
 function codePage(){
@@ -3496,7 +3538,7 @@ function codePage(){
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>libHome();
   $('rcgo').onclick=()=>verifyReader($('rc').value.trim(),$('rcmsg'));
-  if($('rcclr'))$('rcclr').onclick=()=>{READER={code:'',name:''};store.set('reader',READER);LIB=null;LIBERR='';codePage()};
+  if($('rcclr'))$('rcclr').onclick=async()=>{await flushPlayerSaves();READER={code:'',name:''};store.set('reader',READER);LIB=null;LIBERR='';if(store.get('player','p1')!=='p1')location.reload();else codePage()};
   $('fam').onclick=()=>familyPage(()=>{LIB=null;LIBERR='';codePage()});
 }
 async function libLoad(id){
@@ -4438,11 +4480,100 @@ function helpBtn(){
   b.style.display=CUR_TOUR?'':'none';
 }
 
+/* ===== 家庭玩家 ===== */
+let PLAYERS=store.get('players-cache',[]);
+const PLAYER_ICONS=['🌱','🦊','🐢','🐳','🦄','🚀','🐼','🐰','🦖','🐝','🌈','⭐'];
+let switchingPlayer=false;
+function playerButton(){
+  const row=app.querySelector('.toprow');
+  if(!row||!FAMILY.code||READER.code||document.getElementById('player-button'))return;
+  const p=PLAYERS.find(p=>p.id===ACTIVE_PLAYER);
+  const b=document.createElement('button');b.id='player-button';b.className='iconbtn';b.textContent=p?.icon||'🌱';
+  b.setAttribute('aria-label','切換玩家：'+(p?.name||'玩家 1'));b.style.cssText='width:48px;height:48px;border-radius:50%;padding:0;flex-shrink:0';
+  b.onclick=playerSheet;row.append(b);
+}
+async function refreshPlayers(){
+  if(!FAMILY.code||READER.code)return;
+  try{
+    const j=await api('playerList',{withBalance:true});
+    PLAYERS=j.players||[];
+    // Cache identities only: balances must always come from the backend.
+    store.set('players-cache',PLAYERS.map(({balance,...p})=>p));
+    const ids=new Set(PLAYERS.map(p=>p.id));
+    for(const k of Object.keys(localStorage)){const m=/^(p[a-z0-9]{1,12}):/.exec(k);if(m&&!ids.has(m[1]))localStorage.removeItem(k)}
+    const p=PLAYERS.find(p=>p.id===ACTIVE_PLAYER);
+    if(!p||p.status!=='啟用'){fallbackPlayer();return}
+    document.getElementById('player-button')?.remove();playerButton();return PLAYERS;
+  }catch(e){return null}
+}
+async function flushPlayerSaves(){
+  for(const id of Object.keys(recTimers)){
+    clearTimeout(recTimers[id]);delete recTimers[id];
+    const b=BANKS.find(b=>b.id===id);if(b)bsSave(b);
+  }
+  await Promise.all(Object.values(saving).map(s=>s.busy).filter(Boolean));
+  if(badgeSyncing)await badgeSyncing;
+}
+async function switchPlayer(pid){
+  if(switchingPlayer)return;
+  switchingPlayer=true;
+  try{await flushPlayerSaves();store.set('player',pid);location.reload()}finally{switchingPlayer=false}
+}
+function fallbackPlayer(){
+  if(ACTIVE_PLAYER==='p1'||switchingPlayer)return;
+  const p=PLAYERS.find(p=>p.id==='p1');
+  // The server has refused this player: keep local backups, never retry them as p1.
+  switchingPlayer=true;store.set('player','p1');
+  store.set('player-notice','這位玩家已被停用，先切回 '+(p?.name||'玩家 1'));location.reload();
+}
+async function playerSheet(){
+  document.getElementById('player-sheet')?.remove();
+  const overlay=document.createElement('div');overlay.id='player-sheet';overlay.className='player-overlay';
+  overlay.innerHTML='<section class="player-panel" role="dialog" aria-modal="true" aria-labelledby="player-title"><div class="toprow"><h2 id="player-title">選一位玩家</h2><button class="iconbtn" id="player-close" aria-label="關閉">✕</button></div><p id="player-message" role="status">讀取中……</p><div id="player-list"></div><div id="player-form"></div></section>';
+  document.body.append(overlay);
+  const close=()=>{overlay.remove();document.getElementById('player-button')?.focus()};
+  document.getElementById('player-close').onclick=close;
+  overlay.onclick=e=>{if(e.target===overlay)close()};
+  overlay.onkeydown=e=>{
+    if(e.key==='Escape')close();
+    if(e.key==='Tab'){const items=[...overlay.querySelectorAll('button:not(:disabled),input')];const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}
+  };
+  document.getElementById('player-close').focus();
+  const players=await refreshPlayers();if(!overlay.isConnected)return;
+  const msg=document.getElementById('player-message');
+  if(!players){msg.textContent='連不到雲端，請稍後再試。';const retry=document.createElement('button');retry.className='ghost';retry.textContent='再試一次';retry.onclick=playerSheet;msg.after(retry);return}
+  msg.textContent='';
+  const render=()=>{
+    const list=document.getElementById('player-list');
+    list.innerHTML=PLAYERS.slice().sort((a,b)=>(a.status==='停用')-(b.status==='停用')||a.order-b.order).map(p=>{
+      const off=p.status!=='啟用',bal=p.balance;
+      return `<div class="player-row${off?' player-off':''}"><button class="player-pick iconbtn" data-player="${esc(p.id)}" ${off?'disabled':''}><span class="player-avatar">${esc(p.icon)}</span><span>${esc(p.name)}<small>銀 ${bal?.silver.available??'—'}・金 ${bal?.gold.available??'—'}</small></span><span>${off?'停用':p.id===ACTIVE_PLAYER?'使用中':''}</span></button>${off?'':`<button class="iconbtn" data-edit-player="${esc(p.id)}" aria-label="修改${esc(p.name)}">修改</button>`}</div>`;
+    }).join('');
+    list.querySelectorAll('[data-player]').forEach(b=>b.onclick=async()=>{b.disabled=true;msg.textContent='儲存中……';await switchPlayer(b.dataset.player)});
+    list.querySelectorAll('[data-edit-player]').forEach(b=>b.onclick=()=>form(PLAYERS.find(p=>p.id===b.dataset.editPlayer)));
+  };
+  function form(p){
+    let icon=p?.icon||'🌱';
+    const root=document.getElementById('player-form');
+    root.innerHTML=`<form class="form"><h3>${p?'修改玩家':'新增玩家'}</h3><label>暱稱<input id="player-name" maxlength="24" placeholder="不要填真名" value="${esc(p?.name||'')}" required></label><div class="player-icons" role="group" aria-label="選一個圖示">${PLAYER_ICONS.map(i=>`<button type="button" class="iconbtn" data-player-icon="${i}" aria-pressed="${i===icon}">${i}</button>`).join('')}</div><button class="big" id="player-submit">${p?'儲存修改':'新增玩家'}</button>${p?'<button type="button" class="ghost" id="player-new">改為新增玩家</button>':''}</form>`;
+    root.querySelectorAll('[data-player-icon]').forEach(b=>b.onclick=()=>{icon=b.dataset.playerIcon;root.querySelectorAll('[data-player-icon]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))});
+    document.getElementById('player-new')?.addEventListener('click',()=>form());
+    root.querySelector('form').onsubmit=async e=>{
+      e.preventDefault();const name=document.getElementById('player-name').value.trim();
+      if(!name||Array.from(name).length>12){msg.textContent='暱稱請填 1～12 個字';return}
+      const button=document.getElementById('player-submit');button.disabled=true;msg.textContent='儲存中……';
+      try{await api('playerSave',{name,icon,...(p?{playerId:p.id}:{})});if(!await refreshPlayers())throw {code:'network'};render();form();msg.textContent='已儲存'}
+      catch(e){msg.textContent=e.code==='player_limit'?'最多可以有 12 位玩家':'儲存失敗，請再試一次。'}finally{button.disabled=false}
+    };
+  }
+  render();form();
+}
+
 // 每個頁面畫完後自動檢查是否要顯示導覽
 (function hookTours(){
   const wrap=(name,key)=>{const f=window[name];if(typeof f!=='function')return;
     window[name]=function(...a){CUR_TOUR=null;helpBtn();const r=f.apply(this,a);
-      const go=()=>{const k=typeof key==='function'?key(...a):key;if(k)runTour(k)};
+      const go=()=>{if(['libHome','home','betaHome'].includes(name))playerButton();const k=typeof key==='function'?key(...a):key;if(k)runTour(k)};
       if(r&&typeof r.then==='function')r.then(go);else go();return r}};
   wrap('libHome','lib');wrap('home','plant');wrap('betaHome',()=>FAMILY.code?'mine':null);wrap('bankHome','bank');
   wrap('uploadPage','upload');wrap('reviewPage',()=>tourStepsReady('review'));wrap('libBankHome','libBank');
@@ -4464,6 +4595,8 @@ function tourStepsReady(k){return k}
     }
   }
   libHome();
+  refreshPlayers();
+  const notice=store.get('player-notice','');if(notice){store.set('player-notice','');toast(notice)}
   setTimeout(badgeSync,3000);   // 開站後在背景把徽章和雲端對一次
 })();
 </script>

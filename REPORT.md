@@ -1,81 +1,81 @@
-﻿# T-004 第 1 輪執行回報
+﻿# T-005 第 1 輪執行回報
 
-〔記錄〕日期：2026-11-05。已讀取 HANDOFF.md、docs/REWARD-CONTRACT.md（含第一、二、七節）及 docs/dispatch/SPEC.md。依合約第七節實作實扣與不足原因文字。
+〔記錄〕回報日期：2026-11-06（Asia/Taipei）。已讀 HANDOFF.md、docs/REWARD-CONTRACT.md、docs/dispatch/SPEC.md 與 DESIGN.html 的玩家切換、色票及元件內容。完成本輪玩家分流、玩家切換、假後端建置與前端測試；獎勵兌換頁、家長頁未納入本輪。
 
 ## 1. 修改檔案
 
-- 〔記錄〕`Code.gs`：setup 補建獎勵、兌換、兌換紀錄三表；實作 rewardSave、rewardList、redeemRequest、redeemCancel、myRedeems、redeemList、redeemDecide、parentLog；餘額扣除待核准與核准的實扣，待核准另計 held；接上停用取消與永久清除。
-- 〔記錄〕`test/backend.test.js`：新增 21 個 T004 測試，包含固定種子 200 輪交錯、鎖與查重反證、跨週、快照、權限、家庭隔離、公式安全、補入與負數調整。
-- 〔記錄〕`REPORT.md`：本回報、逐條驗收與已知問題。
-- 〔實測〕`index.html` 無差異，`git diff --exit-code -- index.html` 結束碼 0。
-- 〔記錄〕開始工作時 HANDOFF.md 已有修改，另有多個既存未追蹤檔案；本輪未修改它們。未新增依賴、未連線真實服務、未啟動瀏覽器、未 commit 或 push。
+- 〔記錄〕`index.html`：新增 ACTIVE_PLAYER、scopeKey；植物、書架、徽章、練習進度依玩家使用本機鍵。新增 applyView／toWire、逐玩家時鐘合併、完整本機備份及只送目前玩家的雲端儲存；徽章請求帶 playerId。加入玩家圓鈕、底板、新增／修改暱稱與 12 個圖示、停用狀態、清理刪除玩家的本機鍵，以及失效玩家回退提示。切換等待計時儲存、進行中及排隊儲存、進行中徽章同步。
+- 〔記錄〕`Code.gs`：僅修改 playerList 分支；withBalance:true 時，在既有鎖內補入既存 earned 並回每位玩家的 balance，未帶參數時維持原列表內容。
+- 〔記錄〕`tools/build.js`（新增）：可匯入 build({outDir, html})；複製 index.html 與 zhuyin-tw.txt、替換 CONFIG、在主程式前注入假環境／Code.gs／假 fetch，跳脫 script 結尾；缺 CONFIG 或殘留正式端點字串時拒絕建置。
+- 〔記錄〕`tools/mock-backend.js`（新增）：只攔 mock://gas；提供持久化、即時時鐘、假家庭／玩家／徽章／三種價格獎項、固定設定碼橫幅，以及 offline／slow／empty 模式。純 JS 雜湊明示僅供假後端使用。
+- 〔記錄〕`test/fake-gas.js`：Node vm 改為延遲載入，支援 evaluate 與 base64 注入；新增 snapshot／restore，保留 Date、工作表格式、屬性與快取。
+- 〔記錄〕`test/backend.test.js`：原 A4 子字串斷言改為精確玩家 ID 欄位及 ledgerinit 屬性鍵比對，仍要求 p2 完全移除。
+- 〔記錄〕`test/frontend.test.js`（新增）：14 項 jsdom／建置／持久化測試，完整執行主程式，僅補 scrollTo、matchMedia、speechSynthesis。
+- 〔記錄〕`package.json`：新增 build 指令及唯一直接開發相依 jsdom。
+- 〔記錄〕`package-lock.json`（新增）：鎖定相依版本。
+- 〔記錄〕`.gitignore`：加入 dist/、node_modules/。
+- 〔記錄〕`REPORT.md`：本輪結果與驗收證據。
 
-## 2. 驗收狀況與證據
+〔記錄〕開始時 HANDOFF.md 已修改，且有多個既存未追蹤檔案；本輪未更動這些既存工作。dist/ 為忽略的建置產物。未啟動瀏覽器、未連真實 Sheets／Apps Script、未 commit 或 push。
 
-〔實測〕最終執行 `node --test`，結束碼 0，摘要如下（共 70 項包含 Node 自動載入的 fake-gas.js 項目）：
+## 2. 逐條驗收與證據
 
-```text
-ℹ tests 70
-ℹ suites 0
-ℹ pass 70
-ℹ fail 0
-ℹ cancelled 0
-ℹ skipped 0
-ℹ todo 0
-ℹ duration_ms 1521.5978
-```
-
-〔實測〕以下各項均已通過；測試名稱可在 `test/backend.test.js` 搜尋對應 T004 編號或文字。
-
-| 驗收條件 | 狀況及測試證據 |
+| HANDOFF 驗收條件 | 結果與證據 |
 | --- | --- |
-| 全數測試通過 | 〔實測〕`node --test`：70 pass、0 fail，既有測試未放寬。 |
-| B4 家長 session | 〔實測〕`T004 setup/B4`：rewardSave、redeemDecide、redeemList、parentLog 遇缺少、隨機或外家庭 session 均 no_session，前後資料快照一致；同時驗三表完整欄序與 setup 冪等。 |
-| C2 週限額 | 〔實測〕`T004 C2/week boundary`：上限 2，第 3 次 quota，reason 精確為「本週額度用完，下週一再來」。週日申請、週一核准仍保留 2026-11-02，當前週已用為 0，週一新申請成功。 |
-| 週鍵邊界及 Date 讀回 | 〔實測〕同測試驗台北週一 00:00:00 → 2026-11-09、週日 23:59:59 → 2026-11-02、UTC 2026-11-08 16:00:00 → 2026-11-09；驗 safeCell 寫回為字串，另刻意以未跳脫舊值觸發假環境 Date 轉型，讀回仍計次正確。 |
-| D2 保留與退回 | 〔實測〕`T004 D2/D9`：申請後待核准、可用減少、held 增加；拒絕及取消均退回原實扣銀金。 |
-| D3 防重送及保密 | 〔實測〕`T004 D3`：同 requestId 回原 redeem、duplicate:true，只一列；不同玩家或家庭重用皆只回 bad_request，不洩漏他人資料。另驗 playerId、rewardId、requestId 格式。 |
-| D4 隨機交錯 200 次 | 〔實測〕`T004 D4: seeded 200 interleavings`：每輪在玩家表操作 hook 插入 2–4 個隨機操作，runDeferred 後驗每位玩家銀金可用非負、各獎項週額度、requestId 唯一、紀錄不孤立、版本與狀態轉移一致。另有餘額讀取後插入多個申請的定向測試。 |
-| D5 雙家長決定 | 〔實測〕`T004 D5`：兩個 session 在狀態寫入前交錯，後到同意為 already、後到拒絕為 conflict；只一筆決定紀錄、一次實扣。 |
-| D7 三種價格 | 〔實測〕`T004 D7`：只銀、只金、銀金搭配，在 rewardList 與 redeemList 逐項比對；同驗玩家暱稱、圖示、目前餘額、weekUsed、pendingCount。 |
-| D8 金抵銀及原因 | 〔實測〕`T004 D8`：工單全部六組情境逐字比對 reason；成功情境實扣銀 1＋金 1。金價先保留，銀不能抵金；另驗金可抵銀儲存為 TRUE/FALSE 文字也正確讀取。 |
-| D9 快照固定 | 〔實測〕`T004 D2/D9`：申請後改價、停用獎項或關閉金抵銀，不影響拒絕、取消與核准時的原實扣；核准後再改價，餘額不變；拒絕原因 trim 並截至 40 字。 |
-| H1 反證必須失敗 | 〔實測〕三個可執行的 `T004 H1` 測試均用 assert.throws 捕捉原驗收斷言失敗；lockMode:none 使 D4 可用銀變負、D5 決定紀錄重複；options.source 覆寫 findRedeemRequest 為永遠 null，D3 缺 duplicate 標記且實際產生兩列。正式 Code.gs 無測試開關。 |
-| A3 停用與還原 | 〔實測〕`T004 A3/A4`：停用將待核准改取消、parent 紀錄、餘額退回，停用申請 player_disabled；還原後仍取消。 |
-| A4 永久刪除 | 〔實測〕同測試驗目標兌換列及其 ID 對應紀錄全清，其他玩家及家庭均保留；`T004 A4 exact IDs` 另驗刪 p2 不影響 p2abcdef0 與其申請、紀錄。 |
-| 對抗與隔離 | 〔實測〕`T004 adversarial`：名稱 =HYPERLINK("x")、原因 +cmd、@a 原樣讀回，env.formulaCells 為空；外家庭獎項申請／修改 not_found，外家庭兌換 ID 決定／取消 not_found，其他玩家亦不能取消。 |
-| 價格驗證 | 〔實測〕`T004 reward validation/C1`：銀金合計 0、銀 100、金 -1、銀 1.5、上限 15、21 字及空白名稱均 bad_request 且資料不變；額外驗字串價格、負數或非整數上限及不合法 ID。 |
-| 負數調整 | 〔實測〕`T004 negative adjustment`、`T004 negative gold adjustment`：分別測銀、金負值，balance 保留真實負數，核准 insufficient 且維持待核准，新申請也拒絕；拒絕仍可退回保留。 |
-| busy | 〔實測〕`T004 busy`：lockMode:busy 下 redeemRequest、redeemDecide 回 busy，資料與 properties 快照不變。 |
-| index.html 不變 | 〔實測〕`git diff --exit-code -- index.html` 無輸出、結束碼 0。 |
+| npm run build 成功，dist/index.html 含 mock://gas 且無正式部署網址 | 〔實測〕`npm.cmd run build` exit 0，輸出 `Built dist with mock backend`。`T005 build` 驗 dist/index.html、zhuyin-tw.txt 存在、含 mock://gas、不含 script.google.com。 |
+| 缺 CONFIG 誘餌失敗；正式 index 不含假後端 | 〔實測〕`T005 build` 用 assert.throws 驗沒有 CONFIG 的 HTML；另驗替換後仍殘留端點字串亦失敗。根 index.html 不含 mock://gas、createGasEnv。 |
+| node --test 全過，連跑五次 | 〔實測〕五次 exit 0，每次 84 pass、0 fail、0 skipped；原後端 69 項、fake-gas 自動載入 1 項、新增前端 14 項。逐次摘要如下。 |
+| 根目錄與 dist 每段內嵌 script 可編譯 | 〔實測〕`T005 build` 逐段以 new vm.Script 編譯兩份 HTML，通過。 |
+| jsdom 開站無未捕捉例外、假後端正常、圓鈕正確 | 〔實測〕所有 jsdom 實例結束時斷言例外清單為空；startup 驗 p1 圓鈕 🌱、p2 圓鈕 🐢、橫幅、列表、餘額及獎項 API。 |
+| A2 新增、改名、圖示、切換、作答隔離、切回 p1 | 〔實測〕`T005 A2: form adds...` 以表單新增小星／⭐，再改小彩虹／🌈；有正在執行與排隊的 saveBank 時，player 鍵保持原值，解除請求阻擋後才寫 p2 並要求 reload。`T005 A2: p2 answers...` 將 p2 seen 2→3，雲端頂層 p1 seen 7 不變；days、summary、badge 分流，重新建立 p1 頁面仍見 seen 7，p2 seen 3 保留。 |
+| scopeKey 與 clearProgress | 〔實測〕`T005 scopeKey` 驗四類玩家鍵都有 p2:；p1 badges 無前綴；family、ui-style、reader、custom-banks、resume、zy-test 無前綴；clearProgress 只刪 p2:progress-demo，保留 p1 鍵。 |
+| A4 本機清理及失敗不刪 | 〔實測〕`T005 A4` 開站成功刪 pdead:badges、pdead:lib-rec:x，保留 p2 與 p1 原鍵；offline 列表失敗保留全部原鍵，底板顯示重試提示。 |
+| 閱讀碼模式無玩家鈕、badges 不帶 playerId | 〔實測〕`T005 reader mode` 用後端產生的有效假閱讀碼，驗 p1 scope、無玩家鈕、badges 請求無 playerId。`T005 reader entry` 另驗從 p2 進閱讀碼及離開時 reload，重新載入後分別使用 p1 與原 p2 鍵。 |
+| saveBank 不含 __p1／__view，必帶 players | 〔實測〕`T005 A2: p2 answers...` 檢查實際 fetch 送出資料，無內部標記，p2 僅有 players.p2；p1 明確送 players:{}，未覆蓋雲端 p2。 |
+| 對抗：p2 離線存檔不污染 p1 快取 | 〔實測〕`T005 adversarial offline` 在 ?mock=offline 將 p2 seen 改 99，本機頂層 rec 與原 p1 深比完全相同，players.p2 為 99，無內部標記；再次 bsLoad 仍見 p2 的 99。 |
+| 390×844、375×667 實際版面與觸控大小 | 〔記錄〕依工單交由雲端人工／瀏覽器測試，本機未啟動瀏覽器、未聲稱通過。新增 CSS 對玩家鈕、表單及選項設至少 44×44px，但實際排版與觸控仍待雲端確認。 |
 
-〔實測〕隨機交錯測試的實際診斷輸出：
+〔實測〕最終五次連續執行指令：
 
-```text
-✔ T004 D4: seeded 200 interleavings inject multiple requests/approvals/rejections/cancellations at sheet operations
-ℹ seed=0x004d45; rounds=200; {"request":197,"approve":206,"reject":203,"cancel":207,"deferred":613,"injections":200}
-✔ T004 D4 targeted: simultaneous requests recompute balance inside lock
-✔ T004 H1/D4 counterexample: same interleaving without lock must violate nonnegative silver
-✔ T004 D5: two parent sessions approve once; same decision already, different decision conflict
-✔ T004 H1/D5 counterexample: no lock duplicates decision logs for both parent outcomes
-✔ T004 H1/D3 counterexample: removing requestId lookup must fail the original D3 assertion
+```powershell
+foreach($run in 1..5) {
+  $result = & node --test 2>&1
+  $testExit = $LASTEXITCODE
+  Write-Output "RUN $run EXIT $testExit"
+  $result | Select-Object -Last 9
+  if($testExit -ne 0) { $result; exit $testExit }
+}
 ```
 
-〔實測〕額外驗證 `T004 parentLog`：53 次決定僅回最近 50 次，各附玩家暱稱與獎項名稱快照；入帳異常另依新到舊排列，含玩家、徽章鍵、at、顏色、原因，排除外家庭異常。`T004 F2 integration` 驗 rewardList、redeemRequest、redeemDecide 計算前都會補入雲端既存 earned。
+```text
+RUN 1 EXIT 0: tests 84, pass 84, fail 0, skipped 0, duration_ms 5391.048
+RUN 2 EXIT 0: tests 84, pass 84, fail 0, skipped 0, duration_ms 5471.4153
+RUN 3 EXIT 0: tests 84, pass 84, fail 0, skipped 0, duration_ms 5308.9416
+RUN 4 EXIT 0: tests 84, pass 84, fail 0, skipped 0, duration_ms 5362.7211
+RUN 5 EXIT 0: tests 84, pass 84, fail 0, skipped 0, duration_ms 5323.079
+```
 
-〔實測〕`git diff --check -- Code.gs test/backend.test.js REPORT.md` 結束碼 0，無空白錯誤。
+〔實測〕其餘有執行測試的邊界：
+
+- `T005 stale local metadata`：本機總 updatedAt 較新、玩家進度卻較舊時，補送未套視圖的本機 wire；記憶體及本機備份保留較新的雲端 p1／p2。
+- `T005 player clocks`：雲端題目與總 updatedAt 較新、本機 p2 進度較新時，保留雲端題目並補送 p2 新進度；第三位玩家的較新雲端紀錄保留，送出仍只有目前玩家。
+- `T005 legacy p1 clock`：舊題庫缺 p1At 且沒有 p2 時，p2 視圖起始為空；首次作答後 p1 舊 updatedAt=100 留作 p1At，不以 p2 新時間冒充 p1 進度時間。
+- `T005 disabled rows`：停用玩家置底、按鈕 disabled、無修改入口；saveBank／badges 各自回 player_disabled／bad_player，以及列表不含目前玩家／標停用，均要求 reload 至 p1 並保存指定提示。
+- `T005 mock startup`：p1 銀 5 金 2、p2 銀 1；只銀／只金／搭配共三個獎項；持久化後新增玩家仍在；empty 無獎項；slow 實測等待至少 1450ms；固定假設定碼可經後端驗證。
+- `T005 fake snapshot`：JSON 序列化後匯入保留 Date 型別與毫秒、工作表格式、屬性、快取，快照深比一致。
+
+〔實測〕`git diff --check`（本輪涉及的追蹤檔案）exit 0，無空白錯誤。根目錄與 dist 的語法檢查包含於上述每輪測試。
 
 ## 3. 偏離事項
 
-〔記錄〕無偏離。僅修改工單允許的三個檔案，所有驗收都有可執行測試。
+〔記錄〕無偏離。搜尋題庫讀寫後，依玩家分流欄位維持 rec、days、summary、badge；題目、注音修正、題庫內容等沿用共用行為。植物與書架紀錄依玩家分開，仍只存在裝置。匯出既有白名單內容未帶內部視圖標記，未新增其他 API 傳送整份視圖物件。
 
-〔記錄〕合約未指定列表陣列欄位名稱及「全部狀態」查詢值，採 `redeems` 與 `status:'all'`；未帶 status 預設待核准。parentLog 的 entries 先放最近 50 筆 decision，再放 anomaly，兩組各自新的在前，以 type 分辨。未授權或失效的可選 rewardList session，按小孩權限只回啟用獎項。
-
-〔記錄〕負數餘額時採保守方案：不產生負實扣、不允許新申請或核准；balance 仍回報真實負數。鎖沿用 withLock，寫入後在 finally flush 再釋放。
+〔記錄〕補充實作選擇：players-cache 只儲存身分資料，不快取 balance；切換底板每次向後端讀餘額。被後端拒絕的玩家立即存回退通知並 reload，不把遭拒的儲存改成 p1 重送。閱讀碼進出若會改變目前玩家鍵的歸屬，等待儲存後 reload，以重新初始化全域資料。
 
 ## 4. 遇到的問題與未決事項
 
-- 〔實測〕中途一輪測試為 60 pass／1 fail，失敗點在既有 T003 A4 的 `JSON.stringify(target).includes('p2')` 斷言；後續完整測試為 68/68，最終新增兩項後為 70/70。
-- 〔實測〕以固定 UUID 產生合法玩家 p2abcdef0，可示範舊子字串檢查在精確 p2 已移除後仍回 true：`{"sibling":"p2abcdef0","exactTargetRemaining":false,"oldSubstringAssertion":true}`。本輪新測試也實際經 playerPurge 驗證 p2 移除、p2abcdef0 全部保留。
-- 〔推測〕初次 T003 A4 失敗可能是隨機生成的其他玩家 ID 恰以 p2 開頭；當時未保存失敗列，無法確認該次具體 ID。這是既有測試的非決定性風險，未藉重寫或放寬原測試規避；後續可另立工單將子字串檢查改為精確欄位檢查。
-- 〔記錄〕未決事項限上述既有測試風險；本工單功能與驗收已完成。本輪依工單只使用假環境，未做真實 Sheets 部署或瀏覽器驗證。
+- 〔實測〕首次 npm 安裝遇預設 npm-cache 權限 EPERM；改用 `npm.cmd install --save-dev jsdom --cache "$env:TEMP/family-quiz-npm"` 後成功，稽核輸出 0 vulnerabilities。未增加其他直接相依。
+- 〔記錄〕開發過程曾遇 PowerShell 對 Python stdin 的中文字元編碼問題，已改用 UTF-8 並修正受影響文字與精確欄位斷言，最終檢查及五次完整測試皆在修正後執行。
+- 〔實測〕初版假徽章種子逐筆取 Date.now 時可能生成重複 at；已改用固定基準時間減序號，startup 精確驗證 5／2 與 1／0。
+- 〔記錄〕jsdom 不實作 location.reload 導航；測試將其預期 navigation 訊息另行收集，驗證確實要求 reload，再以相同 localStorage 建立新 jsdom 實例驗重載後資料。其他 jsdom 錯誤一律使測試失敗。
+- 〔記錄〕未決事項：僅工單指定交由雲端的兩種手機尺寸版面、實際觸控大小驗證。本輪自動化驗收均通過；未執行正式部署或真實服務驗證。

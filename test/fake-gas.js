@@ -1,7 +1,6 @@
 'use strict';
 
 // Importing this helper does not load Code.gs, create an environment, or load crypto.
-const vm = require('node:vm');
 
 function createGasEnv(options = {}) {
   let now = options.now === undefined ? Date.UTC(2026, 10, 5) : Number(options.now);
@@ -173,12 +172,12 @@ function createGasEnv(options = {}) {
       const tokens = { yyyy: parts.year, MM: parts.month, dd: parts.day, HH: parts.hour, mm: parts.minute, ss: parts.second };
       return format.replace(/yyyy|MM|dd|HH|mm|ss/g, token => tokens[token]);
     },
-    base64Encode: value => (typeof value === 'string' ? Buffer.from(value, 'utf8') : Buffer.from(Array.from(value, n => n & 255))).toString('base64'),
+    base64Encode: value => options.base64 ? options.base64(value) : (typeof value === 'string' ? Buffer.from(value, 'utf8') : Buffer.from(Array.from(value, n => n & 255))).toString('base64'),
     computeDigest: (algorithm, value) => signed(hash().digest(algorithm, value)),
     computeHmacSha256Signature: (value, key) => signed(hash().hmac(value, key)),
   };
   const consoleProxy = new Proxy({}, { get: (_, level) => (...args) => logs.push(`[${String(level)}] ` + args.map(a => a && typeof a.stack === 'string' ? a.stack : typeof a === 'string' ? a : JSON.stringify(a)).join(' ')) });
-  const context = vm.createContext({
+  const globals = {
     Date: ClockDate, console: consoleProxy, Utilities,
     SpreadsheetApp: { getActive: () => spreadsheet, flush() {} },
     PropertiesService: { getScriptProperties: () => props },
@@ -201,12 +200,18 @@ function createGasEnv(options = {}) {
         return lock;
       },
     },
-  });
+  };
   const source = options.source === undefined ? require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'Code.gs'), 'utf8') : options.source;
-  vm.runInContext(source, context, { filename: 'Code.gs' });
+  const evaluate = options.evaluate || ((src, values) => {
+    const vm = require('node:vm');
+    const context = vm.createContext(values);
+    vm.runInContext(src, context, {filename:'Code.gs'});
+    return name => vm.runInContext(name, context);
+  });
+  const lookup = evaluate(source, globals);
   function run(fnName, ...args) {
     if (!/^[A-Za-z_$][\w$]*$/.test(fnName)) throw new Error('Invalid function name');
-    const fn = vm.runInContext(fnName, context);
+    const fn = lookup(fnName);
     const previous = currentRequest;
     currentRequest = Symbol(fnName);
     try { return fn(...args); }
@@ -225,6 +230,17 @@ function createGasEnv(options = {}) {
   }
   return {
     doPost, run, clock, sheets, props, cache, logs, formulaCells,
+    snapshot() {
+      const encode = v => v instanceof Date ? {__gasDate:v.getTime()} : Array.isArray(v) ? v.map(encode) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k,x])=>[k,encode(x)])) : v;
+      return encode({sheets:[...sheets].map(([name,s])=>({name,data:s.data,formats:[...s.formats],frozenRows:s.frozenRows})),props:[...propertyData],cache:[...cacheData]});
+    },
+    restore(data) {
+      const decode = v => v && typeof v === 'object' && '__gasDate' in v ? new Date(v.__gasDate) : Array.isArray(v) ? v.map(decode) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k,x])=>[k,decode(x)])) : v;
+      const saved=decode(data); sheets.clear(); propertyData.clear(); cacheData.clear();
+      for(const s of saved.sheets){const sh=spreadsheet.insertSheet(s.name);sh.data=s.data;sh.formats=new Map(s.formats);sh.frozenRows=s.frozenRows;}
+      for(const [k,v] of saved.props)propertyData.set(k,v);
+      for(const [k,v] of saved.cache)cacheData.set(k,v);
+    },
     onSheetOp(cb) { hook = cb; },
     runDeferred() {
       if (currentRequest !== null || lockOwner !== null) throw new Error('Requests still active');
@@ -235,4 +251,4 @@ function createGasEnv(options = {}) {
   };
 }
 
-module.exports = { createGasEnv };
+if (typeof module !== 'undefined' && module.exports) module.exports = { createGasEnv };
