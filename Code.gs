@@ -50,6 +50,9 @@ const MAX_PLAYERS = 12;
 const DAILY_BADGE_CAP = 10;
 const PLAYER_ICONS = ['🌱','🦊','🐢','🐳','🦄','🚀','🐼','🐰','🦖','🐝','🌈','⭐'];
 const PLAYER_HEADER = ['邀請碼','玩家ID','暱稱','圖示','排序','狀態','建立時間','更新時間','停用時間'];
+const REWARD_HEADER = ['獎勵ID','家庭','名稱','銀價','金價','金可抵銀','每週上限','啟用','更新時間'];
+const REDEEM_HEADER = ['ID','requestId','家庭','玩家','獎勵ID','名稱快照','銀價快照','金價快照','金可抵銀快照','實扣銀','實扣金','週鍵','狀態','拒絕原因','申請時間','決定時間','版本'];
+const REDEEM_LOG_HEADER = ['時間','兌換ID','舊狀態','新狀態','操作者'];
 const LEDGER_HEADER = ['家庭','玩家','徽章鍵','at','顏色','入帳時間','異常','數量','來源'];
 
 /* ===== 進入點 ===== */
@@ -138,6 +141,7 @@ function doPost(e) {
   try {
     if (['parentStatus','parentSetPin','parentLogin','parentLogout'].indexOf(req.action) >= 0) return out(parentAction(fam, req));
     if (['playerDisable','playerRestore','playerPurge'].indexOf(req.action) >= 0) return out(managePlayer(fam, req));
+    if (['rewardList','rewardSave','redeemRequest','redeemCancel','myRedeems','redeemList','redeemDecide','parentLog'].indexOf(req.action) >= 0) return out(rewardAction(fam, req));
     switch (req.action) {
       case 'playerList':
         return out(withLock(() => { ensureP1(fam.code); return {ok:true, players:readPlayers(fam.code).sort((a,b) => (a.status === '停用') - (b.status === '停用') || a.order-b.order)}; }));
@@ -222,6 +226,9 @@ function setup() {
   if (String(badge.getRange(1,5).getValue()) === '') badge.getRange(1,5).setValue('玩家ID');
   ensure('玩家', PLAYER_HEADER);
   ensure('徽章入帳', LEDGER_HEADER);
+  ensure('獎勵', REWARD_HEADER);
+  ensure('兌換', REDEEM_HEADER);
+  ensure('兌換紀錄', REDEEM_LOG_HEADER);
   ensure(SHEET_USAGE, ['時間', '邀請碼', '家庭', '模型', '照片數', '輸入 token', '輸出 token', '估計美元']);
   if (fam.getLastRow() === 1) fam.appendRow(['TEST-0000', '測試家庭', 10, true, '測試用，可刪除', false]);
 }
@@ -1077,9 +1084,20 @@ function requireSession(fam, req) {
   if (pin && typeof req.session === 'string' && CacheService.getScriptCache().get('ps:' + parentHash(req.session)) === fam.code + '|' + pin.salt) return null;
   return {ok:false, code:'no_session', message:'請重新輸入家長 PIN'};
 }
-// T-004 will implement redemption changes; callers already hold the script lock.
-function cancelPendingFor(code, pid) {}
-function purgeRedeemsFor(code, pid) {}
+// Callers already hold the script lock.
+function cancelPendingFor(code, pid) {
+  readRedeems(code).filter(r => r.playerId === pid && r.status === '待核准').forEach(r => changeRedeem(r,'取消','','parent'));
+}
+function purgeRedeemsFor(code, pid) {
+  const rows = readRedeems(code).filter(r => r.playerId === pid), ids = new Set(rows.map(r => r.id));
+  const logs = SpreadsheetApp.getActive().getSheetByName('兌換紀錄');
+  if (logs) {
+    const data = logs.getDataRange().getValues();
+    for (let i=data.length-1; i>0; i--) if (ids.has(String(data[i][1]))) logs.deleteRow(i+1);
+  }
+  const sh = SpreadsheetApp.getActive().getSheetByName('兌換');
+  rows.reverse().forEach(r => sh.deleteRow(r.row));
+}
 function managePlayer(fam, req) {
   return withLock(() => {
     const err = requireSession(fam, req);
@@ -1210,5 +1228,152 @@ function playerBalance(code, pid) {
   });
   result.silver.available = result.silver.total;
   result.gold.available = result.gold.total;
+  readRedeems(code).filter(r => r.playerId === pid && (r.status === '核准' || r.status === '待核准')).forEach(r => {
+    result.silver.available -= r.pay.silver;
+    result.gold.available -= r.pay.gold;
+    if (r.status === '待核准') { result.silver.held += r.pay.silver; result.gold.held += r.pay.gold; }
+  });
   return result;
+}
+
+/* ===== 獎勵與兌換：由 rewardAction 持鎖 ===== */
+function rewardIdValid(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(id); }
+function weekKey(time) {
+  const d = new Date(Number(time) + 8*3600000);
+  d.setUTCDate(d.getUTCDate() - (d.getUTCDay()+6)%7);
+  return d.toISOString().slice(0,10);
+}
+function normalizeWeek(value) {
+  return value instanceof Date ? Utilities.formatDate(value,TIMEZONE,'yyyy-MM-dd') : String(value);
+}
+function readRewards(code) {
+  const sh = SpreadsheetApp.getActive().getSheetByName('獎勵');
+  return sh ? sh.getDataRange().getValues().slice(1).map((r,i) => ({row:i+2,id:String(r[0]),family:String(r[1]),name:String(r[2]),silver:Number(r[3]),gold:Number(r[4]),goldForSilver:isTrue(r[5]),weeklyLimit:Number(r[6]),enabled:isTrue(r[7])})).filter(r => r.family === code) : [];
+}
+function readRedeems(code) {
+  const sh = SpreadsheetApp.getActive().getSheetByName('兌換');
+  return sh ? sh.getDataRange().getValues().slice(1).map((r,i) => ({row:i+2,id:String(r[0]),requestId:String(r[1]),family:String(r[2]),playerId:String(r[3]),rewardId:String(r[4]),name:String(r[5]),silver:Number(r[6]),gold:Number(r[7]),goldForSilver:isTrue(r[8]),pay:{silver:Number(r[9]),gold:Number(r[10])},weekKey:normalizeWeek(r[11]),status:String(r[12]),reason:String(r[13] || ''),requestedAt:r[14],decidedAt:r[15],version:Number(r[16])})).filter(r => r.family === code) : [];
+}
+// requestId globally unique; callers must not expose foreign records.
+function findRedeemRequest(requestId) {
+  const sh = SpreadsheetApp.getActive().getSheetByName('兌換');
+  if (!sh) return null;
+  const r = sh.getDataRange().getValues().slice(1).find(r => String(r[1]) === requestId);
+  return r ? {family:String(r[2]),playerId:String(r[3]),id:String(r[0])} : null;
+}
+function publicReward(r) { const {row,family,...value} = r; return value; }
+function publicRedeem(r) { const {row,family,...value} = r; return value; }
+function weekUsed(code, pid, rewardId) {
+  const week = weekKey(Date.now());
+  return readRedeems(code).filter(r => r.playerId === pid && r.rewardId === rewardId && r.weekKey === week && (r.status === '核准' || r.status === '待核准')).length;
+}
+function rewardOffer(reward, bal, used) {
+  const silver = Math.max(0,bal.silver.available), gold = Math.max(0,bal.gold.available);
+  const paySilver = Math.min(silver,reward.silver), gap = reward.silver-paySilver;
+  const missingGold = Math.max(0,reward.gold-gold);
+  const missingSilver = Math.max(0,gap-(reward.goldForSilver ? Math.max(0,gold-reward.gold) : 0));
+  let reason = [missingSilver ? '銀 '+missingSilver : '',missingGold ? '金 '+missingGold : ''].filter(Boolean).join('、');
+  if (reason) reason = '還差'+reason;
+  if (!reason && (bal.silver.available < 0 || bal.gold.available < 0)) reason = '還差'+(bal.silver.available < 0 ? '銀 '+(-bal.silver.available) : '金 '+(-bal.gold.available));
+  let code = reason ? 'insufficient' : '';
+  if (reward.weeklyLimit && used >= reward.weeklyLimit) { code = 'quota'; reason = '本週額度用完，下週一再來'; }
+  if (!reward.enabled) { code = 'reward_disabled'; reason = 'reward_disabled'; }
+  return {weekUsed:used,weekLeft:reward.weeklyLimit ? Math.max(0,reward.weeklyLimit-used) : null,canRedeem:!code,reason,pay:{silver:paySilver,gold:reward.gold+(reward.goldForSilver ? gap : 0)},code};
+}
+function appendRedeemLog(id, oldStatus, status, actor) {
+  rewardSheet('兌換紀錄',REDEEM_LOG_HEADER).appendRow([new Date(),safeCell(id),safeCell(oldStatus),safeCell(status),safeCell(actor)]);
+}
+function changeRedeem(r, status, reason, actor) {
+  rewardSheet('兌換',REDEEM_HEADER).getRange(r.row,13,1,5).setValues([[safeCell(status),safeCell(reason),r.requestedAt,new Date(),r.version+1]]);
+  appendRedeemLog(r.id,r.status,status,actor);
+}
+function rewardAction(fam, req) {
+  return withLock(() => {
+    const code = fam.code, action = req.action;
+    if (['rewardSave','redeemList','redeemDecide','parentLog'].indexOf(action) >= 0) {
+      const err = requireSession(fam,req); if (err) return err;
+    }
+    if (action === 'rewardSave') {
+      const r = req.reward || {}, name = typeof r.name === 'string' ? r.name.trim() : '';
+      if (!name || Array.from(name).length > 20 || ![r.silver,r.gold].every(n => Number.isInteger(n) && n >= 0 && n <= 99) || r.silver+r.gold < 1 || !Number.isInteger(r.weeklyLimit) || r.weeklyLimit < 0 || r.weeklyLimit > 14 || (r.id !== undefined && !rewardIdValid(r.id))) return {ok:false,code:'bad_request'};
+      const sh = rewardSheet('獎勵',REWARD_HEADER), old = r.id === undefined ? null : readRewards(code).find(w => w.id === r.id);
+      if (r.id !== undefined && !old) return {ok:false,code:'not_found'};
+      const id = old ? old.id : 'w'+Utilities.getUuid().replace(/-/g,'').slice(0,12);
+      const values = [safeCell(id),safeCell(code),safeCell(name),r.silver,r.gold,r.goldForSilver === undefined ? true : isTrue(r.goldForSilver),r.weeklyLimit,r.enabled === undefined ? true : isTrue(r.enabled),new Date()];
+      if (old) sh.getRange(old.row,1,1,values.length).setValues([values]); else sh.appendRow(values);
+      return {ok:true,reward:publicReward(readRewards(code).find(w => w.id === id))};
+    }
+    if (action === 'parentLog') {
+      const redeems = readRedeems(code), byId = new Map(redeems.map(r => [r.id,r])), players = readPlayers(code);
+      const log = SpreadsheetApp.getActive().getSheetByName('兌換紀錄');
+      const entries = (log ? log.getDataRange().getValues().slice(1) : []).filter(r => byId.has(String(r[1])) && ['核准','拒絕'].indexOf(String(r[3])) >= 0).map(r => {
+        const redeem = byId.get(String(r[1])), player = players.find(p => p.id === redeem.playerId);
+        return {type:'decision',at:r[0],id:redeem.id,playerId:redeem.playerId,playerName:player ? player.name : '',name:redeem.name,oldStatus:String(r[2]),status:String(r[3]),actor:String(r[4]),reason:redeem.reason};
+      }).reverse().sort((a,b) => new Date(b.at)-new Date(a.at)).slice(0,50);
+      const ledger = SpreadsheetApp.getActive().getSheetByName('徽章入帳');
+      const anomalies = (ledger ? ledger.getDataRange().getValues().slice(1) : []).filter(r => String(r[0]) === code && r[6]).map(r => ({type:'anomaly',playerId:String(r[1]),playerName:(players.find(p => p.id === String(r[1])) || {}).name || '',badgeKey:String(r[2]),at:r[3],color:String(r[4]),reason:String(r[6]),creditedAt:r[5]})).reverse().sort((a,b) => new Date(b.creditedAt)-new Date(a.creditedAt));
+      return {ok:true,entries:entries.concat(anomalies)};
+    }
+    if (action === 'redeemList') {
+      const all = readRedeems(code), players = readPlayers(code), balances = {};
+      const redeems = all.filter(r => !req.status ? r.status === '待核准' : req.status === 'all' || r.status === req.status).reverse().map(r => {
+        const p = players.find(p => p.id === r.playerId) || {};
+        if (!balances[r.playerId]) { syncLedger(code,r.playerId,{}); balances[r.playerId] = playerBalance(code,r.playerId); }
+        return Object.assign(publicRedeem(r),{playerName:p.name || '',playerIcon:p.icon || '',balance:balances[r.playerId],weekUsed:weekUsed(code,r.playerId,r.rewardId)});
+      });
+      return {ok:true,redeems,pendingCount:all.filter(r => r.status === '待核准').length};
+    }
+    if (action === 'redeemDecide') {
+      if (!rewardIdValid(req.id) || ['approve','reject'].indexOf(req.decision) < 0) return {ok:false,code:'bad_request'};
+      const r = readRedeems(code).find(r => r.id === req.id);
+      if (!r) return {ok:false,code:'not_found'};
+      const status = req.decision === 'approve' ? '核准' : '拒絕';
+      if (r.status === status) return {ok:true,already:true};
+      if (r.status !== '待核准') return {ok:false,code:'conflict',status:r.status};
+      syncLedger(code,r.playerId,{});
+      const bal = playerBalance(code,r.playerId);
+      if (status === '核准' && (bal.silver.available < 0 || bal.gold.available < 0)) return {ok:false,code:'insufficient'};
+      changeRedeem(r,status,status === '拒絕' ? Array.from(String(req.reason || '').trim()).slice(0,40).join('') : '','parent');
+      return {ok:true,redeem:publicRedeem(readRedeems(code).find(x => x.id === r.id)),balance:playerBalance(code,r.playerId)};
+    }
+    const pid = req.playerId || 'p1';
+    if (typeof pid !== 'string' || !/^p[a-z0-9]{1,12}$/.test(pid)) return {ok:false,code:'bad_request'};
+    if (action === 'redeemRequest') {
+      if (!rewardIdValid(req.rewardId) || typeof req.requestId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(req.requestId)) return {ok:false,code:'bad_request'};
+      const duplicate = findRedeemRequest(req.requestId);
+      if (duplicate) {
+        if (duplicate.family !== code || duplicate.playerId !== pid) return {ok:false,code:'bad_request'};
+        return {ok:true,duplicate:true,redeem:publicRedeem(readRedeems(code).find(r => r.id === duplicate.id)),balance:playerBalance(code,pid)};
+      }
+    }
+    const err = checkPlayer(code,pid);
+    if (err && !(err.code === 'player_disabled' && action !== 'redeemRequest')) return err;
+    if (action === 'myRedeems') return {ok:true,redeems:readRedeems(code).filter(r => r.playerId === pid).reverse().map(publicRedeem)};
+    if (action === 'redeemCancel') {
+      if (!rewardIdValid(req.id)) return {ok:false,code:'bad_request'};
+      const r = readRedeems(code).find(r => r.id === req.id && r.playerId === pid);
+      if (!r) return {ok:false,code:'not_found'};
+      if (r.status === '取消') return {ok:true,already:true};
+      if (r.status !== '待核准') return {ok:false,code:'conflict',status:r.status};
+      changeRedeem(r,'取消','','child');
+      return {ok:true,redeem:publicRedeem(readRedeems(code).find(x => x.id === r.id)),balance:playerBalance(code,pid)};
+    }
+    syncLedger(code,pid,{});
+    const bal = playerBalance(code,pid), rewards = readRewards(code);
+    if (action === 'rewardList') {
+      const parent = !requireSession(fam,req);
+      return {ok:true,rewards:rewards.filter(r => parent || r.enabled).map(r => {
+        const {code:unused,...offer} = rewardOffer(r,bal,weekUsed(code,pid,r.id));
+        return Object.assign(publicReward(r),offer);
+      }),balance:bal};
+    }
+    const reward = rewards.find(r => r.id === req.rewardId);
+    if (!reward) return {ok:false,code:'not_found'};
+    const offer = rewardOffer(reward,bal,weekUsed(code,pid,reward.id));
+    if (!offer.canRedeem) return {ok:false,code:offer.code,reason:offer.reason};
+    const id = 'r'+Utilities.getUuid().replace(/-/g,'').slice(0,12), now = new Date();
+    rewardSheet('兌換',REDEEM_HEADER).appendRow([safeCell(id),safeCell(req.requestId),safeCell(code),safeCell(pid),safeCell(reward.id),safeCell(reward.name),reward.silver,reward.gold,reward.goldForSilver,offer.pay.silver,offer.pay.gold,safeCell(weekKey(now.getTime())),safeCell('待核准'),'',now,'',1]);
+    appendRedeemLog(id,'','待核准','child');
+    return {ok:true,redeem:publicRedeem(readRedeems(code).find(r => r.id === id)),balance:playerBalance(code,pid)};
+  });
 }

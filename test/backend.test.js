@@ -748,3 +748,391 @@ test('T003 session isolation: foreign-family logout cannot revoke the owning fam
   assert.deepEqual(post(env,'parentLogout',{code:otherCode,session}),{ok:true});
   assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).ok,true);
 });
+
+// T004 fixtures: only fake sheets/properties, never real services.
+function fund(env, pid='p1', silver=10, gold=10, family=code) {
+  post(env,'playerList',{code:family});
+  for (const [color,qty] of [['銀',silver],['金',gold]]) if (qty) env.sheets.get('徽章入帳').appendRow([family,pid,'fixture-'+color,1,color,new Date(env.clock.now()),'',qty,'調整']);
+  env.props.setProperty('ledgerinit:'+family+':'+pid,'1');
+}
+function saveReward(env, session, changes={}) {
+  const result = post(env,'rewardSave',{session,reward:{name:'獎勵',silver:1,gold:0,goldForSilver:true,weeklyLimit:0,enabled:true,...changes}});
+  assert.equal(result.ok,true,JSON.stringify(result)); return result.reward;
+}
+let requestSerial = 0;
+function requestReward(env, rewardId, playerId='p1', requestId='request-'+(++requestSerial)) {
+  return post(env,'redeemRequest',{rewardId,playerId,requestId});
+}
+function decide(env, session, id, decision='approve', reason='') { return post(env,'redeemDecide',{session,id,decision,reason}); }
+function redeemRows(env) { return env.sheets.get('兌換').getDataRange().getValues().slice(1); }
+function redeemLogs(env) { return env.sheets.get('兌換紀錄').getDataRange().getValues().slice(1); }
+
+test('T004 setup/B4: exact headers, idempotence; missing/random/foreign sessions never write', () => {
+  const env = setup(); seedP2(env); addOtherFamily(env); const foreign = parentSession(env,otherCode);
+  const expected = {
+    '獎勵':['獎勵ID','家庭','名稱','銀價','金價','金可抵銀','每週上限','啟用','更新時間'],
+    '兌換':['ID','requestId','家庭','玩家','獎勵ID','名稱快照','銀價快照','金價快照','金可抵銀快照','實扣銀','實扣金','週鍵','狀態','拒絕原因','申請時間','決定時間','版本'],
+    '兌換紀錄':['時間','兌換ID','舊狀態','新狀態','操作者'],
+  };
+  env.run('setup');
+  for (const [name,header] of Object.entries(expected)) assert.deepEqual(env.sheets.get(name).getDataRange().getValues(),[header]);
+  for (const action of ['rewardSave','redeemDecide','redeemList','parentLog']) for (const session of [undefined,'invalid',foreign]) {
+    const before = snapshot(env);
+    assert.equal(post(env,action,{session}).code,'no_session'); assert.equal(snapshot(env),before);
+  }
+});
+
+test('T004 reward validation/C1: IDs, name, price, default flags; disabled rewards only visible to parents', () => {
+  const env = setup(), session = parentSession(env); fund(env);
+  const base = {name:'測試',silver:1,gold:0,weeklyLimit:0};
+  for (const bad of [{silver:0},{silver:100},{gold:-1},{silver:1.5},{weeklyLimit:15},{weeklyLimit:-1},{weeklyLimit:1.5},{name:'字'.repeat(21)},{name:'   '},{id:''},{id:'bad:id'},{silver:'1'}]) {
+    const before = snapshot(env);
+    assert.equal(post(env,'rewardSave',{session,reward:{...base,...bad}}).code,'bad_request'); assert.equal(snapshot(env),before);
+  }
+  const reward = post(env,'rewardSave',{session,reward:{...base,name:'  原名  '}}).reward;
+  assert.match(reward.id,/^w[a-f0-9]{12}$/); assert.equal(reward.name,'原名'); assert.equal(reward.goldForSilver,true); assert.equal(reward.enabled,true);
+  saveReward(env,session,{...reward,name:'改名',enabled:false});
+  assert.deepEqual(post(env,'rewardList').rewards,[]);
+  const parent = post(env,'rewardList',{session}).rewards[0];
+  assert.equal(parent.name,'改名'); assert.equal(parent.canRedeem,false); assert.equal(parent.weekLeft,null);
+  assert.equal(requestReward(env,reward.id).code,'reward_disabled');
+});
+
+test('T004 C2/week boundary: Taipei Monday, quota two, Date readback and approval never moves request week', () => {
+  const env = setup(), session0 = parentSession(env); fund(env);
+  const reward = saveReward(env,session0,{weeklyLimit:2});
+  for (const [date,key] of [['2026-11-08T23:59:59+08:00','2026-11-02'],['2026-11-09T00:00:00+08:00','2026-11-09'],['2026-11-08T16:00:00Z','2026-11-09']]) assert.equal(env.run('weekKey',Date.parse(date)),key);
+  env.clock.set(Date.parse('2026-11-08T23:59:59+08:00'));
+  const first = requestReward(env,reward.id).redeem, second = requestReward(env,reward.id).redeem;
+  assert.equal(first.weekKey,'2026-11-02'); assert.equal(first.version,1);
+  assert.equal(env.sheets.get('兌換').getRange(2,12).getValue(),'2026-11-02');
+  // Deliberately reproduce legacy Sheets date coercion, then compare through the API.
+  env.sheets.get('兌換').getRange(2,12).setValue('2026-11-02');
+  assert.ok(env.sheets.get('兌換').getRange(2,12).getValue() instanceof Date);
+  assert.equal(post(env,'rewardList').rewards[0].weekUsed,2);
+  assert.deepEqual(requestReward(env,reward.id),{ok:false,code:'quota',reason:'本週額度用完，下週一再來'});
+  env.clock.advance(1000); const session = post(env,'parentLogin',{pin:fakePin}).session;
+  assert.equal(decide(env,session,second.id).redeem.weekKey,'2026-11-02');
+  assert.equal(post(env,'rewardList').rewards[0].weekUsed,0);
+  assert.equal(post(env,'redeemList',{session}).redeems[0].weekUsed,0);
+  assert.equal(requestReward(env,reward.id).ok,true);
+});
+
+test('T004 D2/D9: hold, reject, cancel, approve use immutable silver/gold snapshots after price edits', () => {
+  const env = setup(), session = parentSession(env); fund(env,'p1',1,5);
+  const reward = saveReward(env,session,{silver:2,gold:1});
+  const first = requestReward(env,reward.id).redeem;
+  assert.deepEqual(first.pay,{silver:1,gold:2}); assert.equal(first.status,'待核准');
+  assert.deepEqual(balance(env),{ok:true,silver:{available:0,held:1,total:1},gold:{available:3,held:2,total:5}});
+  saveReward(env,session,{...reward,silver:99,gold:99,goldForSilver:false,enabled:false});
+  const rejected = decide(env,session,first.id,'reject','  不'.repeat(50)+'  ').redeem;
+  assert.equal(rejected.reason.length,40); assert.equal(rejected.version,2);
+  assert.equal(balance(env).gold.available,5); assert.equal(balance(env).silver.available,1);
+  saveReward(env,session,reward);
+  const second = requestReward(env,reward.id).redeem;
+  saveReward(env,session,{...reward,silver:99,goldForSilver:false});
+  assert.equal(post(env,'redeemCancel',{id:second.id}).ok,true);
+  assert.deepEqual(post(env,'redeemCancel',{id:second.id}),{ok:true,already:true});
+  assert.equal(decide(env,session,second.id).code,'conflict');
+  assert.equal(balance(env).gold.available,5);
+  saveReward(env,session,reward); const third = requestReward(env,reward.id).redeem;
+  saveReward(env,session,{...reward,silver:99,gold:99,goldForSilver:false});
+  assert.deepEqual(decide(env,session,third.id).redeem.pay,third.pay);
+  saveReward(env,session,{...reward,silver:3,gold:0});
+  assert.equal(balance(env).gold.available,3); assert.equal(balance(env).gold.held,0);
+  assert.equal(post(env,'redeemCancel',{id:third.id}).code,'conflict');
+  assert.deepEqual(post(env,'myRedeems').redeems.map(r=>r.status),['核准','取消','拒絕']);
+  assert.deepEqual(redeemLogs(env).map(r=>r[4]),['child','parent','child','child','child','parent']);
+});
+
+function verifyDuplicate(env, rewardId) {
+  const first = requestReward(env,rewardId,'p1','same-request'), second = requestReward(env,rewardId,'p1','same-request');
+  assert.equal(first.ok,true); assert.equal(second.duplicate,true,'D3 missing duplicate marker');
+  assert.deepEqual(second.redeem,first.redeem); assert.equal(redeemRows(env).length,1,'D3 duplicate request created two rows');
+}
+test('T004 D3: idempotency and cross-player/family requestId secrecy, validated IDs', () => {
+  const env = setup(), session = parentSession(env); seedP2(env); fund(env); addOtherFamily(env); fund(env,'p1',5,5,otherCode);
+  const reward = saveReward(env,session); verifyDuplicate(env,reward.id);
+  for (const extra of [{playerId:'p2'},{code:otherCode}]) {
+    const result = post(env,'redeemRequest',{rewardId:reward.id,requestId:'same-request',...extra});
+    assert.deepEqual(result,{ok:false,code:'bad_request'});
+  }
+  for (const extra of [{playerId:'bad:id'},{rewardId:'bad:id'},{requestId:'short'},{requestId:'x'.repeat(65)}]) {
+    const before = snapshot(env); assert.equal(post(env,'redeemRequest',{rewardId:reward.id,requestId:'valid-request',...extra}).code,'bad_request'); assert.equal(snapshot(env),before);
+  }
+});
+test('T004 H1/D3 counterexample: removing requestId lookup must fail the original D3 assertion', () => {
+  const source = readFileSync(join(__dirname,'..','Code.gs'),'utf8')+'\nfindRedeemRequest = function() { return null; };';
+  const env = setup({source}), session = parentSession(env); fund(env);
+  const reward = saveReward(env,session);
+  assert.throws(()=>verifyDuplicate(env,reward.id),{code:'ERR_ASSERTION',message:/D3 missing duplicate marker/});
+  assert.equal(redeemRows(env).length,2);
+});
+
+test('T004 D7: silver-only, gold-only, mixed prices and snapshots agree across child/parent lists', () => {
+  const env = setup(), session = parentSession(env); fund(env);
+  const prices = [[2,0],[0,3],[1,2]], rewards = prices.map(([silver,gold])=>saveReward(env,session,{silver,gold}));
+  for (const reward of rewards) assert.equal(requestReward(env,reward.id).ok,true);
+  const child = post(env,'rewardList').rewards, parent = post(env,'redeemList',{session});
+  assert.equal(parent.pendingCount,3);
+  for (const reward of child) {
+    const r = parent.redeems.find(r=>r.rewardId===reward.id);
+    assert.deepEqual([r.silver,r.gold],[reward.silver,reward.gold]);
+    assert.equal(r.playerName,'玩家 1'); assert.equal(r.playerIcon,'🌱');
+    assert.deepEqual(r.balance,balance(env)); assert.equal(r.weekUsed,1);
+  }
+});
+
+test('T004 D8: exact shortage text, gold substitutes silver only after gold price, TRUE strings read as booleans', () => {
+  const cases = [
+    [1,2,2,0,true,'',{silver:1,gold:1}],
+    [1,2,2,0,false,'還差銀 1'],[5,0,0,1,true,'還差金 1'],
+    [0,1,2,0,true,'還差銀 1'],[0,0,1,1,true,'還差銀 1、金 1'],[0,2,2,1,true,'還差銀 1'],
+  ];
+  for (const [silver,gold,priceS,priceG,convert,reason,pay] of cases) {
+    const env = setup(), session = parentSession(env); fund(env,'p1',silver,gold);
+    const reward = saveReward(env,session,{silver:priceS,gold:priceG,goldForSilver:convert});
+    env.sheets.get('獎勵').getRange(2,6).setValue("'"+String(convert).toUpperCase());
+    const offer = post(env,'rewardList').rewards[0];
+    assert.equal(offer.goldForSilver,convert); assert.equal(offer.reason,reason); assert.equal(offer.canRedeem,!reason);
+    const result = requestReward(env,reward.id);
+    if (reason) assert.deepEqual(result,{ok:false,code:'insufficient',reason});
+    else { assert.deepEqual(offer.pay,pay); assert.deepEqual(result.redeem.pay,pay); }
+  }
+});
+
+test('T004 A3/A4: disable cancels pending with parent log; restore stays cancelled; purge removes only target IDs/logs', () => {
+  const env = setup(), session = parentSession(env); seedP2(env); addOtherFamily(env); fund(env); fund(env,'p2');
+  const foreignSession = parentSession(env,otherCode); fund(env,'p1',10,10,otherCode);
+  const reward = saveReward(env,session), foreignReward = post(env,'rewardSave',{code:otherCode,session:foreignSession,reward:{...reward,id:undefined}}).reward;
+  const own = requestReward(env,reward.id).redeem, target = requestReward(env,reward.id,'p2').redeem;
+  const foreign = post(env,'redeemRequest',{code:otherCode,rewardId:foreignReward.id,requestId:'foreign-request'}).redeem;
+  assert.equal(post(env,'playerDisable',{session,playerId:'p2'}).ok,true);
+  const cancelled = post(env,'myRedeems',{playerId:'p2'}).redeems[0];
+  assert.equal(cancelled.status,'取消'); assert.equal(env.run('playerBalance',code,'p2').silver.available,10);
+  assert.equal(redeemLogs(env).find(r=>r[1]===target.id && r[3]==='取消')[4],'parent');
+  assert.equal(requestReward(env,reward.id,'p2').code,'player_disabled');
+  assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).ok,true);
+  assert.equal(post(env,'myRedeems',{playerId:'p2'}).redeems[0].status,'取消');
+  const pending = requestReward(env,reward.id,'p2').redeem;
+  assert.equal(post(env,'playerPurge',{session,playerId:'p2'}).ok,true);
+  assert.equal(redeemRows(env).some(r=>r[2]===code && r[3]==='p2'),false);
+  assert.equal(redeemLogs(env).some(r=>[target.id,pending.id].includes(r[1])),false);
+  assert.deepEqual(redeemRows(env).map(r=>r[0]),[own.id,foreign.id]);
+  assert.ok(redeemLogs(env).some(r=>r[1]===own.id)); assert.ok(redeemLogs(env).some(r=>r[1]===foreign.id));
+});
+
+test('T004 adversarial: formula-safe snapshots/reasons; foreign rewards/redemptions and player ownership isolated', () => {
+  const env = setup(), session = parentSession(env); seedP2(env); addOtherFamily(env); fund(env);
+  const foreignSession = parentSession(env,otherCode);
+  const reward = saveReward(env,session,{name:'=HYPERLINK("x")'});
+  assert.equal(reward.name,'=HYPERLINK("x")');
+  for (const reason of ['+cmd','@a']) {
+    const r = requestReward(env,reward.id).redeem;
+    assert.equal(r.name,reward.name); assert.equal(decide(env,session,r.id,'reject',reason).redeem.reason,reason);
+    assert.equal(post(env,'parentLog',{session}).entries[0].reason,reason);
+    assert.equal(post(env,'redeemCancel',{id:r.id,playerId:'p2'}).code,'not_found');
+    assert.equal(post(env,'redeemCancel',{code:otherCode,id:r.id}).code,'not_found');
+    assert.equal(post(env,'redeemDecide',{code:otherCode,session:foreignSession,id:r.id,decision:'approve'}).code,'not_found');
+  }
+  assert.equal(post(env,'redeemRequest',{code:otherCode,rewardId:reward.id,requestId:'foreign-reward'}).code,'not_found');
+  assert.equal(post(env,'rewardSave',{code:otherCode,session:foreignSession,reward}).code,'not_found');
+  assert.deepEqual(env.formulaCells,[]);
+});
+
+test('T004 negative adjustment: real negative available is reported, approval and new requests refused', () => {
+  const env = setup(), session = parentSession(env); fund(env,'p1',2,2);
+  const reward = saveReward(env,session), r = requestReward(env,reward.id).redeem;
+  fund(env,'p1',-3,0);
+  assert.equal(balance(env).silver.available,-2);
+  assert.equal(decide(env,session,r.id).code,'insufficient');
+  assert.equal(requestReward(env,reward.id).code,'insufficient');
+  assert.equal(post(env,'myRedeems').redeems[0].status,'待核准');
+  assert.equal(post(env,'rewardList').rewards[0].canRedeem,false);
+  assert.equal(decide(env,session,r.id,'reject').ok,true);
+  assert.equal(balance(env).silver.available,-1);
+});
+
+test('T004 busy: redeemRequest/redeemDecide return busy without any sheet/property changes', () => {
+  const env = setup({lockMode:'busy'});
+  for (const action of ['redeemRequest','redeemDecide']) {
+    const before = snapshot(env); assert.equal(post(env,action,{rewardId:'w1',requestId:'busy-request',session:'invalid',id:'r1',decision:'approve'}).code,'busy'); assert.equal(snapshot(env),before);
+  }
+});
+
+function assertRedeemInvariants(env, players, rewards) {
+  for (const pid of players) {
+    const bal = balance(env,pid);
+    assert.ok(bal.silver.available>=0,'D4 silver available must be nonnegative');
+    assert.ok(bal.gold.available>=0,'D4 gold available must be nonnegative');
+    for (const reward of rewards) {
+      const active = redeemRows(env).filter(r=>r[2]===code && r[3]===pid && r[4]===reward.id && env.run('normalizeWeek',r[11])===env.run('weekKey',env.clock.now()) && ['核准','待核准'].includes(r[12]));
+      if (reward.weeklyLimit) assert.ok(active.length<=reward.weeklyLimit,'D4 weekly quota exceeded');
+    }
+  }
+  const rows = redeemRows(env), logs = redeemLogs(env);
+  assert.equal(new Set(rows.map(r=>r[1])).size,rows.length,'D3 requestIds unique');
+  assert.ok(logs.every(l=>rows.some(r=>r[0]===l[1])),'D4 no orphan log');
+  for (const r of rows) {
+    const history = logs.filter(l=>l[1]===r[0]);
+    assert.deepEqual(history[0].slice(2),['','待核准','child']);
+    assert.equal(history.length,r[16],'D4 version equals transition count');
+    assert.equal(history.length,r[12]==='待核准' ? 1 : 2,'D4 terminal transition only once');
+    if (history.length===2) {
+      assert.equal(history[1][2],'待核准'); assert.ok(['核准','拒絕','取消'].includes(history[1][3]));
+    }
+    assert.equal(history.at(-1)[3],r[12],'D4 current status agrees with audit trail');
+  }
+}
+function seededRandom(seed) {
+  let value = seed >>> 0;
+  return () => { value = (Math.imul(value,1664525)+1013904223)>>>0; return value/4294967296; };
+}
+function randomizedRedeemInterleavings(lockMode) {
+  const env = setup({lockMode}), session = parentSession(env); seedP2(env);
+  const players = ['p1','p2']; for (const pid of players) fund(env,pid,8,5);
+  const rewards = [saveReward(env,session,{silver:2,gold:1,weeklyLimit:2}),saveReward(env,session,{silver:1,gold:0,weeklyLimit:3})];
+  const random = seededRandom(0x004d45), counts = {request:0,approve:0,reject:0,cancel:0,deferred:0,injections:0};
+  const choose = items => items[Math.floor(random()*items.length)];
+  const operation = kind => {
+    const rows = redeemRows(env);
+    if (kind===0 || rows.length===0) {
+      counts.request++; return requestReward(env,choose(rewards).id,choose(players));
+    }
+    const row = choose(rows);
+    if (kind===3) { counts.cancel++; return post(env,'redeemCancel',{id:row[0],playerId:row[3]}); }
+    counts[kind===1?'approve':'reject']++;
+    return decide(env,session,row[0],kind===1?'approve':'reject');
+  };
+  for (let round=0;round<200;round++) {
+    let injected = false;
+    env.onSheetOp(({sheet}) => {
+      // All top-level operations read players under the lock; family lookups are outside it.
+      if (sheet!=='玩家' || injected) return;
+      injected = true; counts.injections++;
+      const kinds = [0,1,2,3].sort(()=>random()-.5).slice(0,2+Math.floor(random()*3));
+      for (const kind of kinds) {
+        const result = operation(kind);
+        if (result.deferred) counts.deferred++;
+      }
+    });
+    // rewardList ensures a lock-internal hook even if all requests have hit quota.
+    const result = post(env,'rewardList',{playerId:choose(players)});
+    assert.equal(result.ok,true);
+    env.onSheetOp(null); env.runDeferred();
+    operation(Math.floor(random()*4));
+    assertRedeemInvariants(env,players,rewards);
+    env.clock.advance(1);
+  }
+  assert.equal(counts.injections,200);
+  for (const kind of ['request','approve','reject','cancel']) assert.ok(counts[kind]>0);
+  if (lockMode==='real') assert.ok(counts.deferred>=400);
+  return counts;
+}
+test('T004 D4: seeded 200 interleavings inject multiple requests/approvals/rejections/cancellations at sheet operations', t => {
+  const counts = randomizedRedeemInterleavings('real');
+  t.diagnostic('seed=0x004d45; rounds=200; '+JSON.stringify(counts));
+});
+
+function overspendInterleaving(lockMode) {
+  const env = setup({lockMode}), session = parentSession(env); fund(env,'p1',2,0);
+  const reward = saveReward(env,session,{weeklyLimit:3});
+  let injected = false;
+  env.onSheetOp(({sheet,op,row,col}) => {
+    // reward reads occur after playerBalance has captured the balance, before append.
+    if (sheet!=='獎勵' || op!=='read' || row!==2 || col!==9 || injected) return;
+    injected = true;
+    requestReward(env,reward.id); requestReward(env,reward.id);
+  });
+  requestReward(env,reward.id); env.onSheetOp(null); env.runDeferred();
+  assert.ok(injected);
+  assertRedeemInvariants(env,['p1'],[reward]);
+}
+test('T004 D4 targeted: simultaneous requests recompute balance inside lock', () => overspendInterleaving('real'));
+test('T004 H1/D4 counterexample: same interleaving without lock must violate nonnegative silver', () => {
+  assert.throws(()=>overspendInterleaving('none'),{code:'ERR_ASSERTION',message:/D4 silver available must be nonnegative/});
+});
+
+function concurrentDecisions(lockMode, laterDecision) {
+  const env = setup({lockMode}), firstSession = parentSession(env), secondSession = post(env,'parentLogin',{pin:fakePin}).session;
+  fund(env,'p1',2,0); const reward = saveReward(env,firstSession), r = requestReward(env,reward.id).redeem;
+  let injected = false, later;
+  env.onSheetOp(({sheet,op,row,col}) => {
+    if (sheet!=='兌換' || op!=='write' || row!==2 || col!==13 || injected) return;
+    injected = true; later = decide(env,secondSession,r.id,laterDecision);
+  });
+  assert.equal(decide(env,firstSession,r.id).ok,true);
+  env.onSheetOp(null); const deferred = env.runDeferred();
+  assert.ok(injected);
+  const decisions = redeemLogs(env).filter(l=>l[1]===r.id && ['核准','拒絕'].includes(l[3]));
+  assert.equal(decisions.length,1,'D5 exactly one decision log');
+  assert.equal(balance(env).silver.available,1,'D5 charged once');
+  assert.equal(balance(env).silver.held,0);
+  const result = later.deferred ? deferred[0] : later;
+  if (laterDecision==='approve') assert.deepEqual(result,{ok:true,already:true});
+  else assert.deepEqual(result,{ok:false,code:'conflict',status:'核准'});
+}
+test('T004 D5: two parent sessions approve once; same decision already, different decision conflict', () => {
+  concurrentDecisions('real','approve'); concurrentDecisions('real','reject');
+});
+test('T004 H1/D5 counterexample: no lock duplicates decision logs for both parent outcomes', () => {
+  for (const decision of ['approve','reject']) assert.throws(()=>concurrentDecisions('none',decision),{code:'ERR_ASSERTION',message:/D5 exactly one decision log/});
+});
+
+test('T004 parentLog: latest 50 decisions with names/snapshots, separate newest anomalies, family isolation', () => {
+  const env = setup(), session = parentSession(env); fund(env,'p1',100,0); addOtherFamily(env);
+  const reward = saveReward(env,session,{name:'快照'});
+  for (let i=0;i<53;i++) {
+    const r = requestReward(env,reward.id).redeem;
+    assert.equal(decide(env,session,r.id,i%2?'approve':'reject').ok,true); env.clock.advance(1);
+  }
+  saveReward(env,session,{...reward,name:'新名稱'});
+  for (const [family,at,reason] of [[code,2,'時間異常'],[code,3,'超過每日上限'],[otherCode,4,'foreign-anomaly']]) {
+    env.sheets.get('徽章入帳').appendRow([family,'p1','bad',at,'金',new Date(env.clock.now()),reason,1,'同步']); env.clock.advance(1);
+  }
+  const result = post(env,'parentLog',{session}), decisions = result.entries.filter(e=>e.type==='decision'), anomalies = result.entries.filter(e=>e.type==='anomaly');
+  assert.equal(decisions.length,50); assert.equal(anomalies.length,2);
+  assert.ok(decisions.every(e=>e.name==='快照' && e.playerName==='玩家 1'));
+  assert.equal(decisions[0].id,redeemRows(env).at(-1)[0]);
+  assert.ok(decisions.every((e,i)=>!i || Date.parse(decisions[i-1].at)>=Date.parse(e.at)));
+  assert.deepEqual(anomalies.map(e=>[e.badgeKey,e.at,e.color,e.reason]),[['bad',3,'金','超過每日上限'],['bad',2,'金','時間異常']]);
+  assert.equal(post(env,'redeemList',{session}).pendingCount,0);
+  assert.equal(post(env,'redeemList',{session,status:'all'}).redeems.length,53);
+});
+
+test('T004 F2 integration: rewardList/request/approval backfill cloud earnings before calculating', () => {
+  for (const action of ['rewardList','redeemRequest','redeemDecide']) {
+    const env = setup(), session = parentSession(env), reward = saveReward(env,session);
+    let r;
+    if (action==='redeemDecide') { fund(env,'p1',1,0); r = requestReward(env,reward.id).redeem; fund(env,'p1',-1,0); }
+    env.run('putBank',{code},{...bank(),badge:earned(100,101)});
+    env.props.deleteProperty('ledgerinit:'+code+':p1');
+    const result = action==='redeemDecide' ? decide(env,session,r.id) : action==='redeemRequest' ? requestReward(env,reward.id) : post(env,'rewardList');
+    assert.equal(result.ok,true); assert.equal(result.balance.silver.total,2);
+    assert.equal(env.props.getProperty('ledgerinit:'+code+':p1'),'1');
+  }
+});
+
+test('T004 A4 exact IDs: purge p2 preserves p2abcdef0 and its redemption/audit rows', () => {
+  const env = setup(), session = parentSession(env); seedP2(env);
+  env.sheets.get('玩家').appendRow([code,'p2abcdef0','保留','🦊',2,'啟用']);
+  fund(env,'p2'); fund(env,'p2abcdef0');
+  const reward = saveReward(env,session), target = requestReward(env,reward.id,'p2').redeem, sibling = requestReward(env,reward.id,'p2abcdef0').redeem;
+  assert.equal(post(env,'playerPurge',{session,playerId:'p2'}).ok,true);
+  assert.equal(post(env,'playerList').players.some(p=>p.id==='p2'),false);
+  assert.ok(post(env,'playerList').players.some(p=>p.id==='p2abcdef0'));
+  assert.equal(redeemRows(env).some(r=>r[0]===target.id),false);
+  assert.equal(redeemLogs(env).some(r=>r[1]===target.id),false);
+  assert.equal(post(env,'myRedeems',{playerId:'p2abcdef0'}).redeems[0].id,sibling.id);
+  assert.ok(redeemLogs(env).some(r=>r[1]===sibling.id));
+});
+
+test('T004 negative gold adjustment: approval cannot consume held gold when adjusted balance is negative', () => {
+  const env = setup(), session = parentSession(env); fund(env,'p1',5,1);
+  const reward = saveReward(env,session,{silver:0,gold:1}), r = requestReward(env,reward.id).redeem;
+  fund(env,'p1',0,-2);
+  assert.equal(balance(env).gold.available,-2);
+  assert.equal(decide(env,session,r.id).code,'insufficient');
+  assert.equal(requestReward(env,reward.id).code,'insufficient');
+  assert.equal(post(env,'myRedeems').redeems[0].status,'待核准');
+});
