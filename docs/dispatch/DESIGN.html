@@ -1,0 +1,659 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>家庭題庫獎勵兌換設計提案</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+<style>
+/* 版面：沿用 family-quiz 的方格紙與葉綠系統；第 2 輪起徽章分銀、金，所有枚數分開寫 */
+:root{
+  --paper:#F1F7EA; --grid:#DCEBD2; --ink:#1E3A2B; --muted:#506A5A;
+  --card:#FFFFFF; --leaf:#3D8B4F; --leaf-soft:#D6EBCF; --sun:#F2B23A; --sun-soft:#FFF1CC;
+  --coral:#E25D44; --coral-soft:#FBE0DA; --line:#C9DDBF;
+  --leaf-strong:#2E7340; --on-leaf:#FFFFFF; --coral-strong:#B83D27;
+  --leaf-ink:#2E7340; --sun-ink:#8A5A00; --coral-ink:#A93522; --press:#1F5530;
+  --parent:#183528; --on-parent:#EAF4EC; --parent-soft:#E3EEE6;
+  --silver-soft:#EBEEF2; --silver-ink:#3F4852; --silver-line:#AEB6C0;
+  --gold-soft:#FFF1CC; --gold-ink:#7A4E00; --gold-line:#E0B252;
+  --frame:#0F1F17; --shade:rgba(20,40,28,.14);
+  --font:"Huninn","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
+  --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
+  --coral:#FF7A63; --coral-soft:#4A2620; --line:#2E4637;
+  --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75;
+  --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
+  --parent:#0B1711; --on-parent:#D9EBDD; --parent-soft:#1F3328;
+  --silver-soft:#2A3138; --silver-ink:#DDE3EA; --silver-line:#6E7782;
+  --gold-soft:#3D3318; --gold-ink:#F5C85A; --gold-line:#B07A1E;
+  --frame:#050B08; --shade:rgba(0,0,0,.4); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
+  --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
+  --coral:#FF7A63; --coral-soft:#4A2620; --line:#2E4637;
+  --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75;
+  --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
+  --parent:#0B1711; --on-parent:#D9EBDD; --parent-soft:#1F3328;
+  --silver-soft:#2A3138; --silver-ink:#DDE3EA; --silver-line:#6E7782;
+  --gold-soft:#3D3318; --gold-ink:#F5C85A; --gold-line:#B07A1E;
+  --frame:#050B08; --shade:rgba(0,0,0,.4); color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.6;
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 72px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font-size:clamp(1.9rem,5vw,2.8rem);line-height:1.25;margin:0 0 10px;letter-spacing:.03em;text-wrap:balance}
+h2{font-size:1.5rem;margin:56px 0 6px;text-wrap:balance}
+h3{font-size:1.1rem;margin:0 0 4px}
+p{margin:0}
+.lead{font-size:1.15rem;color:var(--muted);max-width:62ch}
+.note{color:var(--muted);max-width:68ch;margin-top:6px}
+.thesis{margin-top:22px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.why{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:16px 18px}
+.why b{color:var(--leaf-ink)}
+.why.new{border-color:var(--gold-line)}
+.why.new b{color:var(--gold-ink)}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
+.sw{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-top:16px}
+.chipc{border-radius:14px;border:2px solid var(--line);background:var(--card);overflow:hidden}
+.chipc i{display:block;height:54px}
+.chipc div{padding:8px 10px;font-size:.88rem;line-height:1.4}
+.chipc code{font-family:ui-monospace,Menlo,monospace;font-size:.8rem;color:var(--muted)}
+.specimen{margin-top:18px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.panel{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:18px}
+.panel h3{margin-bottom:10px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.t-xl{font-size:2.2rem;line-height:1.2}.t-l{font-size:1.5rem}.t-m{font-size:1.15rem}.t-s{font-size:.95rem;color:var(--muted)}
+.big{display:block;width:100%;border:none;border-radius:18px;background:var(--leaf-strong);color:var(--on-leaf);
+  font-size:1.3rem;padding:14px;min-height:58px;box-shadow:0 5px 0 var(--press)}
+.big:active{transform:translateY(3px);box-shadow:0 2px 0 var(--press)}
+.big[disabled]{background:var(--line);color:var(--muted);box-shadow:none;cursor:not-allowed}
+.big.coral{background:var(--coral-strong);color:#fff;box-shadow:0 5px 0 #7d2516}
+.ghost{display:block;width:100%;border:2px dashed var(--line);background:transparent;border-radius:16px;padding:12px;font-size:1.05rem;min-height:52px}
+.btn{border:2px solid var(--line);background:var(--card);border-radius:14px;padding:8px 14px;min-height:44px;font-size:1rem}
+.btn.ok{background:var(--leaf-strong);border-color:var(--leaf-strong);color:var(--on-leaf)}
+.btn.no{border-color:var(--coral);color:var(--coral-ink)}
+.btn[disabled]{opacity:.6;cursor:not-allowed}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:.85rem;border-radius:999px;padding:2px 10px;line-height:1.6;white-space:nowrap}
+.p-wait{background:var(--sun-soft);color:var(--sun-ink)}
+.p-ok{background:var(--leaf-soft);color:var(--leaf-ink)}
+.p-no{background:var(--coral-soft);color:var(--coral-ink)}
+.p-off{background:transparent;border:1.5px solid var(--line);color:var(--muted)}
+/* 銀、金數量標記：圖＋字＋數字，不只靠顏色 */
+.md{width:1.2em;height:1.2em;flex:0 0 auto;vertical-align:-.22em}
+.coin{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:1px 9px 1px 4px;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.6;border:1.5px solid transparent}
+.coin.s{background:var(--silver-soft);color:var(--silver-ink);border-color:var(--silver-line)}
+.coin.g{background:var(--gold-soft);color:var(--gold-ink);border-color:var(--gold-line)}
+.coin.dim{opacity:.6}
+.plus{color:var(--muted);margin:0 2px}
+.cost{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+/* 手機框 */
+.screens{margin-top:20px;display:grid;gap:28px 22px;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));justify-items:center}
+figure{margin:0;width:100%;max-width:375px}
+figcaption{margin-top:10px;font-size:.95rem;color:var(--muted);line-height:1.5}
+figcaption b{color:var(--ink)}
+.phone{width:100%;border-radius:34px;background:var(--frame);padding:10px;box-shadow:0 14px 30px var(--shade)}
+.scr{border-radius:26px;overflow:hidden;background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;min-height:640px;display:flex;flex-direction:column;position:relative}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px 8px}
+.bar .who{display:flex;align-items:center;gap:8px;border:2px solid var(--line);background:var(--card);border-radius:999px;padding:4px 12px 4px 4px;min-height:44px}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:1.25rem;background:var(--leaf-soft);flex:0 0 auto}
+.av.lg{width:52px;height:52px;font-size:1.8rem}
+.bar .back{min-width:44px;min-height:44px;border-radius:12px;border:2px solid var(--line);background:var(--card);display:grid;place-items:center;font-size:1.1rem}
+.body{padding:4px 14px 18px;display:flex;flex-direction:column;gap:12px;flex:1}
+.ttl{font-size:1.55rem;line-height:1.3;margin:2px 0 0}
+.wallet{background:var(--card);border:2px solid var(--line);border-radius:20px;padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.wallet .pot{border-radius:14px;padding:8px 10px;display:grid;gap:2px}
+.wallet .pot.s{background:var(--silver-soft);color:var(--silver-ink)}
+.wallet .pot.g{background:var(--gold-soft);color:var(--gold-ink)}
+.wallet .pot .k{display:flex;align-items:center;gap:6px;font-size:.95rem}
+.wallet .pot .n{font-size:2.1rem;line-height:1.05;font-variant-numeric:tabular-nums}
+.wallet .pot .h{font-size:.82rem;opacity:.9}
+.wallet .sub{grid-column:1/-1;font-size:.88rem;color:var(--muted)}
+.rw{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:12px 14px;display:grid;gap:6px}
+.rw .nm{font-size:1.15rem;line-height:1.35}
+.rw .ln{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.92rem;color:var(--muted)}
+.rw .ln b{font-weight:400;color:var(--ink);min-width:3em}
+.rw .meta{font-size:.9rem;color:var(--muted)}
+.rw .tip{font-size:.88rem;color:var(--gold-ink);background:var(--gold-soft);border-radius:10px;padding:4px 10px}
+.rw .act .btn{width:100%}
+.rw.dim{background:transparent;border-style:dashed}
+.rw.dim .nm{color:var(--muted)}
+.rw .whyn{border-radius:10px;padding:6px 10px;font-size:.92rem;color:var(--muted);background:var(--paper)}
+.tabs{display:flex;gap:6px;background:var(--card);border:2px solid var(--line);border-radius:16px;padding:4px}
+.tabs button{flex:1;border:none;background:transparent;border-radius:12px;min-height:44px;font-size:1rem}
+.tabs button[aria-selected="true"]{background:var(--leaf-strong);color:var(--on-leaf)}
+.req{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:12px 14px;display:grid;gap:6px}
+.req .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.req .nm{font-size:1.1rem}
+.req .meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.88rem;color:var(--muted)}
+.req .reason{font-size:.95rem;background:var(--coral-soft);color:var(--coral-ink);border-radius:10px;padding:6px 10px}
+.sheet{position:absolute;inset:auto 0 0 0;background:var(--card);border-radius:24px 24px 0 0;padding:18px 16px 20px;box-shadow:0 -10px 30px var(--shade);display:grid;gap:12px;border-top:2px solid var(--line)}
+.scrim{position:absolute;inset:0;background:rgba(10,25,16,.42)}
+.toast{background:var(--ink);color:var(--paper);border-radius:14px;padding:10px 14px;font-size:.95rem}
+.banner{border-radius:14px;padding:10px 12px;font-size:.95rem;display:flex;gap:8px;align-items:flex-start}
+.banner.err{background:var(--coral-soft);color:var(--coral-ink)}
+.banner.info{background:var(--sun-soft);color:var(--sun-ink)}
+.skel{border-radius:16px;background:linear-gradient(90deg,var(--line) 0%,var(--card) 50%,var(--line) 100%);background-size:200% 100%;height:84px;opacity:.6;animation:sh 1.4s ease-in-out infinite}
+@keyframes sh{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}}
+.empty{text-align:center;padding:26px 12px;color:var(--muted);display:grid;gap:8px;justify-items:center}
+.empty svg{width:72px;height:72px}
+.pbar{background:var(--parent);color:var(--on-parent);padding:14px 14px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pbar .lbl{min-width:0;display:flex;align-items:center;gap:8px;font-size:1.05rem}
+.pbar .lock{white-space:nowrap;flex:0 0 auto;min-height:44px;border-radius:12px;border:1.5px solid rgba(234,244,236,.35);background:transparent;color:var(--on-parent);padding:6px 12px;font-size:.95rem}
+.pnav{display:flex;gap:4px;padding:8px 10px;background:var(--parent);overflow-x:auto}
+.pnav button{border:none;border-radius:10px;background:transparent;color:var(--on-parent);opacity:.75;min-height:44px;padding:6px 12px;font-size:.98rem;white-space:nowrap}
+.pnav button[aria-current="page"]{background:var(--parent-soft);color:var(--ink);opacity:1}
+.cnt{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:11px;background:var(--sun);color:#3a2700;font-size:.8rem;margin-left:4px;padding:0 6px}
+.ap{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:12px 14px;display:grid;gap:8px}
+.ap .who{display:flex;align-items:center;gap:10px}
+.ap .who .t{flex:1;min-width:0}
+.ap .facts{display:grid;gap:4px;font-size:.9rem;color:var(--muted)}
+.ap .facts div{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.ap .facts span.k{min-width:5.5em}
+.ap .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ap.conf{border-color:var(--sun)}
+.field{display:grid;gap:4px}
+.field label,.field .lab{font-size:.95rem;color:var(--muted)}
+.field input{font:inherit;font-size:1.05rem;border:2px solid var(--line);border-radius:12px;padding:10px 12px;min-height:48px;background:var(--card);color:var(--ink);width:100%}
+.stepper{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;border:2px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
+.stepper button{border:none;background:var(--paper);min-height:48px;font-size:1.3rem}
+.stepper output{text-align:center;font-size:1.2rem;font-variant-numeric:tabular-nums;display:flex;justify-content:center;align-items:center;gap:6px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pair .field.s .stepper{border-color:var(--silver-line)}
+.pair .field.g .stepper{border-color:var(--gold-line)}
+.preview{border-radius:12px;background:var(--paper);padding:8px 10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.95rem}
+.sw2{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px}
+.sw2 small{display:block;color:var(--muted);font-size:.85rem;line-height:1.4}
+.tog{width:56px;height:44px;background:transparent;position:relative;border:none;flex:0 0 auto;padding:0}
+.tog::before{content:"";position:absolute;left:0;right:0;top:6px;height:32px;border-radius:16px;background:var(--leaf-strong)}
+.tog::after{content:"";position:absolute;top:10px;left:28px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .15s}
+.tog[aria-pressed="false"]::before{background:var(--line)}.tog[aria-pressed="false"]::after{left:4px}
+.dots{display:flex;gap:12px;justify-content:center;margin:6px 0}
+.dots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--leaf-strong)}
+.dots i.f{background:var(--leaf-strong)}
+.dots.bad i{border-color:var(--coral)}.dots.bad i.f{background:var(--coral)}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pad button{min-height:60px;border-radius:16px;border:2px solid var(--line);background:var(--card);font-size:1.5rem;font-variant-numeric:tabular-nums}
+.pad button.fn{font-size:1rem;color:var(--muted);background:transparent;border-style:dashed}
+.list{display:grid;gap:8px}
+.li{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;min-height:56px}
+.li .t{flex:1;min-width:0}
+.li .t small{display:flex;flex-wrap:wrap;gap:4px;align-items:center;color:var(--muted);font-size:.85rem;margin-top:2px}
+.li.off{opacity:.6;border-style:dashed}
+.avs{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px}
+.avs button{min-width:0;padding:0;border-radius:12px;border:2px solid var(--line);background:var(--card);font-size:1.3rem;min-height:44px}
+.avs button[aria-pressed="true"]{border-color:var(--leaf-strong);background:var(--leaf-soft)}
+.fine{font-size:.85rem;color:var(--muted)}
+.flow{margin-top:18px;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:16px;overflow-x:auto}
+.flow svg{display:block;min-width:760px;width:100%;height:auto}
+.flow svg text{fill:var(--ink);font-family:var(--font)}
+.tbl{margin-top:14px;overflow-x:auto;background:var(--card);border:2px solid var(--line);border-radius:16px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.95rem}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:400;font-size:.88rem}
+tr:last-child td{border-bottom:none}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="mS" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".22" stop-color="#D9DEE4"/><stop offset=".5" stop-color="#8E97A3"/><stop offset=".72" stop-color="#E8ECF1"/><stop offset="1" stop-color="#6E7782"/></linearGradient>
+    <linearGradient id="mG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF3B8"/><stop offset=".22" stop-color="#E9B949"/><stop offset=".5" stop-color="#B07A1E"/><stop offset=".72" stop-color="#F2CF6A"/><stop offset="1" stop-color="#8A5E14"/></linearGradient>
+  </defs>
+  <symbol id="medal-s" viewBox="0 0 24 24"><path d="M7 2h4l1 5-3 1zM17 2h-4l-1 5 3 1z" fill="#3D8B4F"/><circle cx="12" cy="14.5" r="7" fill="url(#mS)" stroke="#6E7782" stroke-width=".9"/><circle cx="12" cy="14.5" r="4.4" fill="none" stroke="#6E7782" stroke-width="1.2"/><path d="M12 11.4c1.8 1 2.1 3.1.4 5.3-2.2-.6-2.8-2.4-1.9-4.2.5-.6 1-.9 1.5-1.1z" fill="#3D8B4F"/></symbol>
+  <symbol id="medal-g" viewBox="0 0 24 24"><path d="M7 2h4l1 5-3 1zM17 2h-4l-1 5 3 1z" fill="#E25D44"/><circle cx="12" cy="14.5" r="7" fill="url(#mG)" stroke="#8A5E14" stroke-width=".9"/><circle cx="12" cy="14.5" r="4.4" fill="none" stroke="#8A5E14" stroke-width="1.2"/><path d="M12 11.4c1.8 1 2.1 3.1.4 5.3-2.2-.6-2.8-2.4-1.9-4.2.5-.6 1-.9 1.5-1.1z" fill="#2E7340"/></symbol>
+</svg>
+
+<div class="wrap">
+<header>
+  <h1>家庭題庫：家長權限與徽章兌換獎勵</h1>
+  <p class="lead">設計提案（第 2 輪：徽章分銀、金）。延續現有「家庭題庫練習」的方格紙與葉綠配色；徽章照現有規則分銀色、金色，每位玩家分開計數，家長設定每個獎項要銀幾枚、金幾枚。</p>
+  <div class="thesis">
+    <div class="why new"><b>這輪改了什麼：</b>① 錢包分「銀」「金」兩格；② 家長設定獎項價格可選只要銀、只要金、或搭配；③ 每個獎項有「金可以抵銀」開關（預設開，1 金抵 1 銀，銀不能抵金）；④ 卡片寫「需要」和「你有」，不夠時分顏色寫差幾枚；⑤ 保留、退回、核准都分顏色。</div>
+    <div class="why"><b>銀、金從哪來：</b>不改現有規則。一般完成揭開徽章得「銀色徽章」，標準和挑戰題答對多得「金色進階徽章」（index.html 的 earned[].dark）。這裡只是把它們分開記帳、分開花。</div>
+    <div class="why"><b>不只靠顏色分辨：</b>每個數量都是「圖＋銀／金字＋數字」，銀用冷灰框、金用琥珀框；色弱或黑白列印也看得出來。數字一律分開寫，不加總成「7 枚」。</div>
+  </div>
+</header>
+
+<section>
+  <h2>色票、字型、元件</h2>
+  <p class="note">色票沿用 index.html 的 CSS 變數，新增家長端深綠兩色與銀、金各一組。徽章的金屬漸層直接取自 badgeSVG（銀 #FFFFFF→#D9DEE4→#8E97A3、金 #FFF3B8→#E9B949→#B07A1E）。對比：銀字 #3F4852 對 #EBEEF2 約 8.6:1；金字 #7A4E00 對 #FFF1CC 約 6.9:1；暗版銀 #DDE3EA 對 #2A3138 約 10:1、金 #F5C85A 對 #3D3318 約 7.6:1。</p>
+  <div class="sw">
+    <div class="chipc"><i style="background:var(--paper)"></i><div>紙底<br><code>--paper</code></div></div>
+    <div class="chipc"><i style="background:var(--leaf-strong)"></i><div>主按鈕、已核准<br><code>--leaf-strong</code></div></div>
+    <div class="chipc"><i style="background:linear-gradient(135deg,#FFFFFF,#D9DEE4 22%,#8E97A3 50%,#E8ECF1 72%,#6E7782)"></i><div>銀色徽章（新）<br><code>--silver-soft / -ink</code></div></div>
+    <div class="chipc"><i style="background:linear-gradient(135deg,#FFF3B8,#E9B949 22%,#B07A1E 50%,#F2CF6A 72%,#8A5E14)"></i><div>金色徽章（新）<br><code>--gold-soft / -ink</code></div></div>
+    <div class="chipc"><i style="background:var(--coral)"></i><div>拒絕、錯誤<br><code>--coral</code></div></div>
+    <div class="chipc"><i style="background:var(--parent)"></i><div>家長模式頂條<br><code>--parent</code></div></div>
+  </div>
+  <div class="specimen">
+    <div class="panel">
+      <h3>字型：粉圓 Huninn（現有）</h3>
+      <p class="t-xl">獎勵兌換</p>
+      <p class="t-l">看 30 分鐘卡通</p>
+      <p class="t-m">這週還能換 2 次</p>
+      <p class="t-s">只用 Google Fonts（OFL 授權），沒有新字型。數字一律 tabular-nums。</p>
+    </div>
+    <div class="panel">
+      <h3>銀、金數量標記</h3>
+      <div class="row t-m">
+        <span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 5</span>
+        <span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 2</span>
+      </div>
+      <h3 style="margin-top:14px">價格三種寫法</h3>
+      <div style="display:grid;gap:8px">
+        <div class="cost"><span class="t-s" style="min-width:4.5em">只要銀</span><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 3</span></div>
+        <div class="cost"><span class="t-s" style="min-width:4.5em">只要金</span><span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 1</span></div>
+        <div class="cost"><span class="t-s" style="min-width:4.5em">搭配</span><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 2</span><span class="plus">＋</span><span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 1</span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>狀態與按鈕</h3>
+      <div class="row">
+        <span class="pill p-wait">等家長核准</span>
+        <span class="pill p-ok">已核准</span>
+        <span class="pill p-no">被拒絕</span>
+        <span class="pill p-off">已取消</span>
+      </div>
+      <div style="display:grid;gap:12px;margin-top:14px">
+        <button class="big" type="button">申請兌換</button>
+        <button class="big" type="button" disabled>還差金 1</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>小孩端畫面</h2>
+  <p class="note">示範資料：玩家「小芽」可用 銀 5・金 2，保留中 銀 2（1 筆等待中）。</p>
+  <div class="screens">
+
+    <figure>
+      <div class="phone"><div class="scr">
+        <div class="bar"><span class="who"><span class="av">🌱</span>小芽</span><button class="back" type="button" aria-label="關閉">✕</button></div>
+        <div class="body">
+          <p class="ttl">現在是誰在練習？</p>
+          <div class="list">
+            <div class="li"><span class="av lg">🌱</span><div class="t">小芽<small><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 7</span><span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 2</span></small></div><span class="pill p-ok">使用中</span></div>
+            <div class="li"><span class="av lg" style="background:var(--sun-soft)">🦊</span><div class="t">阿丸<small><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 4</span><span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 1</span></small></div></div>
+            <div class="li off"><span class="av lg">🐢</span><div class="t">小石頭<small>已停用・家長可還原</small></div></div>
+          </div>
+          <button class="ghost" type="button">＋ 新增玩家</button>
+          <div class="sheet" style="position:static;border-radius:18px;box-shadow:none;border:2px solid var(--line);padding:12px">
+            <div class="field"><label for="nick">暱稱（不要填真名）</label><input id="nick" value="阿丸"></div>
+            <div class="avs" role="group" aria-label="選圖示">
+              <button type="button" aria-pressed="false">🌱</button><button type="button" aria-pressed="true">🦊</button><button type="button" aria-pressed="false">🐢</button><button type="button" aria-pressed="false">🐳</button><button type="button" aria-pressed="false">🦄</button><button type="button" aria-pressed="false">🚀</button>
+            </div>
+            <button class="big" type="button">儲存</button>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>1 玩家切換與新增。</b>每位玩家的銀、金分開顯示（含保留中的總數）。停用的玩家留在最下面；改名、選圖示在這裡做，停用和永久刪除只有家長頁能做。</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone"><div class="scr" id="demoScr">
+        <div class="bar"><button class="back" type="button" aria-label="回首頁">←</button><span class="who"><span class="av">🌱</span>小芽</span></div>
+        <div class="body">
+          <p class="ttl">獎勵兌換</p>
+          <div class="wallet" aria-live="polite">
+            <div class="pot s"><span class="k"><svg class="md"><use href="#medal-s"/></svg>銀色可用</span><span class="n" id="dS">5</span><span class="h" id="dSh">保留 2</span></div>
+            <div class="pot g"><span class="k"><svg class="md"><use href="#medal-g"/></svg>金色可用</span><span class="n" id="dG">2</span><span class="h">保留 0</span></div>
+            <span class="sub">等家長核准的申請會先保留徽章，拒絕或取消就退回。</span>
+          </div>
+          <div class="tabs" role="tablist"><button role="tab" aria-selected="true" type="button">可以換的</button><button role="tab" aria-selected="false" type="button">我的申請 <span class="cnt" id="dCnt">1</span></button></div>
+          <div class="rw">
+            <span class="nm">和爸媽玩桌遊 30 分鐘</span>
+            <div class="ln"><b>需要</b><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 2</span></div>
+            <span class="meta">這週還能換 3 次</span>
+            <div class="act"><button class="btn ok" type="button" id="dApply">申請兌換</button></div>
+          </div>
+          <div class="rw">
+            <span class="nm">看 30 分鐘卡通</span>
+            <div class="ln"><b>需要</b><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 2</span><span class="plus">＋</span><span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 1</span></div>
+            <span class="meta">這週還能換 1 次</span>
+            <div class="act"><button class="btn ok" type="button">申請兌換</button></div>
+          </div>
+          <div class="rw">
+            <span class="nm">去公園騎腳踏車</span>
+            <div class="ln"><b>需要</b><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 6</span></div>
+            <span class="tip">銀不夠 1 枚，會用 金 1 抵 銀 1（這個獎項可以用金抵銀）</span>
+            <div class="act"><button class="btn ok" type="button">申請兌換</button></div>
+          </div>
+          <div class="rw dim">
+            <span class="nm">選一天晚餐配菜</span>
+            <div class="ln"><b>需要</b><span class="coin s dim"><svg class="md"><use href="#medal-s"/></svg>銀 6</span></div>
+            <span class="whyn">還差銀 1。這個獎項只收銀色，不能用金抵。</span>
+          </div>
+          <div class="rw dim">
+            <span class="nm">邀朋友來家裡玩</span>
+            <div class="ln"><b>需要</b><span class="coin g dim"><svg class="md"><use href="#medal-g"/></svg>金 3</span></div>
+            <span class="whyn">還差金 1。多答標準、挑戰題可以拿金色。</span>
+          </div>
+          <div class="rw dim">
+            <span class="nm">晚睡 15 分鐘</span>
+            <div class="ln"><b>需要</b><span class="coin g dim"><svg class="md"><use href="#medal-g"/></svg>金 1</span></div>
+            <span class="whyn">這週已經換完 2 次了，下週一再來</span>
+          </div>
+        </div>
+        <div id="dSheet" hidden>
+          <div class="scrim"></div>
+          <div class="sheet" role="dialog" aria-label="確認兌換">
+            <p class="t-l" style="margin:0">要換「和爸媽玩桌遊 30 分鐘」嗎？</p>
+            <div class="ln cost"><span class="t-s">會先保留</span><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 2</span></div>
+            <p class="t-s">等家長核准才真的扣掉。家長拒絕會退回。</p>
+            <button class="big" type="button" id="dOk">送出申請</button>
+            <button class="ghost" type="button" id="dCancel">先不要</button>
+          </div>
+        </div>
+        <div id="dToast" hidden style="position:absolute;left:14px;right:14px;bottom:16px"><div class="toast">已送出，等家長核准。可以在「我的申請」看進度。</div></div>
+      </div></div>
+      <figcaption><b>2 獎勵兌換頁（可以點）。</b>錢包分銀、金兩格。每張卡片寫「需要」；按「申請兌換」→ 確認 → 銀色可用 5 變 3、保留 2 變 4。示範三種不能換：只收銀而銀不夠、金不夠、額度用完；以及一張會用金抵銀的。</figcaption>
+      <button class="btn" type="button" id="dReset" style="margin-top:8px">重設示範</button>
+    </figure>
+
+    <figure>
+      <div class="phone"><div class="scr">
+        <div class="bar"><button class="back" type="button" aria-label="回首頁">←</button><span class="who"><span class="av">🌱</span>小芽</span></div>
+        <div class="body">
+          <p class="ttl">獎勵兌換</p>
+          <div class="tabs" role="tablist"><button role="tab" aria-selected="false" type="button">可以換的</button><button role="tab" aria-selected="true" type="button">我的申請</button></div>
+          <div class="req">
+            <div class="top"><span class="nm">和爸媽玩桌遊 30 分鐘</span><span class="pill p-wait">等家長核准</span></div>
+            <span class="meta">保留<span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 2</span>・今天 18:20</span>
+            <button class="btn" type="button">取消申請</button>
+          </div>
+          <div class="req">
+            <div class="top"><span class="nm">去公園騎腳踏車</span><span class="pill p-ok">已核准</span></div>
+            <span class="meta">用了<span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 5</span><span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 1</span>（金 1 抵銀）・11/3</span>
+          </div>
+          <div class="req">
+            <div class="top"><span class="nm">玩 30 分鐘平板遊戲</span><span class="pill p-no">被拒絕</span></div>
+            <span class="meta">已退回<span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 2</span>・11/2</span>
+            <span class="reason">爸爸說：今天功課還沒寫完，明天再換</span>
+          </div>
+          <div class="req">
+            <div class="top"><span class="nm">晚睡 15 分鐘</span><span class="pill p-off">已取消</span></div>
+            <span class="meta">已退回<span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 1</span>・11/1</span>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>3 我的申請。</b>每筆寫清楚保留、用掉或退回的是哪一色、幾枚；用金抵銀的會註明。退回的顏色與當初扣的完全一樣。</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone"><div class="scr">
+        <div class="bar"><button class="back" type="button" aria-label="回首頁">←</button><span class="who"><span class="av">🦊</span>阿丸</span></div>
+        <div class="body">
+          <p class="ttl">獎勵兌換</p>
+          <div class="skel" style="height:96px"></div>
+          <div class="skel"></div>
+          <p class="fine" style="text-align:center">正在跟雲端對銀、金徽章數…</p>
+          <div class="banner err"><span>⚠</span><span>連不到雲端，現在不能申請。檢查網路後按「再試一次」；你的徽章不會不見。<br><button class="btn" type="button" style="margin-top:6px">再試一次</button></span></div>
+          <div class="empty">
+            <svg viewBox="0 0 72 72" aria-hidden="true"><rect x="10" y="26" width="52" height="36" rx="8" fill="var(--sun-soft)" stroke="var(--sun-ink)" stroke-width="2"/><rect x="6" y="18" width="60" height="12" rx="4" fill="var(--sun)"/><path d="M36 18v44" stroke="var(--coral)" stroke-width="5"/><path d="M36 18c-8-12-18-6-12 0M36 18c8-12 18-6 12 0" fill="none" stroke="var(--coral)" stroke-width="4"/></svg>
+            <p class="t-m" style="color:var(--ink)">還沒有獎勵</p>
+            <p>請爸爸媽媽在家長頁新增，例如「睡前多讀一本故事＝銀 1」。</p>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>4 載入中、錯誤、空的。</b>銀、金數一律等雲端回來才顯示，不用本機舊數字。後端忙碌（busy）時自動重試一次，再失敗才出現錯誤列。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>家長端畫面</h2>
+  <p class="note">入口：同一個網址後面加 <code>#parent</code>。所有家長操作都在後端驗 session，不靠前端藏按鈕。</p>
+  <div class="screens">
+
+    <figure>
+      <div class="phone"><div class="scr">
+        <div class="pbar"><span class="lbl">🔒 家長模式</span><button class="lock" type="button">回小孩畫面</button></div>
+        <div class="body" style="padding-top:18px">
+          <p class="ttl" style="text-align:center">輸入家長 PIN</p>
+          <div class="dots bad" aria-label="已輸入 6 位"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i></div>
+          <div class="banner err"><span>✕</span><span>PIN 不對，還可以再試 3 次。連錯 5 次會鎖 15 分鐘。</span></div>
+          <div class="pad">
+            <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+            <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+            <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+            <button type="button" class="fn">忘記 PIN</button><button type="button">0</button><button type="button" class="fn" aria-label="刪除一位">⌫</button>
+          </div>
+          <div class="banner info"><span>⏳</span><span>鎖定時的樣子：「錯太多次，請 14 分鐘後再試。」數字鍵全部停用。</span></div>
+        </div>
+      </div></div>
+      <figcaption><b>5 家長 PIN 驗證。</b>4～6 位，輸入第 4 位後出現「確定」，6 位自動送出。數字鍵 60px 高。（與第 1 輪相同）</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone"><div class="scr">
+        <div class="pbar"><span class="lbl">🔒 家長模式</span><button class="lock" type="button">回小孩畫面</button></div>
+        <div class="body" style="padding-top:16px">
+          <p class="ttl">第一次設定家長 PIN</p>
+          <p class="t-s">這個家庭還沒有家長 PIN。先輸入管理者給你的一次性設定碼，避免小孩先設。</p>
+          <div class="field"><label for="setc">一次性設定碼</label><input id="setc" value="K7Q-4MZ" autocomplete="off"></div>
+          <div class="field"><label for="pin1">新的 PIN（4～6 位數字，建議 6 位）</label><input id="pin1" type="password" inputmode="numeric" value="123456"></div>
+          <div class="field"><label for="pin2">再輸入一次</label><input id="pin2" type="password" inputmode="numeric" value="123456"></div>
+          <div class="banner info"><span>ℹ</span><span>別用生日或 1234。小孩常在旁邊看，輸入時遮一下。</span></div>
+          <button class="big" type="button">設定並進入家長頁</button>
+          <p class="fine">設定碼用過就失效。忘記 PIN 時，請管理者重設。</p>
+        </div>
+      </div></div>
+      <figcaption><b>6 第一次設定。</b>照研究建議用「管理者發一次性設定碼」；設定碼錯誤也算進連錯次數。（與第 1 輪相同）</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone"><div class="scr">
+        <div class="pbar"><span class="lbl">🔓 家長模式・29 分後登出</span><button class="lock" type="button">上鎖</button></div>
+        <nav class="pnav" aria-label="家長頁"><button type="button" aria-current="page">待核准<span class="cnt">2</span></button><button type="button">獎項</button><button type="button">玩家</button><button type="button">紀錄</button></nav>
+        <div class="body" style="padding-top:12px">
+          <div class="ap">
+            <div class="who"><span class="av lg">🌱</span><div class="t"><span class="t-m">小芽</span><br><span class="t-s">今天 18:20 申請</span></div><span class="pill p-wait">等待中</span></div>
+            <p class="t-m" style="margin:0">去公園騎腳踏車</p>
+            <div class="facts">
+              <div><span class="k">這筆保留</span><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 5</span><span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 1</span><span>（獎項要銀 6，金 1 抵銀）</span></div>
+              <div><span class="k">他還可用</span><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 0</span><span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 1</span></div>
+              <div><span class="k">本週已換</span><span>0 / 2 次</span></div>
+            </div>
+            <div class="acts"><button class="btn ok" type="button">核准</button><button class="btn no" type="button">拒絕…</button></div>
+          </div>
+          <div class="ap conf">
+            <div class="who"><span class="av lg" style="background:var(--sun-soft)">🦊</span><div class="t"><span class="t-m">阿丸</span><br><span class="t-s">今天 17:05 申請</span></div><span class="pill p-wait">等待中</span></div>
+            <p class="t-m" style="margin:0">玩 30 分鐘平板遊戲</p>
+            <div class="facts">
+              <div><span class="k">這筆保留</span><span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 2</span></div>
+              <div><span class="k">他還可用</span><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 4</span><span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 1</span></div>
+            </div>
+            <div class="field"><label for="rr">拒絕原因（小孩看得到，可留空）</label><input id="rr" value="今天功課還沒寫完，明天再換"></div>
+            <div class="acts"><button class="btn" type="button">返回</button><button class="btn no" type="button">確定拒絕</button></div>
+          </div>
+          <div class="banner info"><span>↻</span><span>拒絕會退回金 2（照當初保留的顏色）。衝突時：「媽媽剛剛已經核准這筆了。」不會重複扣。</span></div>
+        </div>
+      </div></div>
+      <figcaption><b>7 待核准清單。</b>每張卡片分顏色寫這筆保留了什麼、他還剩什麼；有用金抵銀會註明。核准一鍵完成；拒絕展開一行原因再確認。</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone"><div class="scr">
+        <div class="pbar"><span class="lbl">🔓 家長模式</span><button class="lock" type="button">上鎖</button></div>
+        <nav class="pnav" aria-label="家長頁"><button type="button">待核准<span class="cnt">2</span></button><button type="button" aria-current="page">獎項</button><button type="button">玩家</button><button type="button">紀錄</button></nav>
+        <div class="body" style="padding-top:12px">
+          <div class="list">
+            <div class="li"><div class="t">和爸媽玩桌遊 30 分鐘<small><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 2</span>・金可抵銀・每週 3 次</small></div><button class="btn" type="button">修改</button></div>
+            <div class="li"><div class="t">看 30 分鐘卡通<small><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 2</span>＋<span class="coin g"><svg class="md"><use href="#medal-g"/></svg>金 1</span>・每週 3 次</small></div><button class="btn" type="button">修改</button></div>
+            <div class="li"><div class="t">選一天晚餐配菜<small><span class="coin s"><svg class="md"><use href="#medal-s"/></svg>銀 6</span>・只收銀</small></div><button class="btn" type="button">修改</button></div>
+          </div>
+          <div class="panel" style="padding:14px;display:grid;gap:10px">
+            <h3 style="margin:0">新增獎項</h3>
+            <div class="field"><label for="rn">名稱</label><input id="rn" value="睡前多讀一本故事"></div>
+            <div class="pair">
+              <div class="field s"><span class="lab">要幾枚銀</span><div class="stepper" data-k="s"><button type="button" aria-label="銀減一">−</button><output id="eS" aria-live="polite">2</output><button type="button" aria-label="銀加一">＋</button></div></div>
+              <div class="field g"><span class="lab">要幾枚金</span><div class="stepper" data-k="g"><button type="button" aria-label="金減一">−</button><output id="eG" aria-live="polite">1</output><button type="button" aria-label="金加一">＋</button></div></div>
+            </div>
+            <div class="preview" id="ePrev" aria-live="polite"></div>
+            <div class="sw2"><span>金可以抵銀<small>銀不夠時用金補，1 金抵 1 銀；銀不能抵金</small></span><button class="tog" type="button" id="eTog" aria-label="金可以抵銀" aria-pressed="true"></button></div>
+            <div class="field"><span class="lab">每週最多換幾次（0＝不限）</span><div class="stepper"><button type="button" aria-label="減一">−</button><output>3</output><button type="button" aria-label="加一">＋</button></div></div>
+            <div class="sw2"><span>小孩看得到</span><button class="tog" type="button" aria-label="小孩看得到" aria-pressed="true"></button></div>
+            <button class="big" type="button" id="eSave">儲存獎項</button>
+            <p class="fine">銀、金各 0～99，合計至少 1。改價格不影響已送出的申請（申請當下的價格與實扣會記下來）。</p>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>8 獎項管理（可以點）。</b>銀、金各一個加減鈕，下面即時顯示「需要：銀 2＋金 1」；兩個都 0 時儲存停用並提示。每個獎項有「金可以抵銀」開關，預設開。</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone"><div class="scr">
+        <div class="pbar"><span class="lbl">🔓 家長模式</span><button class="lock" type="button">上鎖</button></div>
+        <nav class="pnav" aria-label="家長頁"><button type="button">待核准<span class="cnt">2</span></button><button type="button">獎項</button><button type="button" aria-current="page">玩家</button><button type="button">紀錄</button></nav>
+        <div class="body" style="padding-top:12px">
+          <div class="list">
+            <div class="li"><span class="av">🌱</span><div class="t">小芽<small>可用 銀 5・金 2｜保留 銀 2｜累計 銀 31・金 10</small></div><button class="btn" type="button">停用</button></div>
+            <div class="li"><span class="av" style="background:var(--sun-soft)">🦊</span><div class="t">阿丸<small>可用 銀 4・金 1｜保留 金 2｜累計 銀 14・金 4</small></div><button class="btn" type="button">停用</button></div>
+            <div class="li off"><span class="av">🐢</span><div class="t">小石頭<small>已停用</small></div><button class="btn" type="button">還原</button></div>
+          </div>
+          <div class="panel" style="padding:14px;display:grid;gap:8px;border-color:var(--coral)">
+            <h3 style="margin:0;color:var(--coral-ink)">永久刪除「小石頭」？</h3>
+            <p class="t-s">會刪掉他的銀、金徽章、作答紀錄、兌換紀錄，不能復原。輸入他的暱稱確認。</p>
+            <div class="field"><label for="dn">輸入「小石頭」</label><input id="dn" value=""></div>
+            <button class="big coral" type="button" disabled>永久刪除</button>
+          </div>
+          <details class="panel" style="padding:12px 14px" open>
+            <summary style="cursor:pointer;min-height:44px;display:flex;align-items:center">我們存了什麼</summary>
+            <p class="t-s" style="margin-top:6px">只存暱稱、圖示、銀與金徽章數、兌換紀錄，放在這個家庭的 Google 試算表，不收真名。永久刪除玩家就會一併清掉。PIN 只存加密後的雜湊。</p>
+          </details>
+        </div>
+      </div></div>
+      <figcaption><b>9 玩家管理與告知。</b>可用、保留、累計都分銀、金。停用＝藏起來，可還原；永久刪除要再輸入暱稱。第一位玩家（舊資料）只能改名，不能刪。</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone"><div class="scr">
+        <div class="pbar"><span class="lbl">🔓 家長模式</span><button class="lock" type="button">上鎖</button></div>
+        <nav class="pnav" aria-label="家長頁"><button type="button" aria-current="page">待核准</button><button type="button">獎項</button><button type="button">玩家</button><button type="button">紀錄</button></nav>
+        <div class="body" style="padding-top:12px">
+          <div class="empty">
+            <svg viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="26" fill="var(--leaf-soft)"/><path d="M24 37l8 8 16-18" fill="none" stroke="var(--leaf-strong)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <p class="t-m" style="color:var(--ink)">沒有待核准的申請</p>
+            <p>小孩送出申請後會出現在這裡，分頁上會標數字。</p>
+          </div>
+          <div class="banner info"><span>🔒</span><span>自動上鎖後：畫面蓋上一層「家長頁已上鎖」，按一下回到 PIN 輸入。</span></div>
+          <div class="panel" style="padding:14px;display:grid;gap:8px">
+            <h3 style="margin:0">第二階段：Face ID（之後才做）</h3>
+            <p class="t-s">家長手機用 PIN 綁定一次後，下次按「用 Face ID 解鎖」，一定保留「改用 PIN」。只在 GitHub Pages 版出現。</p>
+            <button class="btn" type="button" disabled>用 Face ID 解鎖（第二階段）</button>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>10 家長端空的狀態、上鎖、第二階段預告。</b>（與第 1 輪相同）</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>操作流程</h2>
+  <p class="note">申請當下就決定「實扣」哪一色幾枚（先用對應顏色，銀不夠且開了「金可以抵銀」才用金補），寫進這筆申請；之後核准、拒絕、取消都照這筆，不重算組合。</p>
+  <div class="flow">
+    <svg viewBox="0 0 980 320" role="img" aria-label="兌換流程：小孩申請、算實扣銀金並保留、家長核准或拒絕">
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+      <g font-size="15">
+        <text x="20" y="28" fill="var(--muted)">小孩平板</text>
+        <text x="20" y="210" fill="var(--muted)">家長手機</text>
+        <line x1="10" y1="170" x2="970" y2="170" stroke="var(--line)" stroke-dasharray="6 6"/>
+        <rect x="20" y="44" width="150" height="58" rx="14" fill="var(--card)" stroke="var(--line)" stroke-width="2"/>
+        <text x="95" y="70" text-anchor="middle">看獎項清單</text><text x="95" y="90" text-anchor="middle" font-size="12" fill="var(--muted)">需要／你有（銀、金）</text>
+        <rect x="205" y="44" width="150" height="58" rx="14" fill="var(--card)" stroke="var(--line)" stroke-width="2"/>
+        <text x="280" y="70" text-anchor="middle">申請兌換</text><text x="280" y="90" text-anchor="middle" font-size="12" fill="var(--muted)">確認後送出</text>
+        <rect x="390" y="30" width="200" height="86" rx="14" fill="var(--gold-soft)" stroke="var(--gold-line)" stroke-width="2"/>
+        <text x="490" y="56" text-anchor="middle">後端算實扣並保留</text>
+        <text x="490" y="78" text-anchor="middle" font-size="12" fill="var(--gold-ink)">銀付銀價、金付金價</text>
+        <text x="490" y="96" text-anchor="middle" font-size="12" fill="var(--gold-ink)">銀不夠＋金可抵銀 → 金補</text>
+        <rect x="640" y="20" width="150" height="50" rx="14" fill="var(--card)" stroke="var(--line)" stroke-width="2"/>
+        <text x="715" y="50" text-anchor="middle">小孩取消</text>
+        <rect x="820" y="20" width="150" height="50" rx="14" fill="var(--card)" stroke="var(--line)" stroke-width="2" stroke-dasharray="5 4"/>
+        <text x="895" y="42" text-anchor="middle">已取消</text><text x="895" y="60" text-anchor="middle" font-size="12" fill="var(--muted)">原色退回</text>
+        <rect x="405" y="220" width="170" height="58" rx="14" fill="var(--parent)"/>
+        <text x="490" y="246" text-anchor="middle" style="fill:var(--on-parent)">PIN 驗證</text><text x="490" y="266" text-anchor="middle" font-size="12" style="fill:var(--on-parent)">看到保留的銀、金</text>
+        <rect x="640" y="196" width="150" height="50" rx="14" fill="var(--leaf-soft)" stroke="var(--leaf)" stroke-width="2"/>
+        <text x="715" y="226" text-anchor="middle">核准</text>
+        <rect x="640" y="260" width="150" height="50" rx="14" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="2"/>
+        <text x="715" y="290" text-anchor="middle">拒絕（可寫原因）</text>
+        <rect x="820" y="196" width="150" height="50" rx="14" fill="var(--card)" stroke="var(--leaf)" stroke-width="2"/>
+        <text x="895" y="218" text-anchor="middle">已核准</text><text x="895" y="236" text-anchor="middle" font-size="12" fill="var(--muted)">照實扣扣掉</text>
+        <rect x="820" y="260" width="150" height="50" rx="14" fill="var(--card)" stroke="var(--coral)" stroke-width="2"/>
+        <text x="895" y="282" text-anchor="middle">被拒絕</text><text x="895" y="300" text-anchor="middle" font-size="12" fill="var(--muted)">原色退回</text>
+      </g>
+      <g stroke="var(--muted)" stroke-width="2" fill="none" marker-end="url(#ar)">
+        <path d="M170 73H203"/><path d="M355 73H388"/><path d="M590 60L638 45"/><path d="M790 45H818"/>
+        <path d="M490 116V218"/><path d="M575 240L638 223"/><path d="M575 260L638 282"/><path d="M790 221H818"/><path d="M790 285H818"/>
+      </g>
+      <text x="502" y="175" font-size="12" fill="var(--muted)">家長打開 #parent</text>
+    </svg>
+  </div>
+</section>
+
+<section>
+  <h2>交給實作的重點</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>畫面</th><th>對應功能</th><th>第 2 輪要多做的</th></tr></thead>
+    <tbody>
+      <tr><td>1 玩家切換</td><td>玩家：切換、新增、改名、選圖示</td><td>清單顯示銀、金兩個數</td></tr>
+      <tr><td>2 獎勵兌換</td><td>獎項清單、本週剩餘、申請→保留</td><td>錢包分兩格；卡片「需要」分色；不夠分色寫「還差金 1」；會用金抵銀時提示</td></tr>
+      <tr><td>3 我的申請</td><td>四種狀態、取消</td><td>每筆寫保留／用掉／退回的顏色與枚數</td></tr>
+      <tr><td>4 共用狀態</td><td>以雲端為準</td><td>骨架改兩格錢包</td></tr>
+      <tr><td>5–6 PIN</td><td>家長 PIN、鎖定、設定碼</td><td>不變</td></tr>
+      <tr><td>7 待核准</td><td>核准、拒絕＋原因、衝突</td><td>這筆保留、他還可用都分色；金抵銀註明</td></tr>
+      <tr><td>8 獎項</td><td>新增／修改／停用＋每週上限</td><td>銀、金各一個加減鈕＋預覽；「金可以抵銀」開關（預設開）；合計 0 不能存</td></tr>
+      <tr><td>9 玩家管理</td><td>停用、還原、永久刪除</td><td>可用、保留、累計分色</td></tr>
+      <tr><td>10 上鎖</td><td>自動上鎖、Face ID 位置</td><td>不變</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note" style="margin-top:12px">徽章小圖是自繪 SVG，金屬色取自 family-quiz 現有 badgeSVG；圖示只用 emoji，沒有引入他人素材或品牌。完整欄位、計算規則、驗收條件（新增 D7–D9）見「開發規格」文件。</p>
+</section>
+</div>
+
+<script>
+(function(){
+  var sheet=document.getElementById('dSheet'),toast=document.getElementById('dToast'),
+      apply=document.getElementById('dApply'),sEl=document.getElementById('dS'),sh=document.getElementById('dSh'),cnt=document.getElementById('dCnt'),t;
+  function reset(){sEl.textContent='5';sh.textContent='保留 2';cnt.textContent='1';apply.disabled=false;apply.textContent='申請兌換';sheet.hidden=true;toast.hidden=true}
+  apply.addEventListener('click',function(){sheet.hidden=false;document.getElementById('dOk').focus()});
+  document.getElementById('dCancel').addEventListener('click',function(){sheet.hidden=true;apply.focus()});
+  document.getElementById('dOk').addEventListener('click',function(){
+    sheet.hidden=true;apply.disabled=true;apply.textContent='等家長核准';
+    sEl.textContent='3';sh.textContent='保留 4';cnt.textContent='2';toast.hidden=false;clearTimeout(t);t=setTimeout(function(){toast.hidden=true},4000)});
+  document.getElementById('dReset').addEventListener('click',reset);
+
+  // 獎項編輯：銀、金加減與預覽
+  var v={s:2,g:1},eS=document.getElementById('eS'),eG=document.getElementById('eG'),prev=document.getElementById('ePrev'),
+      tog=document.getElementById('eTog'),save=document.getElementById('eSave');
+  var coin=function(k,n){return '<span class="coin '+k+'"><svg class="md"><use href="#medal-'+k+'"/></svg>'+(k==='s'?'銀 ':'金 ')+n+'</span>'};
+  function draw(){
+    eS.textContent=v.s;eG.textContent=v.g;
+    var parts=[];if(v.s)parts.push(coin('s',v.s));if(v.g)parts.push(coin('g',v.g));
+    if(!parts.length){prev.innerHTML='<span>銀、金至少要設一枚</span>';save.disabled=true;return}
+    save.disabled=false;
+    var on=tog.getAttribute('aria-pressed')==='true';
+    prev.innerHTML='<span>小孩會看到 需要</span>'+parts.join('<span class="plus">＋</span>')+
+      (v.s?'<span class="fine">'+(on?'（銀不夠可以用金補）':'（只收銀，不能用金抵）')+'</span>':'');
+  }
+  document.querySelectorAll('.stepper[data-k]').forEach(function(st){
+    var k=st.getAttribute('data-k'),b=st.querySelectorAll('button');
+    b[0].addEventListener('click',function(){v[k]=Math.max(0,v[k]-1);draw()});
+    b[1].addEventListener('click',function(){v[k]=Math.min(99,v[k]+1);draw()});
+  });
+  document.querySelectorAll('.tog').forEach(function(tg){
+    tg.addEventListener('click',function(){tg.setAttribute('aria-pressed',tg.getAttribute('aria-pressed')==='true'?'false':'true');draw()});
+  });
+  draw();
+})();
+</script>
+
+</body></html>
