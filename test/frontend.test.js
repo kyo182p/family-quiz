@@ -16,11 +16,12 @@ test.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
 const plain=v=>JSON.parse(JSON.stringify(v));
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function settle(){for(let i=0;i<6;i++)await tick()}
-async function open(t,{storage={},query=''}={}){
+async function open(t,{storage={},query='',frame=false}={}){
   const errors=[],navigation=[],requests=[];
   const vc=new VirtualConsole();
   vc.on('jsdomError',e=>{if(e.message.includes('navigation'))navigation.push(e);else errors.push(e)});
   const dom=new JSDOM(html,{url:'https://quiz.invalid/'+query,runScripts:'dangerously',virtualConsole:vc,beforeParse(w){
+    if(frame)Object.defineProperty(w,'self',{value:{}});
     w.scrollTo=()=>{};w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
     w.speechSynthesis={cancel(){},getVoices(){return []},speak(){},addEventListener(){}};
     Object.defineProperty(w,'fetch',{configurable:true,set(fn){Object.defineProperty(w,'fetch',{configurable:true,writable:true,value:async(url,options)=>{if(String(url)==='mock://gas')requests.push(JSON.parse(options.body));return fn(url,options)}})}});
@@ -299,4 +300,172 @@ test('T006 server rejections refresh with plain messages; cancellation conflict;
   const token=await parent(b.w);const id=await newReward(b.w,token,{name:'一枚',silver:1,gold:0,weeklyLimit:0});await b.w.rewardPage();clickApply(b.w,id);
   b.w.fetch=async(u,o)=>JSON.parse(o.body).action==='redeemRequest'?{json:async()=>({ok:false,code:'player_disabled'})}:f(u,o);
   await sendSheet(b.w);assert.equal(JSON.parse(b.w.localStorage.getItem('player')),'p1');assert.ok(b.navigation.length);
+});
+
+async function parentRoute(w){w.location.hash='parent';await settle()}
+async function setupParentUI(w,pin='246810',code='MOCK2345',repeat=pin){
+  w.document.getElementById('parent-code').value=code;
+  w.document.getElementById('parent-new-pin').value=pin;
+  w.document.getElementById('parent-repeat-pin').value=repeat;
+  await w.document.querySelector('#parent-setup').onsubmit({preventDefault(){}});await settle();
+}
+async function parentUI(t,options){const a=await open(t,options);await parentRoute(a.w);await setupParentUI(a.w);return a}
+async function typePin(w,pin,confirm=false){for(const n of pin)w.document.querySelector(`[data-pin-key="${n}"]`).click();if(confirm)w.document.querySelector('[data-pin-key="確定"]').click();await settle()}
+const ptext=w=>w.document.getElementById('parent-page')?.textContent||'';
+function inputValue(w,selector,value){const el=w.document.querySelector(selector);el.value=value;el.dispatchEvent(new w.Event('input',{bubbles:true}));return el}
+async function saveParentReward(w){await w.document.querySelector('#parent-reward-form form').onsubmit({preventDefault(){}});await settle()}
+
+test('T007 setup: validation stays local, wrong code left, weak PIN second submit, pin_exists refresh',async t=>{
+  const a=await open(t),{w,requests}=a;await parentRoute(w);
+  assert.ok(ptext(w).includes('第一次設定家長 PIN'));
+  assert.equal(w.document.querySelector('#parent-code').getAttribute('autocapitalize'),'characters');
+  const count=()=>requests.filter(r=>r.action==='parentSetPin').length;
+  await setupParentUI(w,'246810','MOCK2345','246811');assert.equal(count(),0);assert.ok(ptext(w).includes('兩次輸入的 PIN 不一樣'));
+  await setupParentUI(w,'123','MOCK2345');assert.equal(count(),0);assert.ok(ptext(w).includes('PIN 要 4～6 位數字'));
+  await setupParentUI(w,'246810','WRONG');assert.equal(count(),1);assert.ok(ptext(w).includes('設定碼不對，還可以再試 4 次'));
+  await setupParentUI(w,'111111');assert.equal(count(),1);assert.ok(ptext(w).includes('這組 PIN 很容易被猜到，建議換一組'));
+  await setupParentUI(w,'111111');assert.ok(w.document.querySelector('[data-parent-tab]'));assert.ok(w.eval('PARENT_SESSION'));
+  const b=await open(t);await parentRoute(b.w);await b.w.api('parentSetPin',{setupCode:'MOCK2345',pin:'246810'});await setupParentUI(b.w);assert.ok(ptext(b.w).includes('輸入家長 PIN'));assert.equal(b.w.document.querySelector('#parent-setup'),null);
+});
+
+test('T007 PIN: six auto, four confirm, dots only, lock at five and no more login requests',async t=>{
+  const {w,requests}=await parentUI(t);w.parentLock();await settle();
+  assert.equal(w.document.querySelector('.parent-pad').children.length,12);
+  assert.equal([...w.document.querySelectorAll('button')].find(b=>b.textContent.includes('Face ID')).disabled,true);
+  await typePin(w,'24681');assert.equal(requests.filter(r=>r.action==='parentLogin').length,0);assert.equal(w.document.querySelectorAll('.parent-dots .filled').length,5);
+  assert.ok(!w.document.documentElement.outerHTML.includes('24681'));
+  await typePin(w,'0');assert.ok(w.document.querySelector('[data-parent-tab]'));
+  w.parentLock();await settle();await typePin(w,'0000',true);assert.ok(ptext(w).includes('PIN 不對，還可以再試 4 次'));
+  for(let i=0;i<4;i++)await typePin(w,'000000');
+  assert.ok(ptext(w).includes('輸入錯太多次，請 15 分鐘後再試'));
+  assert.ok([...w.document.querySelectorAll('[data-pin-key]')].every(b=>b.disabled));
+  const n=requests.filter(r=>r.action==='parentLogin').length;w.document.querySelector('[data-pin-key="1"]').click();await settle();assert.equal(requests.filter(r=>r.action==='parentLogin').length,n);
+  const b=await parentUI(t);b.w.parentLock();await settle();
+  // A real four-digit credential uses the same keypad confirmation path.
+  const c=await open(t);await parentRoute(c.w);await setupParentUI(c.w,'2486');c.w.parentLock();await settle();await typePin(c.w,'2486',true);assert.ok(c.w.document.querySelector('[data-parent-tab]'));
+});
+
+test('T007 B5: memory-only session, hidden clears DOM/logs out; idle reset and no_session lock',async t=>{
+  const a=await parentUI(t),{w,requests}=a,token=w.eval('PARENT_SESSION');
+  for(const value of [JSON.stringify(a.storage()),JSON.stringify(Object.fromEntries(Object.entries(w.sessionStorage))),w.location.href,w.document.documentElement.outerHTML])assert.ok(!value.includes(token));
+  await w.parentMain('players');assert.ok(ptext(w).includes('小石頭'));
+  Object.defineProperty(w.document,'visibilityState',{configurable:true,value:'hidden'});w.document.dispatchEvent(new w.Event('visibilitychange'));await settle();
+  assert.equal(w.eval('PARENT_SESSION'),null);assert.equal(w.document.querySelector('[data-manage-player]'),null);assert.ok(ptext(w).includes('輸入家長 PIN'));assert.ok(requests.some(r=>r.action==='parentLogout'&&r.session===token));
+  Object.defineProperty(w.document,'visibilityState',{configurable:true,value:'visible'});await typePin(w,'246810');
+  const set=w.setTimeout,clear=w.clearTimeout;let next=40000;const timers=new Map();w.setTimeout=(fn,ms)=>{if(ms===180000){timers.set(++next,fn);return next}return set(fn,ms)};w.clearTimeout=id=>{timers.delete(id);return clear(id)};
+  w.parentActivity();assert.equal(w.eval('PARENT_IDLE_MS'),180000);assert.equal(timers.size,1);const first=[...timers.keys()][0];
+  w.document.dispatchEvent(new w.Event('pointerdown'));assert.equal(timers.size,1);assert.ok(!timers.has(first));
+  w.document.dispatchEvent(new w.KeyboardEvent('keydown',{key:'a'}));assert.equal(timers.size,1);[...timers.values()][0]();await settle();assert.equal(w.eval('PARENT_SESSION'),null);
+  w.setTimeout=set;w.clearTimeout=clear;await typePin(w,'246810');const fetch=w.fetch;
+  w.fetch=async(u,o)=>JSON.parse(o.body).action==='redeemList'?{json:async()=>({ok:false,code:'no_session'})}:fetch(u,o);
+  await w.parentMain();await settle();assert.equal(w.eval('PARENT_SESSION'),null);assert.ok(ptext(w).includes('輸入家長 PIN'));
+});
+
+test('T007 B5 race: late login and list after lock never restore session or protected DOM',async t=>{
+  const {w}=await parentUI(t);w.parentLock();await settle();const fetch=w.fetch;let release;let gate=new Promise(r=>release=r);
+  w.fetch=async(u,o)=>{const response=await fetch(u,o);if(JSON.parse(o.body).action==='parentLogin')await gate;return response};
+  await typePin(w,'246810');w.parentLock();release();await settle();assert.equal(w.eval('PARENT_SESSION'),null);assert.ok(!w.document.querySelector('[data-parent-tab]'));
+  w.fetch=fetch;await typePin(w,'246810');gate=new Promise(r=>release=r);
+  w.fetch=async(u,o)=>{const response=await fetch(u,o);if(JSON.parse(o.body).action==='redeemList')await gate;return response};
+  const pending=w.parentMain();await settle();w.parentLock();release();await pending;await settle();assert.equal(w.eval('PARENT_SESSION'),null);assert.ok(ptext(w).includes('輸入家長 PIN'));
+});
+
+test('T007 C1 D7: reward form ranges/preview, child consistency, edit/disable still visible to parent',async t=>{
+  const {w,requests}=await parentUI(t);
+  for(const [silver,gold] of [[2,0],[0,1],[1,1]]){
+    await w.parentMain('rewards');w.document.querySelector('#parent-add-reward').click();
+    assert.equal(w.document.querySelector('#parent-save-reward').disabled,true);
+    inputValue(w,'#parent-reward-name',`測試${silver}${gold}`);assert.equal(w.document.querySelector('#parent-save-reward').disabled,true);
+    for(const [key,n] of [['silver',silver],['gold',gold]])for(let i=0;i<n;i++)w.document.querySelector(`[data-step="${key}"][data-delta="1"]`).click();
+    assert.ok(w.document.querySelector('#parent-preview').textContent.includes('小孩會看到 需要'));
+    assert.equal(w.document.querySelector('#parent-substitute').getAttribute('aria-pressed'),'true');
+    if(silver){assert.ok(ptext(w).includes('（銀不夠可以用金補）'));w.document.querySelector('#parent-substitute').click();assert.ok(ptext(w).includes('（只收銀，不能用金抵）'))}
+    else assert.ok(!w.document.querySelector('#parent-preview').textContent.includes('（'));
+    const n=requests.filter(r=>r.action==='rewardSave').length;inputValue(w,'#parent-reward-name',' ');await saveParentReward(w);assert.equal(requests.filter(r=>r.action==='rewardSave').length,n);
+    inputValue(w,'#parent-reward-name',`測試${silver}${gold}`);await saveParentReward(w);
+    const r=(await w.api('rewardList',{playerId:'p1'})).rewards.find(r=>r.name===`測試${silver}${gold}`);assert.deepEqual([r.silver,r.gold],[silver,gold]);
+    await w.rewardPage();const card=[...w.document.querySelectorAll('.reward-card')].find(c=>c.textContent.includes(r.name));assert.ok(card);for(const [color,n] of [['銀',silver],['金',gold]])if(n)assert.ok(card.textContent.includes(color+' '+n));
+    await w.parentPage();await w.parentMain('rewards');w.document.querySelector(`[data-edit-reward="${r.id}"]`).click();
+    inputValue(w,'#parent-reward-name',r.name+'改');w.document.querySelector('#parent-enabled').click();await saveParentReward(w);
+    assert.ok(w.document.querySelector(`[data-edit-reward="${r.id}"]`).closest('article').classList.contains('parent-off'));
+    assert.ok(!(await w.api('rewardList',{playerId:'p1'})).rewards.some(x=>x.id===r.id));
+  }
+  await w.parentMain('rewards');w.document.querySelector('#parent-add-reward').click();
+  for(let i=0;i<105;i++)w.document.querySelector('[data-step="silver"][data-delta="1"]').click();assert.equal(w.document.querySelector('[data-value="silver"]').textContent,'99');
+  for(let i=0;i<18;i++)w.document.querySelector('[data-step="weeklyLimit"][data-delta="1"]').click();assert.equal(w.document.querySelector('[data-value="weeklyLimit"]').textContent,'14');
+});
+
+test('T007 E1 D7: pending facts/snapshots, approve once, reject reason reaches child, badge vanishes at zero',async t=>{
+  const {w,requests}=await parentUI(t);const session=w.eval('PARENT_SESSION');
+  const ids=[];for(const [silver,gold] of [[1,0],[0,1],[1,1]]){const id=await newReward(w,session,{name:`組合${silver}${gold}`,silver,gold,weeklyLimit:0});ids.push((await w.api('redeemRequest',{rewardId:id,requestId:w.rewardRequestId(),playerId:'p1'})).redeem.id)}
+  await w.parentMain();assert.equal(w.document.querySelector('#parent-count').textContent,'3');
+  for(const [i,id] of ids.entries()){const card=w.document.querySelector(`[data-request="${id}"]`);for(const label of ['小葉子','需要','這筆保留','他目前可用','本週已換 1 次'])assert.ok(card.textContent.includes(label));const cost=[...card.children].find(el=>el.textContent.startsWith('需要'));for(const [color,n] of [['銀',[1,0,1][i]],['金',[0,1,1][i]]]){if(n)assert.ok(cost.textContent.includes(color+' '+n));else assert.ok(!cost.textContent.includes(color))}}
+  let approve=w.document.querySelector(`[data-request="${ids[0]}"] [data-approve]`);approve.click();assert.equal(approve.disabled,true);approve.click();await settle();assert.equal(requests.filter(r=>r.action==='redeemDecide'&&r.id===ids[0]).length,1);assert.equal(w.document.querySelector('#parent-count').textContent,'2');
+  let card=w.document.querySelector(`[data-request="${ids[1]}"]`);card.querySelector('[data-reject]').click();assert.equal(card.querySelector('[data-reason-area]').hidden,false);assert.equal(card.querySelector('input').maxLength,40);card.querySelector('input').value='先寫完功課';card.querySelector('[data-confirm-reject]').click();await settle();
+  w.document.querySelector('[data-approve]').click();await settle();assert.equal(w.document.querySelector('.parent-count'),null);assert.ok(ptext(w).includes('現在沒有待核准的申請'));
+  await w.parentMain('log');assert.ok(ptext(w).includes('核准'));assert.ok(ptext(w).includes('拒絕'));assert.ok(ptext(w).includes('先寫完功課'));
+  await w.rewardPage('mine');assert.ok(text(w).includes('家長說：先寫完功課'));
+});
+
+test('T007 E1: gold substitution, busy retries once, conflict refresh and insufficient retry',async t=>{
+  const {w}=await parentUI(t);const session=w.eval('PARENT_SESSION');const rid=await newReward(w,session,{name:'抵銀',silver:6,gold:0,weeklyLimit:0});
+  const req=(await w.api('redeemRequest',{rewardId:rid,requestId:w.rewardRequestId()})).redeem;await w.parentMain();assert.ok(ptext(w).includes('其中金 1 枚用來抵銀'));
+  const fetch=w.fetch;let tries=0;w.fetch=async(u,o)=>{if(JSON.parse(o.body).action==='redeemDecide'&&++tries===1)return {json:async()=>({ok:false,code:'busy'})};return fetch(u,o)};
+  w.document.querySelector('[data-approve]').click();await settle();assert.equal(tries,2);assert.ok(ptext(w).includes('現在沒有待核准'));
+  w.fetch=fetch;const gold=await newReward(w,session,{name:'金',silver:0,gold:1,weeklyLimit:0});await w.api('redeemRequest',{rewardId:gold,requestId:w.rewardRequestId()});await w.parentMain();
+  for(const [code,msg] of [['insufficient','他的徽章不夠，不能核准'],['conflict','這筆剛剛已經被決定了']]){
+    w.fetch=async(u,o)=>JSON.parse(o.body).action==='redeemDecide'?{json:async()=>({ok:false,code})}:fetch(u,o);w.document.querySelector('[data-approve]').click();await settle();assert.ok(ptext(w).includes(msg));
+    if(code==='insufficient'){assert.ok([...w.document.querySelectorAll('button')].some(b=>b.textContent==='再試一次'));await w.parentMain()}
+  }
+  assert.ok(req.id);
+});
+
+test('T007 A3 A4: p1 protected, disable/restore ordering, exact purge name, pid keys and active fallback',async t=>{
+  const {w}=await parentUI(t);const third=(await w.api('playerSave',{name:'第三位',icon:'🦊'})).player.id;
+  await w.parentMain('players');assert.equal(w.document.querySelector('[data-manage-player="p1"] [data-player-action]'),null);
+  const row=()=>w.document.querySelector('[data-manage-player="p2"]');
+  row().querySelector('[data-player-action="playerDisable"]').click();assert.ok(row().textContent.includes('他的待核准申請會自動取消'));row().querySelector('[data-player-confirm] button').click();await settle();
+  assert.equal([...w.document.querySelectorAll('[data-manage-player]')].at(-1).dataset.managePlayer,'p2');
+  await w.playerSheet();const pick=w.document.querySelector('[data-player="p2"]');assert.equal(pick.disabled,true);assert.ok(pick.closest('.player-off'));w.document.getElementById('player-close').click();
+  await w.parentMain('players');row().querySelector('[data-player-action="playerRestore"]').click();await settle();assert.equal([...w.document.querySelectorAll('[data-manage-player]')][1].dataset.managePlayer,'p2');
+  row().querySelector('[data-player-action="playerDisable"]').click();row().querySelector('[data-player-confirm] button').click();await settle();
+  w.localStorage.setItem('p2:badges','{}');w.localStorage.setItem('p2:any-custom-key','x');w.localStorage.setItem(third+':badges','{}');
+  row().querySelector('[data-player-action="playerPurge"]').click();assert.ok(row().textContent.includes('這位玩家的徽章、兌換紀錄都會刪除，不能復原。'));
+  let confirm=row().querySelector('[data-player-confirm] button');assert.equal(confirm.disabled,true);inputValue(w,'[data-manage-player="p2"] input','小石頭 ');assert.equal(confirm.disabled,true);inputValue(w,'[data-manage-player="p2"] input','小石頭');assert.equal(confirm.disabled,false);confirm.click();await settle();
+  assert.equal(row(),null);assert.ok(!Object.keys(w.localStorage).some(k=>k.startsWith('p2:')));assert.equal(w.localStorage.getItem(third+':badges'),'{}');
+  const b=await parentUI(t,{storage:{player:'"p2"'}});await b.w.parentMain('players');b.w.document.querySelector('[data-manage-player="p2"] [data-player-action="playerDisable"]').click();b.w.document.querySelector('[data-manage-player="p2"] [data-player-confirm] button').click();await settle();assert.equal(JSON.parse(b.w.localStorage.getItem('player')),'p1');assert.ok(b.navigation.length);
+});
+
+test('T007 G2 routing, offline/retry without stale data, notice sentences, iframe placeholder hidden',async t=>{
+  const {w}=await parentUI(t);assert.ok(ptext(w).includes('現在沒有待核准的申請'));await w.parentMain('log');assert.ok(ptext(w).includes('還沒有紀錄'));
+  await w.parentMain('players');for(const line of ['這裡存了什麼：暱稱、圖示、徽章數、兌換紀錄。','存在哪裡：這個家庭的 Google 試算表。','怎麼刪除：先停用這位玩家，再按「永久刪除」。','家長 PIN 只存雜湊，看不到原本的數字。','暱稱請用代號，不要填真名。'])assert.ok(ptext(w).includes(line));
+  const fetch=w.fetch;w.fetch=async()=>{throw Error('offline')};await w.parentMain('players');assert.ok(ptext(w).includes('連不到雲端，請稍後再試'));assert.ok(!ptext(w).includes('小石頭'));w.fetch=fetch;w.document.querySelector('#parent-list button').click();await settle();assert.ok(ptext(w).includes('小石頭'));
+  w.location.hash='other';await settle();assert.equal(w.eval('PARENT_SESSION'),null);assert.equal(w.document.getElementById('parent-page'),null);
+  const offline=await open(t,{query:'?mock=offline#parent'});assert.ok(ptext(offline.w).includes('連不到雲端，請稍後再試'));assert.ok(ptext(offline.w).includes('再試一次'));
+  w.eval("FAMILY={code:''}");await parentRoute(w);assert.ok(ptext(w).includes('這台裝置還沒有輸入家庭邀請碼，請先到首頁輸入。'));assert.ok(w.document.getElementById('parent-exit'));
+  const framed=await parentUI(t,{frame:true});framed.w.parentLock();await settle();assert.ok(!ptext(framed.w).includes('Face ID'));
+  const reader=await parentUI(t);reader.w.eval("READER={code:'READER'}");reader.w.parentLock();await settle();assert.ok(ptext(reader.w).includes('這台裝置還沒有輸入家庭邀請碼'));
+});
+
+test('T007 XSS: player/reward/rejection and anomaly text escaped in all parent views',async t=>{
+  const {w}=await parentUI(t),session=w.eval('PARENT_SESSION'),bait='<img src=x onerror=1>';
+  const fetch=w.fetch;w.fetch=async(u,o)=>{const res=await fetch(u,o),j=await res.json(),action=JSON.parse(o.body).action;
+    if(action==='redeemList'){j.pendingCount=1;j.redeems=[{id:'rtest',playerName:bait,playerIcon:bait,name:bait,silver:2,gold:1,pay:{silver:1,gold:2},balance:{silver:{available:2},gold:{available:3}},weekUsed:1}]}
+    if(action==='rewardList')j.rewards[0].name=bait;
+    if(action==='playerList')j.players[0].name=bait;
+    if(action==='parentLog')j.entries=[{at:0,type:'decision',playerName:bait,name:bait,status:'拒絕',reason:bait},{at:0,type:'anomaly',playerName:bait,color:'金',reason:bait}];
+    return {json:async()=>j};
+  };
+  for(const tab of ['pending','rewards','players','log']){await w.parentMain(tab);assert.ok(ptext(w).includes(bait));assert.equal(w.document.querySelector('#parent-page img'),null)}
+  assert.ok(ptext(w).includes('異常'));assert.ok(session);
+});
+
+test('T007 routing race: late homepage cannot replace PIN; old no_session cannot lock a new login',async t=>{
+  const {w}=await open(t);const fetch=w.fetch;let release;const gate=new Promise(r=>release=r);
+  w.eval("LIB=null;LIBERR=''");w.fetch=async(u,o)=>{if(JSON.parse(o.body).action==='libList')await gate;return fetch(u,o)};
+  const home=w.libHome();await settle();await parentRoute(w);release();await home;await settle();assert.ok(ptext(w).includes('第一次設定家長 PIN'));await setupParentUI(w);
+  const old=w.eval('PARENT_SESSION');let releaseOld;const oldGate=new Promise(r=>releaseOld=r);
+  w.fetch=async(u,o)=>{const req=JSON.parse(o.body);if(req.action==='redeemList'&&req.session===old){await oldGate;return {json:async()=>({ok:false,code:'no_session'})}}return fetch(u,o)};
+  const pending=w.parentMain();await settle();w.parentLock();await settle();await typePin(w,'246810');const current=w.eval('PARENT_SESSION');assert.ok(current&&current!==old);releaseOld();await pending;assert.equal(w.eval('PARENT_SESSION'),current);assert.ok(w.document.querySelector('[data-parent-tab]'));
+  w.fetch=async()=>({json:async()=>({ok:false,code:'no_session'})});await assert.rejects(w.api('parentLog',{session:current}));assert.equal(w.eval('PARENT_SESSION'),null);
 });
