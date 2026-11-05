@@ -542,6 +542,16 @@ function parentSession(env, family=code) {
   return post(env,'parentSetPin',{code:family,setupCode:issue(env,family),pin:fakePin}).session;
 }
 function addOtherFamily(env) { env.sheets.get('家庭').appendRow([otherCode,'另一家庭',10,true,'',false]); }
+test('T008 docs: 編輯器暫時函式可以發設定碼', () => {
+  const env = setup();
+  const issued = env.run('adminParent', {action:'adminIssueSetupCode',family:'TEST-0000'});
+  assert.equal(issued.ok,true);
+  assert.equal(typeof issued.setupCode,'string');
+  assert.ok(issued.setupCode.length > 0);
+  const result = post(env,'parentSetPin',{setupCode:issued.setupCode,pin:fakePin});
+  assert.equal(result.ok,true);
+  assert.ok(result.session);
+});
 const snapshot = env => JSON.stringify({sheets:[...env.sheets].map(([k,s])=>[k,s.getDataRange().getValues()]),props:env.props.getProperties()});
 
 test('T003 B1: setup codes are required, hashed, replaced, single-use and invalidated by reset', () => {

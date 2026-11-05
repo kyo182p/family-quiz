@@ -3,94 +3,75 @@
 > Orchestrator 每輪填寫,交給 Executor。Executor 只做本工單範圍內的事。
 
 ## 任務編號
-T-007 第 1 輪
+T-008 第 1 輪
 
 ## 任務類型
-整合輪
+機械輪(文件與雲端測試腳本;不動產品程式)
 
 ## 難度評分
-錯誤成本高、推理深度中、判斷空間中 → 標準生成層|Codex 預設模型
+錯誤成本中、推理深度低、判斷空間低 → 高吞吐層|Codex 預設模型
 
 ## 任務描述
-家長端畫面:`#parent` 路由、PIN 輸入、第一次設定、待核准、獎項管理、玩家管理、紀錄、自動上鎖、告知文字(SPEC 畫面 5–10)。後端已完成,這張只接畫面。
+寫部署說明、README 段落、留給雲端跑的 Playwright 腳本。不改 `index.html`、`Code.gs`。
 
 ## 涉及檔案
-- `index.html`
-- `test/frontend.test.js`
+- `docs/DEPLOY-reward.md`(新增)
+- `README.md`
+- `test/e2e/reward.spec.js`(新增)
+- `test/backend.test.js`(只加一個測試)
 - `REPORT.md`
 
 ## 具體步驟
-1. 讀 `docs/dispatch/SPEC.md` 畫面 5–10 與「設計規則」「法律與標示」;`docs/dispatch/DESIGN.html` 第 411–600 行(家長端畫面)與第 1–223 行的家長相關 CSS。後端參數以 `Code.gs` 為準(`parentAction`、`requireSession`、`managePlayer`、`rewardAction`)。`index.html` 用搜尋,不要整檔讀。
-2. **路由**:`location.hash === '#parent'` 時進家長頁,否則照常。監聽 `hashchange`。離開家長頁一律先上鎖。首頁不加連結(SPEC 指定入口就是 `#parent`)。沒有 `FAMILY.code` 或是閱讀碼模式時顯示 `這台裝置還沒有輸入家庭邀請碼，請先到首頁輸入。` 與回首頁按鈕。
-3. **session**:只放模組內的 `let PARENT_SESSION=null`。不可以寫進 localStorage、sessionStorage、DOM、網址。
-4. **自動上鎖**:`visibilitychange` 變 `hidden` 立刻上鎖;在家長頁 3 分鐘沒有 pointer、key 事件就上鎖(常數 `PARENT_IDLE_MS=180000`)。上鎖時:清掉 session、盡力送 `parentLogout`(失敗不管)、清空家長內容、回 PIN 畫面。任何 API 回 `no_session` 也走同一條路。頂條常駐「上鎖」鈕。
-5. **PIN 畫面(畫面 5)**:進頁先呼叫 `parentStatus`。`hasPin` 為否走第一次設定。數字鍵 0–9 與刪除,每鍵高 60px;圓點顯示輸入長度(預設 6 格)。滿 6 位自動送出;4–5 位按「確定」。文字逐字:
-   - 標題 `輸入家長 PIN`
-   - 錯誤 `PIN 不對，還可以再試 {left} 次`
-   - 鎖定 `輸入錯太多次，請 {minutes} 分鐘後再試`,鍵盤全部 disabled
-   - 忘記 `忘記 PIN 了？請管理者重設，並取得新的設定碼。`
-   - Face ID 按鈕位置:`使用 Face ID（之後才有）`,disabled。在 iframe(`window.self !== window.top`)內不顯示。
-   - 鍵盤按下不要把 PIN 放進網址、`console` 或 DOM 屬性;圓點只顯示填了幾格。
-6. **第一次設定(畫面 6)**:標題 `第一次設定家長 PIN`。欄位:設定碼(`autocapitalize=characters`,`autocomplete=off`)、新 PIN、再輸入一次(都用 `inputmode=numeric`、`type=password`、`autocomplete=off`)。說明 `設定碼由管理者提供。PIN 用 4～6 位數字，建議 6 位。`。逐字:
-   - 兩次不同 `兩次輸入的 PIN 不一樣`(不送後端)
-   - 格式 `PIN 要 4～6 位數字`(不送後端)
-   - 弱 PIN 提示(全部相同或連號,例如 111111、123456):`這組 PIN 很容易被猜到，建議換一組`。只提示,再按一次可以送出
-   - 設定碼錯 `設定碼不對，還可以再試 {left} 次`
-   - `pin_exists`:重新走 `parentStatus`
-7. **主畫面**:深色頂條(`--parent`、`--parent-soft`,把 SPEC 指定的亮暗色票加到現有主題)、標題 `家長`、`上鎖` 鈕、離開鈕(回首頁並上鎖)。四個分頁:`待核准`、`獎項`、`玩家`、`紀錄`。待核准分頁上有筆數標記(`pendingCount`,0 不顯示)。
-8. **待核准(畫面 7)**:`redeemList`。每張卡:玩家圖示與暱稱、獎項名稱、要銀幾枚與金幾枚(快照 `silver`、`gold`)、這筆保留(`pay`,分色)、他目前可用銀與金、`本週已換 n 次`。用到金抵銀時註明 `其中金 n 枚用來抵銀`(n = `pay.gold - gold`)。「核准」一鍵,按鈕立刻停用。「拒絕」展開原因輸入(`maxlength=40`,可留空)與「確定拒絕」。`conflict` 顯示 `這筆剛剛已經被決定了`、刷新。`insufficient` 顯示 `他的徽章不夠，不能核准`。`busy` 自動重試一次。空的:`現在沒有待核准的申請`。
-9. **獎項(畫面 8)**:`rewardList`(帶 `session`、`playerId:'p1'`),含停用的(虛框)。新增、修改表單:名稱(必填,1–20 字)、銀與金各一組加減鈕(0–99,合計 0 時儲存鈕 disabled)、`金可以抵銀` 開關(預設開)、每週上限(0–14,說明 `0 表示不限`)、啟用開關。預覽照 DESIGN 的文字:`小孩會看到 需要 …`,加 `（銀不夠可以用金補）` 或 `（只收銀，不能用金抵）`(銀為 0 時不加)。
-10. **玩家(畫面 9)**:`playerList` 帶 `withBalance`。每位:圖示、暱稱、可用、保留、累計(分色)、狀態。啟用的玩家有「停用」;停用的有「還原」與「永久刪除」。**p1 沒有停用與永久刪除按鈕**。停用要頁內確認,說明 `他的待核准申請會自動取消`。永久刪除要輸入暱稱完全相同才能按,說明 `這位玩家的徽章、兌換紀錄都會刪除，不能復原。`。成功後刪本機該玩家所有 `pid:` 鍵;若剛好是這台目前玩家,走既有 `fallbackPlayer`。告知文字放這個分頁下方,**逐字**:
-    > 這裡存了什麼：暱稱、圖示、徽章數、兌換紀錄。
-    > 存在哪裡：這個家庭的 Google 試算表。
-    > 怎麼刪除：先停用這位玩家，再按「永久刪除」。
-    > 家長 PIN 只存雜湊，看不到原本的數字。
-    > 暱稱請用代號，不要填真名。
-11. **紀錄(畫面 10)**:`parentLog`。決定紀錄顯示時間、玩家、獎項、`核准`／`拒絕`、原因。異常列顯示時間、玩家、顏色、原因(後端文字),標 `異常`。空的:`還沒有紀錄`。
-12. 所有文字 `esc()`。不用 `confirm()`、`alert()`。可點元件 ≥ 44×44px;所有錯誤狀態要有「再試一次」。連不到雲端時顯示 `連不到雲端，請稍後再試` 與「再試一次」,不顯示舊資料冒充。
-13. 補 jsdom 測試(編號寫在名稱),寫 `REPORT.md`。
+1. `docs/DEPLOY-reward.md`,給非工程師看,步驟依序(內容逐字採用下列重點,可以調整語句但不可以漏步驟、不可以換順序):
+   1. **先備份**:打開試算表 → 檔案 → 建立副本。
+   2. **貼上新程式**:擴充功能 → Apps Script → 打開 `Code.gs` → 全選、貼上 repo 裡新的 `Code.gs` → 儲存。
+   3. **執行一次 `setup`**:上方函式選單選 `setup` → 執行。會補上「玩家、徽章入帳、獎勵、兌換、兌換紀錄」五個工作表、「徽章」表第 5 欄「玩家ID」,並產生 `PEPPER`(在專案設定的指令碼屬性看得到,不要外流、不要刪除;刪了所有 PIN 都會失效)。可以重複執行,不會覆蓋資料。
+   4. **更新部署**:部署 → 管理部署作業 → 鉛筆(編輯)→ 版本選「新版本」→ 部署。網址不變。**不要用「新增部署作業」**,那會產生新網址。
+   5. **發設定碼**(每個家庭一次),不必把管理者金鑰拿出來:在 Apps Script 編輯器新增下面這段暫時函式,把邀請碼改成該家庭的,選 `tmpIssue` 執行,到「執行紀錄」看設定碼,**看完把這段函式刪掉、再儲存**,不必重新部署:
+      ```js
+      function tmpIssue() {
+        console.log(adminParent({ action: 'adminIssueSetupCode', family: '這裡填邀請碼' }));
+      }
+      ```
+      設定碼私下交給家長。一個家庭只會有一組有效的,重發會讓舊的失效。
+   6. **家長設定 PIN**:在手機打開 `網站網址/#parent` → 輸入設定碼與新 PIN。可以把這個網址加到手機主畫面。
+   7. **手機實測**:用 PR 的前端實測(`npm run build` 後開 `dist/index.html` 是假後端示範;要測真後端,由使用者自行決定)。確認沒問題後,**使用者自己按合併 PR**。合併等於上線。舊前端在合併前可以照常用,它不帶玩家資料,一律當第一位玩家。
+   8. **忘記 PIN 或要重設**:同第 5 步的暫時函式,把 `action` 改成 `adminResetPin`,再發一次設定碼。
+   9. **退回**:部署 → 管理部署作業 → 編輯 → 版本選舊版 → 部署;前端未合併就不用動。新工作表留著不影響舊版。
+   另外寫一節「上線前再確認」:個資法修法施行日(SPEC 要求上線前再查一次,連到 `https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=I0050021`);試算表只分享給管理者自己。
+   文件不可以出現任何真實網址、邀請碼、金鑰、PIN(`這裡填邀請碼` 這類佔位字可以)。
+2. `README.md`:最後的「九、安全與限制」之前,加「## 家長權限與獎勵(新增)」一段:功能一句話、入口 `#parent`、徽章規則(一般銀、進階金,每位玩家分開)、升級步驟連到 `docs/DEPLOY-reward.md`、`npm install`、`npm run build`、`node --test` 的用途。編號慣例保持,不要重新編號既有章節。
+3. `test/backend.test.js`:加一個測試 `T008 docs: 編輯器暫時函式可以發設定碼`,用 `env.run('adminParent',{action:'adminIssueSetupCode',family:'TEST-0000'})` 確認回 `ok:true` 與 `setupCode`,且該設定碼能用來 `parentSetPin`。
+4. `test/e2e/reward.spec.js`,給雲端用 Playwright 跑:
+   - **`node --test` 會把 `test/` 底下所有 js 當測試跑**,這個檔不可以讓 `node --test` 失敗。檔案開頭判斷:`require.resolve('@playwright/test')` 找不到就直接 `return` 式結束(用 `try/catch` 包起來、整個內容放進函式),不新增相依,也不把 Playwright 寫進 `package.json`。
+   - 開檔註解寫明執行方式:`npm run build`、`npm i --no-save @playwright/test`、`npx playwright install chromium`、`npx playwright test test/e2e/reward.spec.js`(用 `file://` 開 `dist/index.html`,用 `FQ_DIST` 環境變數可以改路徑)。
+   - 測試內容(只跑假後端,不連真實服務):G1:390×844 與 375×667 下,首頁、獎勵頁、我的申請、家長 PIN、家長四個分頁,`document.documentElement.scrollWidth <= window.innerWidth`,可見按鈕與輸入框的 `getBoundingClientRect` 高寬都 ≥ 44,且沒有 `pageerror`;A2、A3、B5、C1、D1、D2、D6、D7、D9、E1、G2 的畫面主流程各一個,用 `page.setContent` 以外的真實導覽。G3:開頭註解說明 Lighthouse 指令 `npx lighthouse <網址> --form-factor=mobile --only-categories=performance`,雲端手動跑。
+5. 寫 `REPORT.md`。
 
 ## 驗收標準(全部達成才算完成)
-- [ ] [測試] `node --test` 全數通過
-- [ ] [測試] 第一次設定:用假後端設定碼 `MOCK2345` 成功進主畫面;兩次不同、格式錯不發請求;錯的設定碼顯示 `設定碼不對，還可以再試 4 次`
-- [ ] [測試] PIN:輸入滿 6 位自動送出;4 位按確定送出;錯誤顯示剩餘次數;連錯 5 次顯示鎖定文字,數字鍵全部 disabled,且不再發請求
-- [ ] [測試] B5:`visibilitychange` 變 hidden 後回到 PIN 畫面,`PARENT_SESSION` 為 null,家長內容已從 DOM 清掉,有送 `parentLogout`;閒置 3 分鐘同樣上鎖(用假計時或 `PARENT_IDLE_MS` 驗);有操作會重算閒置時間。伺服器回 `no_session` 也上鎖
-- [ ] [測試] session 沒有出現在 localStorage、sessionStorage、`location`、`document.documentElement.outerHTML`
-- [ ] [測試] C1:家長新增、修改、停用獎項後,小孩端清單一致;停用的小孩看不到,家長看得到
-- [ ] [測試] D7(前):只銀、只金、銀＋金三種獎項,小孩卡片與家長待核准顯示相同枚數
-- [ ] [測試] E1:待核准卡片有玩家、獎項、要銀金、可用銀金、本週已換;分頁標記筆數正確,決定後減少,歸零時不顯示
-- [ ] [測試] 核准一鍵成功;拒絕展開後寫原因,小孩端顯示 `家長說：原因`。模擬另一位家長已決定時顯示 `這筆剛剛已經被決定了`
-- [ ] [測試] A3(前):p1 沒有停用、永久刪除按鈕;停用後移到最下面,切換清單置底且灰;還原後回來;永久刪除要輸入完全相同的暱稱才能按
-- [ ] [測試] A4(前):永久刪除後本機該玩家所有 `pid:` 鍵被刪
-- [ ] [測試] 獎項表單:銀 0 金 0 時儲存鈕 disabled;名稱空白不送;預覽文字與設定一致
-- [ ] [測試] G2:沒有待核准的文字、連不到雲端的文字都出現過(`?mock=offline`)
-- [ ] [測試] 告知文字五句逐字存在;Face ID 按鈕 disabled;iframe 內不顯示
-- [ ] [測試] XSS:暱稱、獎項名稱、拒絕原因含 `<img src=x onerror=...>` 在家長頁都以文字顯示
-- [ ] [測試] 不是 `#parent` 時,主程式行為與之前相同(既有前端測試全過);正式 `index.html` 仍不含 `mock://gas`、`createGasEnv`
-- [ ] [人工] 390×844、375×667 版面與觸控大小由雲端測試確認,本機不驗
+- [ ] [測試] `node --test` 全數通過,`test/e2e/reward.spec.js` 不造成失敗
+- [ ] [測試] `T008 docs` 測試通過
+- [ ] [測試] `new vm.Script` 編譯 `test/e2e/reward.spec.js` 成功(或 `node --check`)
+- [ ] [複核] `git diff --stat` 沒有 `index.html`、`Code.gs`、`package.json`
+- [ ] [複核] `docs/DEPLOY-reward.md` 九個步驟都在、順序正確;`git grep` 查不到 `script.google.com/macros/s/` 出現在 `docs/DEPLOY-reward.md`
+- [ ] [人工] e2e 腳本由雲端實際執行,本機未跑。REPORT 必須明寫「尚未做:Playwright 實際執行」
 
 ## 假設與未知
-- 假設:家長頁獎項清單的 `playerId` 帶 `p1`,只用來取得清單,不代表 p1 的額度。
-- 假設:閒置與 visibility 上鎖只在家長頁生效,不影響小孩使用。
-- 假設:PIN 用畫面數字鍵,不用系統鍵盤;設定頁用輸入框(有設定碼要打字)。
-- 遇到未知:選保守方案(不確定就上鎖、不顯示舊資料)、記到 REPORT.md「偏離事項」、繼續,不得擴大範圍。
+- 假設:`adminParent` 是全域函式,在 Apps Script 編輯器可以直接呼叫,不經 token。這只有擁有編輯器權限的管理者做得到。
+- 未知:雲端 Chromium 的 emoji、字型差異可能影響量測,腳本量測只比尺寸,不比截圖。
+- 遇到未知:選保守方案、記到 REPORT.md「偏離事項」、繼續。
 
 ## 禁止事項
-- 不得修改「涉及檔案」以外的檔案;`Code.gs` 不動。若需要後端新欄位,記到未決事項
-- 不得啟動瀏覽器;不得連線真實服務;不得新增相依
+- 不得修改「涉及檔案」以外的檔案;不得改 `docs/dispatch/`
+- 不得啟動瀏覽器;不得執行 `playwright`、`lighthouse`;不得安裝 Playwright
+- 不得部署;不得連線真實服務
 - 不得 git commit、git push
-- 不得做 Face ID、撤銷已核准、手動加減徽章、預設獎項一鍵加入、匯出(SPEC 列為不做)
-- 不得用 `confirm()`、`alert()`;PIN 與 session 不得進 console、localStorage、網址
-- 不得為了測試加後門、放寬上鎖;計時用假計時器或測試可覆寫的常數取得方式,不可以讓正式頁面可以用網址參數關掉上鎖
-- 不得引入新字型或外部素材
+- 文件不得放真實網址、邀請碼、金鑰、PIN
 - 最簡解原則:能少寫就少寫
 
 ## 上下文 / 已知的坑
-- `api()` 失敗時丟出的物件現在保留整個回應(`left`、`minutes`、`status`、`reason`)。
-- 共用元件可參考 `rewardCoins`、`rewardWallet`、`rewardMedals`、`.reward-*` CSS。
-- `flushPlayerSaves`、`fallbackPlayer`、`refreshPlayers(withBalance)` 已存在。
-- 主程式開站會走 `libHome()`,路由判斷加在開站那段(檔案最後的 async IIFE)。
-- 假後端種子的家長設定碼 `MOCK2345`,`tools/mock-backend.js` 有固定橫幅。
+- 假後端設定碼 `MOCK2345`,網址參數 `?mock=offline|slow|empty`,見 `tools/mock-backend.js`。
+- 既有前端流程可參考 `test/frontend.test.js` 的選擇器(`#player-button`、`#rewards-home`、`[data-reward-tab]`、`[data-apply]`、`#reward-send`、`[data-pin-key]`、`[data-parent-tab]`…)。
 
 ## 完成後回報格式(寫入 REPORT.md)
 1. 修改了哪些檔案(逐一列出)
