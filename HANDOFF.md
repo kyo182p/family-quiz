@@ -15,6 +15,7 @@ T-008 第 1 輪
 寫部署說明、README 段落、留給雲端跑的 Playwright 腳本。不改 `index.html`、`Code.gs`。
 
 ## 涉及檔案
+- `BUILD_REPORT.md`(新增;收尾由 Orchestrator 寫)
 - `docs/DEPLOY-reward.md`(新增)
 - `README.md`
 - `test/e2e/reward.spec.js`(新增)
