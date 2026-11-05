@@ -8,7 +8,7 @@ GitHub Pages 單檔 `index.html`＋Apps Script `Code.gs`＋Google 試算表。ma
 
 ## 目前狀態
 - 最後更新:2026-11-06 fq-reward 第 1 輪 T-001～T-008
-- 第一階段功能在 `build/fq-reward`,PR 未合併。下一步:雲端跑 `test/e2e/reward.spec.js` 與 Lighthouse,使用者照 `docs/DEPLOY-reward.md` 部署後端、手機實測。
+- 第一階段功能在本機 `build/fq-reward`,尚未推送、PR 未開(push 被工具權限擋下)。下一步:使用者推送開 PR,雲端跑 `test/e2e/reward.spec.js` 與 Lighthouse,使用者照 `docs/DEPLOY-reward.md` 部署後端、手機實測。
 
 ## 已完成
 | 任務 | 結果 | 日期 |
