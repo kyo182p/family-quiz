@@ -36,9 +36,9 @@ function createGasEnv(options = {}) {
   }
   function convert(value, text, sheet, row, col) {
     if (typeof value !== 'string') return clone(value == null ? '' : value);
-    if (value.startsWith("'")) return value.slice(1);
+    if (value.startsWith("'") && value.length > 1) return value.slice(1);
     if (text) return value;
-    if (value.startsWith('=')) {
+    if (value.startsWith('=') || (/^[+@-]/.test(value) && !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value))) {
       formulaCells.push({ sheet: sheet.name, row, col, formula: value });
       return { formula: value };
     }

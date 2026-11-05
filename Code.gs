@@ -46,6 +46,11 @@ const MAX_PROMPT_CHARS = 150000;
 const CHUNK = 45000;          // 試算表單一儲存格上限 50,000 字元，保留緩衝
 const MAX_BANK_CHARS = 900000;
 const TIMEZONE = 'Asia/Taipei';
+const MAX_PLAYERS = 12;
+const DAILY_BADGE_CAP = 10;
+const PLAYER_ICONS = ['🌱','🦊','🐢','🐳','🦄','🚀','🐼','🐰','🦖','🐝','🌈','⭐'];
+const PLAYER_HEADER = ['邀請碼','玩家ID','暱稱','圖示','排序','狀態','建立時間','更新時間','停用時間'];
+const LEDGER_HEADER = ['家庭','玩家','徽章鍵','at','顏色','入帳時間','異常','數量','來源'];
 
 /* ===== 進入點 ===== */
 function doGet() {
@@ -104,7 +109,7 @@ function doPost(e) {
     const readerB = famB ? null : findReader(req.code);
     if (!famB && !readerB) return out({ ok: false, code: 'bad_code', message: '代碼不正確或已停用' });
     try {
-      return out(badgeSync(famB ? famB.code : readerB.code, famB ? '家庭' : '閱讀碼', req.badges));
+      return out(badgeSync(famB ? famB.code : readerB.code, famB ? '家庭' : '閱讀碼', req.badges, req.playerId));
     } catch (err) {
       console.error(err);
       return out({ ok: false, code: 'server_error', message: String(err && err.message || err) });
@@ -131,6 +136,17 @@ function doPost(e) {
   if (!fam) return out({ ok: false, code: 'bad_code', message: '邀請碼不正確或已停用' });
   try {
     switch (req.action) {
+      case 'playerList':
+        return out(withLock(() => { ensureP1(fam.code); return {ok:true, players:readPlayers(fam.code).sort((a,b) => (a.status === '停用') - (b.status === '停用') || a.order-b.order)}; }));
+      case 'playerSave':
+        return out(playerSave(fam.code, req));
+      case 'balance':
+        return out(withLock(() => {
+          const pid = req.playerId || 'p1', err = checkPlayer(fam.code, pid);
+          if (err) return err;
+          syncLedger(fam.code, pid, {});
+          return playerBalance(fam.code, pid);
+        }));
       case 'ping':
         return out({ ok: true, family: fam.name, remaining: remaining(fam), bonus: fam.bonus, canPublish: fam.canPublish });
       case 'setPublish':
@@ -146,7 +162,7 @@ function doPost(e) {
       case 'listBanks':
         return out({ ok: true, banks: listBanks(fam) });
       case 'saveBank':
-        return out(saveBank(fam, req.bank));
+        return out(saveBank(fam, req.bank, req.playerId));
       case 'handoutList':
         return out({ ok: true, handouts: handoutList(fam, String(req.bankId || '')) });
       case 'handoutGet': {
@@ -198,7 +214,10 @@ function setup() {
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('ADMIN_TOKEN')) props.setProperty('ADMIN_TOKEN', Utilities.getUuid().replace(/-/g, ''));
   ensure(SHEET_HANDOUT, ['講義ID', '邀請碼', '題庫ID', '標題', '觀念', '建立時間', '狀態', '驗算意見', '驗算時間', 'JSON 分段數', 'JSON1']);
-  ensure(SHEET_BADGE, ['代碼', '身分', '更新時間', '徽章 JSON']);
+  const badge = ensure(SHEET_BADGE, ['代碼', '身分', '更新時間', '徽章 JSON', '玩家ID']);
+  if (String(badge.getRange(1,5).getValue()) === '') badge.getRange(1,5).setValue('玩家ID');
+  ensure('玩家', PLAYER_HEADER);
+  ensure('徽章入帳', LEDGER_HEADER);
   ensure(SHEET_USAGE, ['時間', '邀請碼', '家庭', '模型', '照片數', '輸入 token', '輸出 token', '估計美元']);
   if (fam.getLastRow() === 1) fam.appendRow(['TEST-0000', '測試家庭', 10, true, '測試用，可刪除', false]);
 }
@@ -326,12 +345,43 @@ function listBanks(fam) {
   return banks;
 }
 
-function saveBank(fam, bank) {
-  if (!bank || !bank.id) return { ok: false, code: 'bad_request', message: '缺少題庫' };
-  const old = listBanks(fam).filter(b => String(b.id) === String(bank.id))[0];
-  const changed = mergeChecks(old, bank);
-  if (changed.length) closeReports(String(bank.id), changed);
-  return putBank(fam, bank);
+function saveBank(fam, bank, pid) {
+  if (!bank || !/^[\w-]{1,80}$/.test(String(bank.id || ''))) return {ok:false, code:'bad_request'};
+  return withLock(() => {
+    const err = checkPlayer(fam.code, pid);
+    if (err) return err;
+    const old = listBanks(fam).find(b => String(b.id) === String(bank.id)) || {};
+    const modern = Object.prototype.hasOwnProperty.call(bank, 'players');
+    const incomingPlayers = bank.players || {};
+    const players = Object.assign({}, old.players || {});
+    const valid = readPlayers(fam.code).filter(p => p.status === '啟用').map(p => p.id);
+    const sync = [{pid:'p1', badge:bank.badge}];
+    if (modern) {
+      const at = Number(bank.p1At === undefined ? bank.updatedAt : bank.p1At) || 0;
+      const oldAt = Number(old.p1At === undefined ? old.updatedAt : old.p1At) || 0;
+      if (at < oldAt) ['rec','days','summary'].forEach(k => { if (k in old) bank[k] = old[k]; else delete bank[k]; });
+      bank.p1At = Math.max(at, oldAt);
+      bank.badge = mergeBadgeRec(old.badge, bank.badge);
+      if (bank.badge === undefined) delete bank.badge;
+      Object.keys(incomingPlayers).forEach(id => {
+        if (id === 'p1' || valid.indexOf(id) < 0) return;
+        const inc = incomingPlayers[id];
+        if (!inc || typeof inc !== 'object') return;
+        const prev = players[id] || {};
+        if (JSON.stringify(inc) === JSON.stringify(prev)) return;
+        const progress = (Number(inc.updatedAt)||0) >= (Number(prev.updatedAt)||0) ? inc : prev;
+        players[id] = Object.assign({}, progress, {badge:mergeBadgeRec(prev.badge, inc.badge)});
+        sync.push({pid:id, badge:inc.badge});
+      });
+    } else bank.p1At = Number(bank.updatedAt) || 0;
+    if (Object.keys(players).length || modern || old.players) bank.players = players;
+    else delete bank.players;
+    const changed = mergeChecks(old, bank);
+    if (JSON.stringify(bank).length > MAX_BANK_CHARS) return {ok:false, code:'too_large', message:'題庫太大'};
+    sync.forEach(x => syncLedger(fam.code, x.pid, {[bank.id]:x.badge}));
+    if (changed.length) closeReports(String(bank.id), changed);
+    return putBank(fam, bank, true);
+  });
 }
 
 // 寫入題庫（不做合併），定期掃題寫回判讀結果時也用這個
@@ -357,7 +407,7 @@ function putBank(fam, bank, noLock) {
     // 清掉舊的多餘分段
     const lastCol = sh.getLastColumn();
     if (lastCol > values.length) sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent();
-    sh.getRange(rowIdx, 1, 1, values.length).setValues([values]);
+    sh.getRange(rowIdx, 1, 1, values.length).setValues([values.map(v => typeof v === 'string' ? safeCell(v) : v)]);
     // 題目有變才重寫「題目」工作表（只改作答紀錄時不重寫）
     if (oldHash !== qHash) writeQuestionRows(fam, bank, title);
     updatePublicMeta(fam, bank, title);
@@ -462,7 +512,7 @@ function setPublish(fam, id, published) {
     const title = String(bank.title || [bank.grade, bank.subject, bank.unit].filter(Boolean).join(' ') || '未命名');
     removePublicRow(fam, id);
     publicSheet().appendRow([id, fam.code, title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
-      bank.unit || '', (bank.questions || []).length, new Date(), fam.name]);
+      bank.unit || '', (bank.questions || []).length, new Date(), fam.name].map(v => typeof v === 'string' ? safeCell(v) : v));
     clearLibCache();
     return { ok: true };
   } finally {
@@ -475,7 +525,7 @@ function updatePublicMeta(fam, bank, title) {
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(bank.id) && String(rows[i][1]) === fam.code) {
       sh.getRange(i + 1, 3, 1, 7).setValues([[title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
-        bank.unit || '', (bank.questions || []).length]]);
+        bank.unit || '', (bank.questions || []).length].map(v => typeof v === 'string' ? safeCell(v) : v)]);
       clearLibCache();
       return;
     }
@@ -924,30 +974,126 @@ function mergeBadgeRec(a, b) {
   const cur = la !== lb ? (la > lb ? a : b) : ((b.cells || []).length >= (a.cells || []).length ? b : a);
   return { cells: (cur.cells || []).slice(0, 400), ok: cur.ok || [0, 0, 0], earned: earned.slice(-500), meta: b.meta || a.meta || null };
 }
-function badgeSync(code, role, incoming) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const sh = badgeSheet();
-    const rows = sh.getDataRange().getValues();
+function badgeSync(code, role, incoming, pid) {
+  return withLock(() => {
+    pid = pid || 'p1';
+    const inc = incoming && typeof incoming === 'object' ? incoming : {};
+    if (role === '家庭') { const err = checkPlayer(code, pid); if (err) return err; }
+    const sh = badgeSheet(), rows = sh.getDataRange().getValues();
     let row = 0, stored = {};
-    for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][0]) === code) { row = i + 1; try { stored = JSON.parse(String(rows[i][3] || '{}')) || {}; } catch (e) { stored = {}; } break; }
+    for (let i=1; i<rows.length; i++) {
+      if (String(rows[i][0]) === code && (role !== '家庭' || String(rows[i][4] || 'p1') === pid)) {
+        row = i+1; try { stored = JSON.parse(String(rows[i][3] || '{}')) || {}; } catch(e) {}
+        break;
+      }
     }
     const merged = {};
-    const inc = incoming && typeof incoming === 'object' ? incoming : {};
     Object.keys(stored).concat(Object.keys(inc)).forEach(k => {
-      if (k in merged || !/^[\w\-]{1,80}$/.test(k)) return;
-      merged[k] = mergeBadgeRec(stored[k], inc[k]);
+      if (Object.prototype.hasOwnProperty.call(merged,k) || !/^[\w-]{1,80}$/.test(k)) return;
+      Object.defineProperty(merged,k,{value:mergeBadgeRec(stored[k],inc[k]), enumerable:true});
     });
     const json = JSON.stringify(merged);
-    if (json.length > 49000) return { ok: false, code: 'too_large', message: '徽章資料太大' };
+    if (json.length > 49000) return {ok:false, code:'too_large', message:'徽章資料太大'};
+    if (role === '家庭') syncLedger(code, pid, inc);
     if (json !== JSON.stringify(stored)) {
-      if (row) sh.getRange(row, 2, 1, 3).setValues([[role, new Date(), json]]);
-      else sh.appendRow([code, role, new Date(), json]);
+      const values = [safeCell(code),safeCell(role),new Date(),safeCell(json)];
+      if (role === '家庭') values.push(safeCell(pid));
+      if (row) sh.getRange(row,1,1,values.length).setValues([values]); else sh.appendRow(values);
     }
-    return { ok: true, badges: merged };
-  } finally {
-    lock.releaseLock();
+    return {ok:true, badges:merged};
+  });
+}
+function safeCell(s) { s = String(s == null ? '' : s); return s === '' ? '' : "'" + s; }
+function withLock(fn) {
+  const lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch(e) { return {ok:false, code:'busy', message:'系統忙碌，請再試一次'}; }
+  try { return fn(); } finally { try { SpreadsheetApp.flush(); } finally { lock.releaseLock(); } }
+}
+function rewardSheet(name, header) {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(name);
+  if (!sh) { sh = ss.insertSheet(name); sh.appendRow(header); sh.setFrozenRows(1); }
+  return sh;
+}
+function readPlayers(code) {
+  const sh = SpreadsheetApp.getActive().getSheetByName('玩家');
+  if (!sh) return [];
+  return sh.getDataRange().getValues().slice(1).filter(r => String(r[0]) === code).map(r => ({id:String(r[1]),name:String(r[2]),icon:String(r[3]),order:Number(r[4])||0,status:String(r[5])}));
+}
+function ensureP1(code) {
+  if (!readPlayers(code).some(p => p.id === 'p1')) rewardSheet('玩家',PLAYER_HEADER).appendRow([safeCell(code),safeCell('p1'),safeCell('玩家 1'),safeCell('🌱'),0,safeCell('啟用'),new Date(),new Date(),'']);
+}
+function checkPlayer(code, pid) {
+  pid = pid || 'p1';
+  if (!/^p[a-z0-9]{1,12}$/.test(String(pid))) return {ok:false, code:'bad_request'};
+  if (pid === 'p1') ensureP1(code);
+  const p = readPlayers(code).find(p => p.id === pid);
+  if (!p) return {ok:false, code:'bad_player'};
+  if (p.status !== '啟用') return {ok:false, code:'player_disabled'};
+  return null;
+}
+function playerSave(code, req) {
+  const name = String(req.name || '').trim(), icon = String(req.icon || '');
+  if (!name || Array.from(name).length > 12 || PLAYER_ICONS.indexOf(icon) < 0 || (req.playerId && !/^p[a-z0-9]{1,12}$/.test(String(req.playerId)))) return {ok:false, code:'bad_request'};
+  return withLock(() => {
+    ensureP1(code);
+    const sh = rewardSheet('玩家',PLAYER_HEADER), rows = sh.getDataRange().getValues();
+    let pid = req.playerId, row = 0;
+    if (pid) {
+      row = rows.findIndex((r,i) => i > 0 && String(r[0]) === code && String(r[1]) === pid) + 1;
+      if (!row) return {ok:false, code:'bad_player'};
+      sh.getRange(row,3,1,2).setValues([[safeCell(name),safeCell(icon)]]);
+      sh.getRange(row,8).setValue(new Date());
+    } else {
+      const players = readPlayers(code);
+      if (players.length >= MAX_PLAYERS) return {ok:false, code:'player_limit'};
+      do { pid = 'p' + Utilities.getUuid().replace(/-/g,'').slice(0,8).toLowerCase(); } while (rows.some(r => String(r[1]) === pid));
+      sh.appendRow([safeCell(code),safeCell(pid),safeCell(name),safeCell(icon),Math.max(...players.map(p => p.order))+1,safeCell('啟用'),new Date(),new Date(),'']);
+    }
+    return {ok:true, player:readPlayers(code).find(p => p.id === pid)};
+  });
+}
+// Called only under withLock, before either cloud snapshot is overwritten.
+function syncLedger(code, pid, incoming) {
+  const sh = rewardSheet('徽章入帳',LEDGER_HEADER), rows = sh.getDataRange().getValues().slice(1);
+  const props = PropertiesService.getScriptProperties(), initKey = 'ledgerinit:' + code + ':' + pid;
+  const initial = !props.getProperty(initKey), now = new Date();
+  const day = d => Utilities.formatDate(new Date(d),TIMEZONE,'yyyy-MM-dd');
+  const seen = new Set(rows.filter(r => String(r[0]) === code && String(r[1]) === pid).map(r => JSON.stringify([String(r[2]),Number(r[3])])));
+  let count = rows.filter(r => String(r[0]) === code && String(r[1]) === pid && !r[6] && String(r[8]) === '同步' && day(r[5]) === day(now)).length;
+  const add = (key, rec, source) => {
+    if (!/^[\w-]{1,80}$/.test(key)) return;
+    (rec && Array.isArray(rec.earned) ? rec.earned : []).forEach(e => {
+      const at = Number(e && e.at);
+      // Malformed timestamps cannot create spendable credit.
+      if (!Number.isFinite(at) || at <= 0) return;
+      const unique = JSON.stringify([key,at]);
+      if (seen.has(unique)) return;
+      seen.add(unique);
+      const anomaly = at > now.getTime()+300000 ? '時間異常' : source === '同步' && count >= DAILY_BADGE_CAP ? '超過每日上限' : '';
+      if (!anomaly && source === '同步') count++;
+      sh.appendRow([safeCell(code),safeCell(pid),safeCell(key),at,safeCell(e.dark ? '金' : '銀'),now,safeCell(anomaly),1,safeCell(source)]);
+    });
+  };
+  if (initial) {
+    listBanks({code}).forEach(b => add(String(b.id),pid === 'p1' ? b.badge : (b.players || {})[pid] && b.players[pid].badge,'補入'));
+    badgeSheet().getDataRange().getValues().slice(1).filter(r => String(r[0]) === code && String(r[4] || 'p1') === pid).forEach(r => {
+      let badges = {}; try { badges = JSON.parse(String(r[3] || '{}')) || {}; } catch(e) {}
+      Object.keys(badges).forEach(k => add(k,badges[k],'補入'));
+    });
   }
+  Object.keys(incoming || {}).forEach(k => add(k,incoming[k],initial && pid === 'p1' ? '補入' : '同步'));
+  if (initial) props.setProperty(initKey,'1');
+}
+function playerBalance(code, pid) {
+  const sh = SpreadsheetApp.getActive().getSheetByName('徽章入帳');
+  const result = {ok:true,silver:{available:0,held:0,total:0},gold:{available:0,held:0,total:0}};
+  if (sh) sh.getDataRange().getValues().slice(1).forEach(r => {
+    if (String(r[0]) !== code || String(r[1]) !== pid || r[6]) return;
+    const color = String(r[4]) === '金' ? result.gold : String(r[4]) === '銀' ? result.silver : null;
+    if (color) color.total += r[7] === '' ? 1 : Number(r[7]) || 0;
+  });
+  result.silver.available = result.silver.total;
+  result.gold.available = result.gold.total;
+  return result;
 }

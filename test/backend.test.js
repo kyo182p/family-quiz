@@ -8,6 +8,14 @@ const { createGasEnv } = require('./fake-gas');
 
 const code = 'TEST-0000';
 const plain = value => JSON.parse(JSON.stringify(value));
+const earned = (...ats) => ({earned:ats.map(at => ({at,dark:false}))});
+function newPlayer(env) { return post(env,'playerSave',{name:'測試玩家',icon:'🦊'}).player.id; }
+function seedP2(env) {
+  post(env,'playerList');
+  env.sheets.get('玩家').appendRow([code,'p2','測試二','🐢',1,'啟用',new Date(),new Date(),'']);
+}
+const balance = (env, playerId='p1') => post(env,'balance',{playerId});
+const ledger = env => env.sheets.get('徽章入帳').getDataRange().getValues().slice(1);
 function setup(options) {
   const env = createGasEnv(options);
   env.run('setup');
@@ -15,10 +23,277 @@ function setup(options) {
 }
 function post(env, action, extra = {}) { return env.doPost({ code, action, ...extra }); }
 function bank(id = 'bank-test') {
-  return { id, title: '測試題庫', concepts: [{ id: 'c1', text: '加法' }], questions: [
+  return { id, p1At: 0, title: '測試題庫', concepts: [{ id: 'c1', text: '加法' }], questions: [
     { id: 'q1', c: 'c1', t: 'mc', lv: 1, q: '一加一？', o: ['一', '二'], a: '二', why: '測試解說' },
   ] };
 }
+
+test('T002 setup: adds sheets and fifth badge header without overwriting old data', () => {
+  const env = setup();
+  const sh = env.sheets.get('徽章');
+  sh.getRange(1,5).clearContent();
+  sh.appendRow([code,'家庭',new Date(),'{}']);
+  env.run('setup'); env.run('setup');
+  assert.equal(sh.getRange(1,5).getValue(),'玩家ID');
+  assert.equal(sh.getLastRow(),2);
+  assert.equal(env.sheets.get('玩家').getLastRow(),1);
+  assert.equal(env.sheets.get('徽章入帳').getLastColumn(),9);
+  env.sheets.delete('玩家'); env.sheets.delete('徽章入帳');
+  assert.equal(post(env,'ping').ok,true);
+  assert.equal(post(env,'saveBank',{bank:bank()}).ok,true);
+  assert.equal(post(env,'playerList').players.length,1);
+  assert.equal(post(env,'playerList').players.length,1);
+});
+
+test('A1: legacy saves preserve all p2 progress and badge fields', () => {
+  const env = setup(); seedP2(env);
+  const p2 = {rec:{q1:2},days:['day'],summary:'keep',badge:earned(100),updatedAt:200};
+  assert.equal(post(env,'saveBank',{bank:{...bank(),players:{p2}}}).ok,true);
+  assert.equal(post(env,'saveBank',{bank:{...bank(),rec:{q1:1},updatedAt:900}}).ok,true);
+  const saved = post(env,'listBanks').banks[0];
+  assert.deepEqual(saved.players.p2,p2);
+  assert.equal(saved.p1At,900);
+});
+
+test('T002 R2: legacy frontend echoes cloud players unchanged while saving new p1 answers', () => {
+  const env = setup(); seedP2(env);
+  const p2 = {rec:{q1:2},days:['day'],summary:'keep',badge:earned(100),updatedAt:200};
+  post(env,'saveBank',{bank:{...bank(),p1At:200,updatedAt:200,rec:{q1:0},players:{p2}}});
+  const echoed = post(env,'listBanks').banks[0];
+  const before = plain(echoed.players);
+  // Existing bsSave only updates updatedAt; it has no players/p1At logic.
+  echoed.rec = {q1:1}; echoed.days = ['new-day']; echoed.summary = 'new-p1'; echoed.updatedAt = 900;
+  assert.equal(post(env,'saveBank',{bank:echoed}).ok,true);
+  const saved = post(env,'listBanks').banks[0];
+  assert.deepEqual(saved.players,before);
+  assert.deepEqual(saved.rec,{q1:1}); assert.deepEqual(saved.days,['new-day']);
+  assert.equal(saved.summary,'new-p1');
+});
+
+test('T002 R2: empty safeCell values stay empty and normal ledger anomalies read as empty', () => {
+  const env = setup();
+  for (const value of ['',null,undefined]) assert.equal(env.run('safeCell',value),'');
+  assert.equal(env.run('safeCell',0),"'0");
+  assert.equal(env.run('safeCell',false),"'false");
+  assert.equal(post(env,'playerSave',{playerId:'p1',name:'測試',icon:'🌱'}).ok,true);
+  assert.equal(post(env,'saveBank',{bank:bank()}).ok,true);
+  assert.equal(post(env,'badges',{badges:{demo:earned(100)}}).ok,true);
+  assert.equal(ledger(env).length,1);
+  assert.equal(ledger(env)[0][6],'');
+  assert.equal(balance(env).silver.total,1);
+  for (const [name,sh] of env.sheets) {
+    for (const [i,row] of sh.getDataRange().getValues().entries()) {
+      for (const [j,value] of row.entries()) assert.notEqual(value,"'",`${name} R${i+1}C${j+1}`);
+    }
+  }
+  // Verify the stricter fake independently after scanning application writes.
+  env.sheets.get('玩家').getRange(2,3).setValue("'");
+  assert.equal(env.sheets.get('玩家').getRange(2,3).getValue(),"'");
+});
+
+test('T002 R2: invalid badge key is skipped while valid key is stored and credited', () => {
+  const env = setup();
+  const result = post(env,'badges',{badges:{valid:earned(100),'bad:key':earned(200)}});
+  assert.equal(result.ok,true);
+  assert.deepEqual(Object.keys(result.badges),['valid']);
+  const stored = JSON.parse(env.sheets.get('徽章').getRange(2,4).getValue());
+  assert.deepEqual(Object.keys(stored),['valid']);
+  assert.deepEqual(ledger(env).map(r=>r[2]),['valid']);
+  assert.equal(balance(env).silver.total,1);
+});
+
+test('T002 R2: first balance backfills cloud p1 bank and legacy badges exactly once', () => {
+  const env = setup();
+  env.run('putBank',{code},{...bank(),badge:earned(100,101)});
+  env.sheets.get('徽章').appendRow([code,'家庭',new Date(),JSON.stringify({old:{earned:[{at:200,dark:true}]}})]);
+  assert.equal(env.props.getProperty('ledgerinit:'+code+':p1'),null);
+  assert.equal(ledger(env).length,0);
+  const first = balance(env);
+  assert.deepEqual(first,{ok:true,silver:{available:2,held:0,total:2},gold:{available:1,held:0,total:1}});
+  assert.deepEqual(balance(env),first);
+  assert.equal(ledger(env).length,3);
+  assert.ok(ledger(env).every(r=>r[8]==='補入' && r[6]===''));
+});
+
+test('A1 merge: player clocks beat bank updatedAt; earned unions; unknown/disabled pids discarded', () => {
+  const env = setup(); seedP2(env);
+  post(env,'saveBank',{bank:{...bank(),p1At:500,rec:'p1-cloud',days:[1],summary:'cloud',badge:earned(100),players:{p2:{rec:'p2-cloud',days:[2],summary:'p2',updatedAt:500,badge:earned(200)}}}});
+  post(env,'saveBank',{bank:{...bank(),updatedAt:900,p1At:1,rec:'stale',players:{p2:{rec:'stale',updatedAt:1,badge:earned(300)},pbad:{rec:'bad',badge:earned(400)}}}});
+  let saved = post(env,'listBanks').banks[0];
+  assert.equal(saved.rec,'p1-cloud'); assert.deepEqual(saved.days,[1]); assert.equal(saved.summary,'cloud');
+  assert.equal(saved.players.p2.rec,'p2-cloud'); assert.deepEqual(saved.players.p2.days,[2]);
+  assert.deepEqual(saved.players.p2.badge.earned.map(e => e.at),[200,300]);
+  assert.equal(saved.players.pbad,undefined);
+  post(env,'saveBank',{bank:{...bank(),p1At:0,players:{p2:{rec:'new-p2',updatedAt:501}}}});
+  saved = post(env,'listBanks').banks[0];
+  assert.equal(saved.rec,'p1-cloud'); assert.equal(saved.players.p2.rec,'new-p2');
+  env.sheets.get('玩家').getRange(3,6).setValue('停用');
+  post(env,'saveBank',{bank:{...bank(),players:{p2:{rec:'disabled',updatedAt:999}}}});
+  assert.equal(post(env,'listBanks').banks[0].players.p2.rec,'new-p2');
+  assert.equal(post(env,'badges',{playerId:'p2',badges:{}}).code,'player_disabled');
+  assert.equal(post(env,'saveBank',{playerId:'p2',bank:bank()}).code,'player_disabled');
+});
+
+test('T002 badges: player isolation, blank legacy player ID, reader remains ledger-free, keys independent', () => {
+  const env = setup(); seedP2(env);
+  env.sheets.get('徽章').appendRow([code,'家庭',new Date(),JSON.stringify({old:earned(100)})]);
+  assert.deepEqual(post(env,'badges',{badges:{}}).badges.old,earned(100));
+  post(env,'badges',{playerId:'p2',badges:{old:earned(200),another:earned(200)}});
+  assert.deepEqual(post(env,'badges',{badges:{}}).badges.old,earned(100));
+  assert.equal(balance(env,'p2').silver.total,2);
+  assert.equal(env.sheets.get('徽章').getLastRow(),3);
+  post(env,'readerCreate');
+  // Read the generated reader code directly; its action response shape is unrelated.
+  const readerCode = env.sheets.get('閱讀碼').getRange(2,1).getValue();
+  const before = ledger(env).length;
+  assert.equal(post(env,'badges',{code:readerCode,playerId:'invalid',badges:{demo:earned(300)}}).ok,true);
+  assert.equal(ledger(env).length,before);
+});
+
+test('F1: cap, exact five-minute boundary, future anomalies stay rejected next day, Taipei midnight', () => {
+  const env = setup(); const pid = newPlayer(env), now = env.clock.now();
+  post(env,'badges',{playerId:pid,badges:{demo:earned(now+300000)}});
+  post(env,'badges',{playerId:pid,badges:{demo:earned(now+300001)}});
+  post(env,'badges',{playerId:pid,badges:{demo:earned(...Array.from({length:10},(_,i)=>now-i))}});
+  assert.equal(balance(env,pid).silver.total,10);
+  assert.equal(ledger(env).filter(r=>r[6]==='時間異常').length,1);
+  assert.equal(ledger(env).filter(r=>r[6]==='超過每日上限').length,1);
+  env.clock.set(Date.parse('2026-11-05T15:59:59Z'));
+  post(env,'badges',{playerId:pid,badges:{demo:earned(now-20)}});
+  assert.equal(balance(env,pid).silver.total,10);
+  env.clock.advance(1000);
+  post(env,'badges',{playerId:pid,badges:{demo:earned(now+300001,now-20,now-21)}});
+  assert.equal(balance(env,pid).silver.total,11);
+  assert.equal(ledger(env).filter(r=>r[6]==='時間異常').length,1);
+});
+
+test('F2: cloud bank plus badge table backfill 7 silver/5 gold once; p1 incoming exempt, p2 incoming capped', () => {
+  const env = setup();
+  const rec = {earned:Array.from({length:6},(_,i)=>({at:100+i,dark:i>=4}))};
+  env.run('putBank',{code},{...bank(),badge:rec});
+  env.sheets.get('徽章').appendRow([code,'家庭',new Date(),JSON.stringify({other:{earned:Array.from({length:6},(_,i)=>({at:200+i,dark:i>=3}))}})]);
+  for(let i=0;i<2;i++) {
+    post(env,'badges',{badges:{}});
+    assert.equal(balance(env).silver.total,7); assert.equal(balance(env).gold.total,5);
+  }
+  assert.ok(ledger(env).every(r=>r[8]==='補入' && !r[6]));
+  const pid = newPlayer(env);
+  post(env,'badges',{playerId:pid,badges:{fresh:earned(...Array.from({length:15},(_,i)=>300+i))}});
+  assert.equal(balance(env,pid).silver.total,10);
+  const fresh = setup();
+  post(fresh,'saveBank',{bank:{...bank(),badge:earned(...Array.from({length:15},(_,i)=>100+i))}});
+  assert.equal(balance(fresh).silver.total,15);
+});
+
+test('F2 ledger: dark is immutable; new and legacy bank writes credit; deletions and truncation cannot erase credit', () => {
+  const env = setup(); seedP2(env);
+  post(env,'saveBank',{bank:{...bank(),badge:earned(100),players:{p2:{updatedAt:1,badge:{earned:[{at:200,dark:true}]}}}}});
+  assert.equal(balance(env).silver.total,1); assert.equal(balance(env,'p2').gold.total,1);
+  post(env,'badges',{badges:{'bank-test':{earned:[{at:100,dark:true}]}}});
+  assert.equal(balance(env).silver.total,1); assert.equal(balance(env).gold.total,0);
+  post(env,'saveBank',{bank:{...bank(),badge:earned(300)}});
+  assert.equal(balance(env).silver.total,2);
+  post(env,'deleteBank',{id:'bank-test'});
+  assert.equal(balance(env).silver.total,2);
+  assert.equal(balance(env,'p2').gold.total,1);
+});
+
+test('T002 adversarial: literal nickname, family ownership, ID/icon/name/player limits and ordering', () => {
+  const env = setup();
+  // The long injection also exercises the required 12-character rejection.
+  assert.equal(post(env,'playerSave',{playerId:'p1',name:'=IMPORTXML("x","y")',icon:'🌱'}).code,'bad_request');
+  for(const name of ['=1+1','+1','@a','1/2','TRUE',"'abc",'-cmd']) {
+    assert.equal(post(env,'playerSave',{playerId:'p1',name,icon:'🌱'}).ok,true);
+    assert.equal(post(env,'playerList').players[0].name,name);
+  }
+  assert.deepEqual(env.formulaCells,[]);
+  env.sheets.get('家庭').appendRow(['OTHER-TEST','測試家庭二',10,true,'',false]);
+  const pid = newPlayer(env);
+  assert.equal(post(env,'playerSave',{code:'OTHER-TEST',playerId:pid,name:'測試',icon:'🌱'}).code,'bad_player');
+  assert.equal(post(env,'playerSave',{code:'OTHER-TEST',playerId:'p1',name:'另一位',icon:'🌱'}).ok,true);
+  assert.equal(post(env,'playerList').players[0].name,'-cmd');
+  assert.equal(post(env,'playerSave',{playerId:'p1',name:'1234567890123',icon:'🌱'}).code,'bad_request');
+  assert.equal(post(env,'playerSave',{name:'測試',icon:'👻'}).code,'bad_request');
+  assert.equal(post(env,'badges',{playerId:'=x',badges:{}}).code,'bad_request');
+  assert.equal(post(env,'badges',{playerId:'pabsent',badges:{}}).code,'bad_player');
+  const skipped = post(env,'badges',{badges:{'=x':earned(100)}});
+  assert.equal(skipped.ok,true); assert.deepEqual(skipped.badges,{});
+  for(let i=2;i<12;i++) assert.equal(post(env,'playerSave',{name:'測試',icon:'🌱'}).ok,true);
+  assert.equal(post(env,'playerSave',{name:'測試',icon:'🌱'}).code,'player_limit');
+  env.sheets.get('玩家').getRange(3,6).setValue('停用');
+  const players = post(env,'playerList').players;
+  assert.equal(players.at(-1).id,pid); assert.equal(players[0].id,'p1');
+});
+
+test('T002 busy: saveBank/playerList/badges return busy without writes', () => {
+  const env = setup({lockMode:'busy'});
+  for (const action of ['saveBank','playerList','badges','balance','playerSave']) {
+    assert.equal(post(env,action,{bank:bank(),badges:{},name:'測試',icon:'🌱'}).code,'busy');
+  }
+  assert.equal(env.sheets.get('玩家').getLastRow(),1);
+  assert.equal(env.sheets.get('徽章入帳').getLastRow(),1);
+  assert.deepEqual(env.logs,[]);
+});
+
+test('T002 privacy/checks: libGet whitelist and mergeChecks still preserves unchanged question check', () => {
+  const env = setup(); seedP2(env);
+  const b = {...bank(),p1At:200,players:{p2:{rec:'private',updatedAt:200}}};
+  b.questions[0].check = {ok:true};
+  env.run('putBank',{code},b);
+  post(env,'saveBank',{bank:{...bank(),p1At:0,players:{}}});
+  assert.deepEqual(post(env,'listBanks').banks[0].questions[0].check,{ok:true});
+  env.sheets.get('家庭').getRange(2,6).setValue(true);
+  post(env,'setPublish',{id:b.id,published:true});
+  const publicBank = post(env,'libGet',{id:b.id}).bank;
+  assert.ok(publicBank); assert.equal('players' in publicBank,false); assert.equal('p1At' in publicBank,false);
+});
+
+test('T002 fake formula bait: nonnumeric + - @ recorded; signed numbers remain numbers', () => {
+  const env = createGasEnv({source:'function probe(){ const s=SpreadsheetApp.getActive().insertSheet("bait"); s.appendRow(["+cmd","-cmd","@a","+1","-2"]); return s.getDataRange().getValues(); }'});
+  const rows = env.run('probe');
+  assert.equal(env.formulaCells.length,3); assert.equal(rows[0][3],1); assert.equal(rows[0][4],-2);
+});
+
+test('T002 adversarial: safeCell preserves full injection text and stored bank title stays literal', () => {
+  const env = setup(), literal = '=IMPORTXML("x","y")';
+  post(env,'playerList');
+  const sh = env.sheets.get('玩家');
+  sh.getRange(2,3).setValue(env.run('safeCell',literal));
+  assert.equal(sh.getRange(2,3).getValue(),literal);
+  assert.equal(post(env,'playerList').players[0].name,literal);
+  sh.deleteRow(2);
+  const b = bank(); b.title = '+cmd';
+  assert.equal(post(env,'saveBank',{bank:b}).ok,true);
+  assert.equal(post(env,'listBanks').banks[0].title,'+cmd');
+  assert.deepEqual(env.formulaCells.filter(cell=>cell.sheet!=='題目'),[]);
+});
+
+test('T002 concurrency: lock covers player creation, bank merge and ledger deduplication', () => {
+  const env = setup(); seedP2(env);
+  let nested, fired = false;
+  env.onSheetOp(op => {
+    if (fired || op.sheet !== '徽章入帳' || op.op !== 'write') return;
+    fired = true;
+    nested = post(env,'badges',{playerId:'p2',badges:{'bank-test':earned(100)}});
+  });
+  assert.equal(post(env,'saveBank',{bank:{...bank(),players:{p2:{updatedAt:1,badge:earned(100)}}}}).ok,true);
+  assert.deepEqual(nested,{deferred:true});
+  env.onSheetOp(null);
+  assert.equal(env.runDeferred()[0].ok,true);
+  assert.equal(balance(env,'p2').silver.total,1);
+  assert.equal(ledger(env).filter(r=>r[1]==='p2').length,1);
+});
+
+test('F2 ledger: earned truncation at 500 does not truncate balance; adjustment quantity remains usable by T004', () => {
+  const env = setup();
+  const badges = {many:earned(...Array.from({length:501},(_,i)=>100+i))};
+  post(env,'badges',{badges});
+  const response = post(env,'badges',{badges});
+  assert.equal(response.badges.many.earned.length,500);
+  assert.equal(balance(env).silver.total,501);
+  env.sheets.get('徽章入帳').appendRow([code,'p1','adjust',1,'銀',new Date(),'','-2','調整']);
+  assert.deepEqual(balance(env).silver,{available:499,held:0,total:499});
+});
 
 test('baseline: setup is idempotent; ping accepts TEST-0000 and rejects a bad code', () => {
   const env = setup();
@@ -220,12 +495,12 @@ test('hooks run before both reads and writes; real mode does not defer unlocked 
   assert.ok(fired);
 });
 
-test('busy bait: saveBank returns ok:false without throwing, and error text is searchable in logs', () => {
+test('busy bait: saveBank returns busy without throwing or logging', () => {
   const env = setup({ lockMode: 'busy' });
   const result = post(env, 'saveBank', { bank: bank() });
   assert.equal(result.ok, false);
-  assert.equal(result.code, 'server_error');
-  assert.match(env.logs.join('\n'), /Lock busy/);
+  assert.equal(result.code, 'busy');
+  assert.deepEqual(env.logs, []);
   assert.deepEqual(post(env, 'listBanks').banks, []);
 });
 
@@ -243,7 +518,7 @@ test('source injection: tryLock busy result, property strings and all console le
 
 test('source injection: removing the lock exposes an interleaving that the real lock prevents', () => {
   const source = readFileSync(join(__dirname, '..', 'Code.gs'), 'utf8');
-  const mutated = source.replace('if (lock) lock.waitLock(20000);', '/* deliberately removed for harness counterexample */');
+  const mutated = source.replace('try { lock.waitLock(10000); }', 'try { /* deliberately removed for harness counterexample */ }');
   assert.notEqual(mutated, source);
   const env = setup({ source: mutated });
   let fired = false, nested;
