@@ -1,81 +1,57 @@
-﻿# T-005 第 1 輪執行回報
+﻿# T-006 第 1 輪執行回報
 
-〔記錄〕回報日期：2026-11-06（Asia/Taipei）。已讀 HANDOFF.md、docs/REWARD-CONTRACT.md、docs/dispatch/SPEC.md 與 DESIGN.html 的玩家切換、色票及元件內容。完成本輪玩家分流、玩家切換、假後端建置與前端測試；獎勵兌換頁、家長頁未納入本輪。
+〔記錄〕日期：2026-11-06（Asia/Taipei）。已讀 HANDOFF.md、SPEC 畫面 2–4 與設計規則、DESIGN.html 第 1–410 行。完成本輪小孩端獎勵兌換整合與自動驗收；手機人工驗收依工單留待雲端。
 
 ## 1. 修改檔案
 
-- 〔記錄〕`index.html`：新增 ACTIVE_PLAYER、scopeKey；植物、書架、徽章、練習進度依玩家使用本機鍵。新增 applyView／toWire、逐玩家時鐘合併、完整本機備份及只送目前玩家的雲端儲存；徽章請求帶 playerId。加入玩家圓鈕、底板、新增／修改暱稱與 12 個圖示、停用狀態、清理刪除玩家的本機鍵，以及失效玩家回退提示。切換等待計時儲存、進行中及排隊儲存、進行中徽章同步。
-- 〔記錄〕`Code.gs`：僅修改 playerList 分支；withBalance:true 時，在既有鎖內補入既存 earned 並回每位玩家的 balance，未帶參數時維持原列表內容。
-- 〔記錄〕`tools/build.js`（新增）：可匯入 build({outDir, html})；複製 index.html 與 zhuyin-tw.txt、替換 CONFIG、在主程式前注入假環境／Code.gs／假 fetch，跳脫 script 結尾；缺 CONFIG 或殘留正式端點字串時拒絕建置。
-- 〔記錄〕`tools/mock-backend.js`（新增）：只攔 mock://gas；提供持久化、即時時鐘、假家庭／玩家／徽章／三種價格獎項、固定設定碼橫幅，以及 offline／slow／empty 模式。純 JS 雜湊明示僅供假後端使用。
-- 〔記錄〕`test/fake-gas.js`：Node vm 改為延遲載入，支援 evaluate 與 base64 注入；新增 snapshot／restore，保留 Date、工作表格式、屬性與快取。
-- 〔記錄〕`test/backend.test.js`：原 A4 子字串斷言改為精確玩家 ID 欄位及 ledgerinit 屬性鍵比對，仍要求 p2 完全移除。
-- 〔記錄〕`test/frontend.test.js`（新增）：14 項 jsdom／建置／持久化測試，完整執行主程式，僅補 scrollTo、matchMedia、speechSynthesis。
-- 〔記錄〕`package.json`：新增 build 指令及唯一直接開發相依 jsdom。
-- 〔記錄〕`package-lock.json`（新增）：鎖定相依版本。
-- 〔記錄〕`.gitignore`：加入 dist/、node_modules/。
-- 〔記錄〕`REPORT.md`：本輪結果與驗收證據。
+- 〔記錄〕index.html：bsLoad 只更新本機原有題庫；開站不要求玩家餘額，玩家底板才帶 withBalance。新增首頁入口、銀金錢包、獎勵／我的申請分頁、申請及取消確認底板、UUID 重送與防連按、載入／離線／空清單、伺服器拒絕提示。使用 DESIGN 的徽章 SVG、現有色票與元件；API 錯誤保留額外欄位。
+- 〔記錄〕test/frontend.test.js：從假 fetch 安裝時開始記錄開站請求，新增 9 項 T006 jsdom 測試。
+- 〔記錄〕REPORT.md：本輪修改與驗收回報。
+- 〔記錄〕未修改 Code.gs、建置工具、假後端或其他專案檔案；工作區原有 HANDOFF.md 差異及未追蹤檔案未動。未新增相依、啟動瀏覽器、連線真實服務、commit 或 push。
 
-〔記錄〕開始時 HANDOFF.md 已修改，且有多個既存未追蹤檔案；本輪未更動這些既存工作。dist/ 為忽略的建置產物。未啟動瀏覽器、未連真實 Sheets／Apps Script、未 commit 或 push。
+## 2. 每條驗收標準與證據
 
-## 2. 逐條驗收與證據
-
-| HANDOFF 驗收條件 | 結果與證據 |
-| --- | --- |
-| npm run build 成功，dist/index.html 含 mock://gas 且無正式部署網址 | 〔實測〕`npm.cmd run build` exit 0，輸出 `Built dist with mock backend`。`T005 build` 驗 dist/index.html、zhuyin-tw.txt 存在、含 mock://gas、不含 script.google.com。 |
-| 缺 CONFIG 誘餌失敗；正式 index 不含假後端 | 〔實測〕`T005 build` 用 assert.throws 驗沒有 CONFIG 的 HTML；另驗替換後仍殘留端點字串亦失敗。根 index.html 不含 mock://gas、createGasEnv。 |
-| node --test 全過，連跑五次 | 〔實測〕五次 exit 0，每次 84 pass、0 fail、0 skipped；原後端 69 項、fake-gas 自動載入 1 項、新增前端 14 項。逐次摘要如下。 |
-| 根目錄與 dist 每段內嵌 script 可編譯 | 〔實測〕`T005 build` 逐段以 new vm.Script 編譯兩份 HTML，通過。 |
-| jsdom 開站無未捕捉例外、假後端正常、圓鈕正確 | 〔實測〕所有 jsdom 實例結束時斷言例外清單為空；startup 驗 p1 圓鈕 🌱、p2 圓鈕 🐢、橫幅、列表、餘額及獎項 API。 |
-| A2 新增、改名、圖示、切換、作答隔離、切回 p1 | 〔實測〕`T005 A2: form adds...` 以表單新增小星／⭐，再改小彩虹／🌈；有正在執行與排隊的 saveBank 時，player 鍵保持原值，解除請求阻擋後才寫 p2 並要求 reload。`T005 A2: p2 answers...` 將 p2 seen 2→3，雲端頂層 p1 seen 7 不變；days、summary、badge 分流，重新建立 p1 頁面仍見 seen 7，p2 seen 3 保留。 |
-| scopeKey 與 clearProgress | 〔實測〕`T005 scopeKey` 驗四類玩家鍵都有 p2:；p1 badges 無前綴；family、ui-style、reader、custom-banks、resume、zy-test 無前綴；clearProgress 只刪 p2:progress-demo，保留 p1 鍵。 |
-| A4 本機清理及失敗不刪 | 〔實測〕`T005 A4` 開站成功刪 pdead:badges、pdead:lib-rec:x，保留 p2 與 p1 原鍵；offline 列表失敗保留全部原鍵，底板顯示重試提示。 |
-| 閱讀碼模式無玩家鈕、badges 不帶 playerId | 〔實測〕`T005 reader mode` 用後端產生的有效假閱讀碼，驗 p1 scope、無玩家鈕、badges 請求無 playerId。`T005 reader entry` 另驗從 p2 進閱讀碼及離開時 reload，重新載入後分別使用 p1 與原 p2 鍵。 |
-| saveBank 不含 __p1／__view，必帶 players | 〔實測〕`T005 A2: p2 answers...` 檢查實際 fetch 送出資料，無內部標記，p2 僅有 players.p2；p1 明確送 players:{}，未覆蓋雲端 p2。 |
-| 對抗：p2 離線存檔不污染 p1 快取 | 〔實測〕`T005 adversarial offline` 在 ?mock=offline 將 p2 seen 改 99，本機頂層 rec 與原 p1 深比完全相同，players.p2 為 99，無內部標記；再次 bsLoad 仍見 p2 的 99。 |
-| 390×844、375×667 實際版面與觸控大小 | 〔記錄〕依工單交由雲端人工／瀏覽器測試，本機未啟動瀏覽器、未聲稱通過。新增 CSS 對玩家鈕、表單及選項設至少 44×44px，但實際排版與觸控仍待雲端確認。 |
-
-〔實測〕最終五次連續執行指令：
-
-```powershell
-foreach($run in 1..5) {
-  $result = & node --test 2>&1
-  $testExit = $LASTEXITCODE
-  Write-Output "RUN $run EXIT $testExit"
-  $result | Select-Object -Last 9
-  if($testExit -ne 0) { $result; exit $testExit }
-}
-```
+〔實測〕最後執行 `node --test`：
 
 ```text
-RUN 1 EXIT 0: tests 84, pass 84, fail 0, skipped 0, duration_ms 5391.048
-RUN 2 EXIT 0: tests 84, pass 84, fail 0, skipped 0, duration_ms 5471.4153
-RUN 3 EXIT 0: tests 84, pass 84, fail 0, skipped 0, duration_ms 5308.9416
-RUN 4 EXIT 0: tests 84, pass 84, fail 0, skipped 0, duration_ms 5362.7211
-RUN 5 EXIT 0: tests 84, pass 84, fail 0, skipped 0, duration_ms 5323.079
+ℹ tests 93
+ℹ suites 0
+ℹ pass 93
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7879.3931
 ```
 
-〔實測〕其餘有執行測試的邊界：
+〔實測〕`git diff --check -- index.html test/frontend.test.js` 無空白錯誤；僅有 Git 的 LF 轉 CRLF 提示。
 
-- `T005 stale local metadata`：本機總 updatedAt 較新、玩家進度卻較舊時，補送未套視圖的本機 wire；記憶體及本機備份保留較新的雲端 p1／p2。
-- `T005 player clocks`：雲端題目與總 updatedAt 較新、本機 p2 進度較新時，保留雲端題目並補送 p2 新進度；第三位玩家的較新雲端紀錄保留，送出仍只有目前玩家。
-- `T005 legacy p1 clock`：舊題庫缺 p1At 且沒有 p2 時，p2 視圖起始為空；首次作答後 p1 舊 updatedAt=100 留作 p1At，不以 p2 新時間冒充 p1 進度時間。
-- `T005 disabled rows`：停用玩家置底、按鈕 disabled、無修改入口；saveBank／badges 各自回 player_disabled／bad_player，以及列表不含目前玩家／標停用，均要求 reload 至 p1 並保存指定提示。
-- `T005 mock startup`：p1 銀 5 金 2、p2 銀 1；只銀／只金／搭配共三個獎項；持久化後新增玩家仍在；empty 無獎項；slow 實測等待至少 1450ms；固定假設定碼可經後端驗證。
-- `T005 fake snapshot`：JSON 序列化後匯入保留 Date 型別與毫秒、工作表格式、屬性、快取，快照深比一致。
+| 驗收項目 | 結果與證據（下列測試均通過） |
+| --- | --- |
+| node --test 全通過 | 〔實測〕93 通過、0 失敗，包含既有後端與前端測試。 |
+| 雲端專有題庫不落地、不復活；本機原有題庫更新 | 〔實測〕T006 regression: cloud-only banks never cached or resurrected; local originals updated。檢查 custom-banks 無雲端專有 ID；雲端刪除後 bsLoad 未發出該 ID 的 saveBank；另驗本機原有題庫更新為雲端新標題。 |
+| 開站 playerList 無 withBalance，玩家底板有帶 | 〔實測〕T006 startup balance opt-in and homepage visibility，直接檢查開站及底板請求。 |
+| 首頁邀請碼可見卡片，閱讀碼／無碼不可見 | 〔實測〕同上測試，分別斷言三種狀態。 |
+| D1：三種需要、你有、週額度、不足停用 | 〔實測〕T006 D1: three costs, wallet, backend reasons, unlimited and gold substitution。種子銀 5／金 2；檢查只銀、只金、混合價格、保留 0；後端產生「還差金 1」與「下週一再來」且按鈕停用；不限次數不顯示週剩餘；金補銀提示照 pay。 |
+| D2：送出後可用下降、保留增加、待核准；取消退回 | 〔實測〕T006 D2 D9: reserve/cancel actual silver and gold, no balance cache。送出後可用銀 0／金 1，保留銀 5／金 1；我的申請顯示「等家長核准」；取消後可用恢復銀 5／金 2，保留各 0。 |
+| D6：四狀態、拒絕原因、新的在上 | 〔實測〕T006 D6 XSS: four states, newest first, escaped names/reasons, zero colors omitted。用假後端 API 建立待核准、核准、拒絕及取消，確認指定狀態文字、「家長說：」及新筆排序。 |
+| D9：保留銀金分列，退回照實扣 | 〔實測〕D2 D9 測試以標價銀 6、實扣銀 5＋金 1 申請，確認底板、錢包、歷史保留及退回照實扣。D6 同時檢查歷史不顯示 0 的顏色。 |
+| D3：連按只一請求；網路失敗重試同 requestId | 〔實測〕T006 D3: double send, lost response manual retry and busy retry retain UUID。連續呼叫處理器兩次只發一請求且立即停用；模擬已寫入但回應遺失，重試同 UUID，最後僅一筆申請；busy 自動重試一次也同 UUID。另驗 getRandomValues 備援 UUID v4 格式。 |
+| G2：slow 骨架、offline 無數字及可按申請、empty 提示 | 〔實測〕T006 G2: slow skeleton, offline without numbers or apply, empty rewards。slow 立即有兩格錢包與一卡片骨架；offline 顯示指定錯誤及重試、錢包空且無申請鈕；empty 顯示「還沒有獎勵，請家長新增」。 |
+| XSS：獎項名與拒絕原因以文字顯示 | 〔實測〕D6 XSS 測試確認 `<img src=x onerror=alert(1)>`、`<b>原因</b>` 原文可見，清單沒有 img／b 元素。 |
+| 正式 index.html 不含假後端字串 | 〔實測〕既有 T005 build: mock only, CONFIG bait, root clean, every inline script compiles，檢查正式頁不含 mock://gas、createGasEnv，並編譯原始與測試建置版內嵌 script。 |
+| 390×844、375×667 版面與觸控大小 | 〔記錄〕待雲端人工驗收；依工單「本機不驗」「不得啟動瀏覽器」未執行。jsdom 通過不等於視覺／觸控驗收通過。 |
 
-〔實測〕`git diff --check`（本輪涉及的追蹤檔案）exit 0，無空白錯誤。根目錄與 dist 的語法檢查包含於上述每輪測試。
+〔實測〕額外 T006 race: late rewardList or myRedeems cannot replace active tab or homepage 通過：舊 rewardList 延遲後不覆蓋新分頁；myRedeems 延遲後不覆蓋已返回的首頁。
+
+〔實測〕額外 T006 server rejections refresh with plain messages; cancellation conflict; disabled fallback 通過：insufficient／quota 顯示後端 reason；reward_disabled／not_found 顯示指定文字並刷新；取消 conflict 顯示「家長剛剛已經決定了」並刷新；p2 的 player_disabled 走既有 p1 回退。
 
 ## 3. 偏離事項
 
-〔記錄〕無偏離。搜尋題庫讀寫後，依玩家分流欄位維持 rec、days、summary、badge；題目、注音修正、題庫內容等沿用共用行為。植物與書架紀錄依玩家分開，仍只存在裝置。匯出既有白名單內容未帶內部視圖標記，未新增其他 API 傳送整份視圖物件。
-
-〔記錄〕補充實作選擇：players-cache 只儲存身分資料，不快取 balance；切換底板每次向後端讀餘額。被後端拒絕的玩家立即存回退通知並 reload，不把遭拒的儲存改成 p1 重送。閱讀碼進出若會改變目前玩家鍵的歸屬，等待儲存後 reload，以重新初始化全域資料。
+〔記錄〕無偏離。實際保留欄位名稱為 balance.silver.held／balance.gold.held，依工單以 Code.gs 契約為準。人工手機驗收依工單留待雲端。家長 API 只用於測試造資料，未製作家長頁。
 
 ## 4. 遇到的問題與未決事項
 
-- 〔實測〕首次 npm 安裝遇預設 npm-cache 權限 EPERM；改用 `npm.cmd install --save-dev jsdom --cache "$env:TEMP/family-quiz-npm"` 後成功，稽核輸出 0 vulnerabilities。未增加其他直接相依。
-- 〔記錄〕開發過程曾遇 PowerShell 對 Python stdin 的中文字元編碼問題，已改用 UTF-8 並修正受影響文字與精確欄位斷言，最終檢查及五次完整測試皆在修正後執行。
-- 〔實測〕初版假徽章種子逐筆取 Date.now 時可能生成重複 at；已改用固定基準時間減序號，startup 精確驗證 5／2 與 1／0。
-- 〔記錄〕jsdom 不實作 location.reload 導航；測試將其預期 navigation 訊息另行收集，驗證確實要求 reload，再以相同 localStorage 建立新 jsdom 實例驗重載後資料。其他 jsdom 錯誤一律使測試失敗。
-- 〔記錄〕未決事項：僅工單指定交由雲端的兩種手機尺寸版面、實際觸控大小驗證。本輪自動化驗收均通過；未執行正式部署或真實服務驗證。
+- 〔記錄〕假後端造資料需用 rewardSave 的 `{session,reward:{...}}`、redeemDecide 的 approve／reject，已按實際契約修正測試，未改後端。
+- 〔記錄〕無需要後端新增的欄位或功能。
+- 〔記錄〕未決事項：雲端確認兩種手機尺寸的版面、橫向捲動及觸控大小；結果取得前不宣稱全部人工驗收完成。
