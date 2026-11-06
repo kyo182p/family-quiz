@@ -525,6 +525,123 @@ async function setupParentUI(w,pin='246810',code='MOCK2345',repeat=pin){
 async function parentUI(t,options){const a=await open(t,options);await parentRoute(a.w);await setupParentUI(a.w);return a}
 async function typePin(w,pin,confirm=false){for(const n of pin)w.document.querySelector(`[data-pin-key="${n}"]`).click();if(confirm)w.document.querySelector('[data-pin-key="確定"]').click();await settle()}
 const ptext=w=>w.document.getElementById('parent-page')?.textContent||'';
+function pinKey(w,key,target=w.document,options={}){
+  const e=new w.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true,...options});
+  target.dispatchEvent(e);return e;
+}
+function pinKeys(w,digits){for(const key of digits)pinKey(w,key)}
+const pinDots=w=>w.document.querySelectorAll('.parent-dots .filled').length;
+
+test('T016 pinKeyAction follows key, modifier, editable, button and repeat rules',async t=>{
+  const {w}=await open(t),d=w.document;
+  const cases=[...['0','5','9'].map(key=>[{key},'digit']),
+    ...['a','!','Tab','Escape',' '].map(key=>[{key},null]),
+    [{key:'Backspace'},'back'],[{key:'Enter',target:d.body},'enter'],
+    ...['ctrlKey','altKey','metaKey','isComposing'].map(flag=>[{key:'1',[flag]:true},null]),
+    [{key:'1',target:d},'digit'],[{key:'1',repeat:true},null],
+    [{key:'Enter',repeat:true},null],[{key:'Backspace',repeat:true},'back']];
+  for(const tag of ['input','textarea','select'])cases.push([{key:'1',target:d.createElement(tag)},null]);
+  for(const [value,expected] of [['',null],['true',null],['false','digit']]){
+    const el=d.createElement('div');el.setAttribute('contenteditable',value);
+    const child=d.createElement('span');el.append(child);cases.push([{key:'1',target:child},expected]);
+  }
+  for(const isPin of [true,false]){
+    const button=d.createElement('button'),child=d.createElement('span');button.append(child);
+    if(isPin)button.setAttribute('data-pin-key','2');
+    cases.push([{key:'Enter',target:child},isPin?'enter':null]);
+  }
+  for(const [event,expected] of cases)assert.equal(w.pinKeyAction(event),expected,event.key);
+});
+
+test('T016 unlock six digits once, keep PIN private, ignore keys after main and home',async t=>{
+  const {w,requests}=await parentUI(t);w.parentLock();await settle();
+  pinKeys(w,'24681');assert.equal(pinDots(w),5);
+  assert.ok(!w.document.documentElement.outerHTML.includes('24681'));
+  pinKey(w,'0');await settle();
+  assert.ok(w.document.querySelector('[data-parent-tab="pending"]'));
+  assert.equal(requests.filter(r=>r.action==='parentLogin').length,1);
+  assert.equal(pinKey(w,'2').defaultPrevented,false);
+  w.document.querySelector('#parent-exit').click();await settle();
+  assert.equal(pinKey(w,'2').defaultPrevented,false);
+  assert.equal(requests.filter(r=>r.action==='parentLogin').length,1);
+});
+
+test('T016 four digit Enter login, three digits cannot submit, keypad focus Enter submits once',async t=>{
+  const {w,requests}=await open(t);await parentRoute(w);await setupParentUI(w,'2486');
+  w.parentLock();await settle();pinKeys(w,'248');pinKey(w,'Enter');await settle();
+  assert.equal(requests.filter(r=>r.action==='parentLogin').length,0);
+  const button=w.document.querySelector('[data-pin-key="6"]');button.click();button.focus();
+  assert.equal(pinDots(w),4);
+  assert.equal(pinKey(w,'Enter',button).defaultPrevented,true);await settle();
+  assert.deepEqual(requests.filter(r=>r.action==='parentLogin').map(r=>r.pin),['2486']);
+  assert.ok(w.document.querySelector('[data-parent-tab="pending"]'));
+});
+
+test('T016 Backspace, cancellation, mixed input and held keys',async t=>{
+  const {w,requests}=await parentUI(t);w.parentLock();await settle();
+  w.document.querySelector('[data-pin-key="2"]').click();pinKeys(w,'46');assert.equal(pinDots(w),3);
+  assert.equal(pinKey(w,'Backspace',w.document,{repeat:true}).defaultPrevented,true);assert.equal(pinDots(w),2);
+  assert.equal(pinKey(w,'a').defaultPrevented,false);
+  assert.equal(pinKey(w,'4',w.document,{repeat:true}).defaultPrevented,false);
+  assert.equal(pinKey(w,'Enter',w.document,{repeat:true}).defaultPrevented,false);
+  assert.equal(pinDots(w),2);assert.equal(requests.filter(r=>r.action==='parentLogin').length,0);
+  assert.equal(pinKey(w,'6').defaultPrevented,true);assert.equal(pinDots(w),3);
+});
+
+test('T016 sending and locked states consume valid keys without more login requests',async t=>{
+  const {w,requests}=await parentUI(t);w.parentLock();await settle();
+  const fetch=w.fetch;let release;const gate=new Promise(resolve=>release=resolve);
+  w.fetch=async(u,o)=>{if(JSON.parse(o.body).action==='parentLogin')await gate;return fetch(u,o)};
+  pinKeys(w,'000000');assert.equal(pinKey(w,'1').defaultPrevented,true);
+  assert.equal(pinKey(w,'Enter').defaultPrevented,true);assert.equal(pinDots(w),0);
+  release();await settle();w.fetch=fetch;
+  assert.equal(requests.filter(r=>r.action==='parentLogin').length,1);
+  for(let i=0;i<4;i++){pinKeys(w,'000000');await settle()}
+  assert.ok(ptext(w).includes('輸入錯太多次'));
+  const count=requests.filter(r=>r.action==='parentLogin').length;
+  pinKeys(w,'246810');assert.equal(pinKey(w,'Backspace').defaultPrevented,true);pinKey(w,'Enter');await settle();
+  assert.equal(pinDots(w),0);assert.equal(requests.filter(r=>r.action==='parentLogin').length,count);
+});
+
+test('T016 setup keyboard fills PINs, caps length, deletes repeat first and submits Enter',async t=>{
+  const {w,requests}=await open(t);await parentRoute(w);const d=w.document;
+  const a=d.querySelector('#parent-new-pin'),b=d.querySelector('#parent-repeat-pin'),code=d.querySelector('#parent-code');
+  code.value='MOCK2345';pinKeys(w,'246810');assert.equal(a.value,'246810');assert.equal(b.value,'');
+  pinKeys(w,'246810');assert.equal(b.value,'246810');pinKey(w,'9');assert.equal(b.value,'246810');
+  assert.equal(code.value,'MOCK2345');assert.ok(!d.documentElement.outerHTML.includes('246810'));
+  pinKey(w,'Backspace');assert.equal(b.value,'24681');assert.equal(a.value,'246810');
+  for(let i=0;i<6;i++)pinKey(w,'Backspace');assert.equal(b.value,'');assert.equal(a.value,'24681');
+  // A partially filled repeat PIN remains the digit target even if the new PIN is short.
+  b.value='24';pinKey(w,'6');assert.equal(b.value,'246');assert.equal(a.value,'24681');
+  b.value='';pinKey(w,'0');pinKeys(w,'246810');
+  assert.equal(pinKey(w,'Enter').defaultPrevented,true);await settle();
+  const calls=requests.filter(r=>r.action==='parentSetPin');assert.equal(calls.length,1);
+  assert.equal(calls[0].pin,'246810');assert.equal(calls[0].setupCode,'MOCK2345');
+  assert.ok(d.querySelector('[data-parent-tab="pending"]'));
+});
+
+test('T016 setup editable fields keep native key handling',async t=>{
+  const {w,requests}=await open(t);await parentRoute(w);
+  const fields=['#parent-code','#parent-new-pin','#parent-repeat-pin'].map(s=>w.document.querySelector(s));
+  for(const [i,field] of fields.entries())field.value=['MOCK2345','2468','2468'][i];
+  for(const field of fields){
+    field.focus();
+    for(const key of ['1','Backspace','Enter'])assert.equal(pinKey(w,key,field).defaultPrevented,false);
+  }
+  assert.deepEqual(fields.map(f=>f.value),['MOCK2345','2468','2468']);
+  assert.equal(requests.filter(r=>r.action==='parentSetPin').length,0);
+});
+
+test('T016 redraws do not accumulate handlers and modals suppress PIN input',async t=>{
+  const {w}=await parentUI(t);
+  for(let i=0;i<3;i++){w.parentLock();await settle()}
+  pinKey(w,'2');assert.equal(pinDots(w),1);
+  const modal=w.confirmBox('測試確認','確定');
+  assert.equal(pinKey(w,'4').defaultPrevented,false);assert.equal(pinDots(w),1);
+  w.document.querySelector('.modal button').click();await modal;
+  pinKey(w,'4');assert.equal(pinDots(w),2);
+});
+
 function inputValue(w,selector,value){const el=w.document.querySelector(selector);el.value=value;el.dispatchEvent(new w.Event('input',{bubbles:true}));return el}
 async function saveParentReward(w){await w.document.querySelector('#parent-reward-form form').onsubmit({preventDefault(){}});await settle()}
 

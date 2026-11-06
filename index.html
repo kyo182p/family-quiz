@@ -4654,6 +4654,21 @@ async function parentPage(){
   root.textContent='讀取中……';
   try{const status=await parentCall('parentStatus');if(alive())parentAuth(root,status,alive)}catch(e){if(alive())parentError(root,'連不到雲端，請稍後再試',parentPage)}
 }
+function pinKeyAction(e){
+  if(e.ctrlKey||e.altKey||e.metaKey||e.isComposing)return null;
+  const target=e.target;
+  if(target&&typeof target.closest==='function'&&target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])'))return null;
+  if(/^[0-9]$/.test(e.key))return e.repeat?null:'digit';
+  if(e.key==='Backspace')return 'back';
+  if(e.key==='Enter'){
+    if(e.repeat)return null;
+    const button=target&&typeof target.closest==='function'&&target.closest('button');
+    return button&&!button.hasAttribute('data-pin-key')?null:'enter';
+  }
+  return null;
+}
+let parentAuthKeys=null;
+document.addEventListener('keydown',e=>{if(parentAuthKeys)parentAuthKeys(e)});
 function parentAuth(root,status,alive){
   let pin='',sending=false,locked=!!status.locked,weakAccepted='';const setup=!status.hasPin;
   root.innerHTML='<h1 class="pg">'+(setup?'第一次設定家長 PIN':'輸入家長 PIN')+'</h1><p id="parent-auth-message" role="status"></p>'+(setup?'<p>設定碼由管理者提供。PIN 用 4～6 位數字，建議 6 位。</p><form id="parent-setup"><label>設定碼<input id="parent-code" autocapitalize="characters" autocomplete="off"></label><label>新 PIN<input id="parent-new-pin" type="password" inputmode="numeric" autocomplete="off"></label><label>再輸入一次<input id="parent-repeat-pin" type="password" inputmode="numeric" autocomplete="off"></label><button class="big">設定 PIN</button></form>':'<div class="parent-dots" aria-label="已輸入 0 位"></div><div class="parent-pad">'+['1','2','3','4','5','6','7','8','9','刪除','0','確定'].map(k=>'<button type="button" data-pin-key="'+k+'">'+k+'</button>').join('')+'</div><p>忘記 PIN 了？請管理者重設，並取得新的設定碼。</p>'+(window.self===window.top?'<button class="ghost" disabled>使用 Face ID（之後才有）</button>':''))+'<button class="ghost" id="parent-auth-retry">再試一次</button>';
@@ -4688,8 +4703,28 @@ function parentAuth(root,status,alive){
       else msg.textContent=e.code==='bad_pin'?'PIN 不對，還可以再試 '+e.left+' 次':e.code==='bad_setup_code'?'設定碼不對，還可以再試 '+e.left+' 次':'連不到雲端，請稍後再試';
     }finally{sending=false;draw()}
   }
+  function act(action,digit){
+    if(sending||locked)return;
+    if(action==='enter')return send();
+    if(setup){
+      const a=root.querySelector('#parent-new-pin'),b=root.querySelector('#parent-repeat-pin');
+      const field=b.value||a.value.length>=6?b:a;
+      if(action==='back'){const last=b.value?b:a;last.value=last.value.slice(0,-1)}
+      else if(field.value.length<6)field.value+=digit;
+      return;
+    }
+    pin=action==='back'?pin.slice(0,-1):(pin+digit).slice(0,6);
+    draw();if(pin.length===6)return send();
+  }
   if(setup)root.querySelector('form').onsubmit=e=>{e.preventDefault();return send()};
-  else root.querySelectorAll('[data-pin-key]').forEach(b=>b.onclick=()=>{if(sending||locked)return;const k=b.dataset.pinKey;if(k==='確定')return send();pin=k==='刪除'?pin.slice(0,-1):(pin+k).slice(0,6);draw();if(pin.length===6)return send()});
+  else root.querySelectorAll('[data-pin-key]').forEach(b=>b.onclick=()=>{const k=b.dataset.pinKey;return act(k==='確定'?'enter':k==='刪除'?'back':'digit',k)});
+  parentAuthKeys=e=>{
+    if(!alive()){parentAuthKeys=null;return}
+    if(MODALS.length)return;
+    const action=pinKeyAction(e);if(action===null)return;
+    e.preventDefault();if(sending||locked)return;
+    return act(action,e.key);
+  };
   draw();
 }
 async function parentMain(tab='pending',notice=''){

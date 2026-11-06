@@ -64,6 +64,14 @@
     await expect(page.locator('.reward-skeleton')).toHaveCount(0);
     return page.evaluate(()=>PARENT_SESSION);
   }
+  test('B5 keyboard: unlock parent with physical digit keys',async ({page})=>{
+    await parent(page);
+    await page.locator('#parent-lock').click();
+    await expect(page.locator('.parent-pad')).toBeVisible();
+    await page.keyboard.type(pin);
+    await expect(page.locator('[data-parent-tab="pending"]')).toBeVisible();
+  });
+
   test('A3 overlay: player sheet closes before parent PIN entry',async ({page})=>{
     await parent(page);
     await page.goto(base);
