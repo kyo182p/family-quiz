@@ -1340,14 +1340,16 @@ function rewardAction(fam, req) {
     if (typeof pid !== 'string' || !/^p[a-z0-9]{1,12}$/.test(pid)) return {ok:false,code:'bad_request'};
     if (action === 'redeemRequest') {
       if (!rewardIdValid(req.rewardId) || typeof req.requestId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(req.requestId)) return {ok:false,code:'bad_request'};
+    }
+    const err = checkPlayer(code,pid);
+    if (err && !(err.code === 'player_disabled' && action !== 'redeemRequest')) return err;
+    if (action === 'redeemRequest') {
       const duplicate = findRedeemRequest(req.requestId);
       if (duplicate) {
         if (duplicate.family !== code || duplicate.playerId !== pid) return {ok:false,code:'bad_request'};
         return {ok:true,duplicate:true,redeem:publicRedeem(readRedeems(code).find(r => r.id === duplicate.id)),balance:playerBalance(code,pid)};
       }
     }
-    const err = checkPlayer(code,pid);
-    if (err && !(err.code === 'player_disabled' && action !== 'redeemRequest')) return err;
     if (action === 'myRedeems') return {ok:true,redeems:readRedeems(code).filter(r => r.playerId === pid).reverse().map(publicRedeem)};
     if (action === 'redeemCancel') {
       if (!rewardIdValid(req.id)) return {ok:false,code:'bad_request'};

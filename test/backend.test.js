@@ -777,6 +777,86 @@ function decide(env, session, id, decision='approve', reason='') { return post(e
 function redeemRows(env) { return env.sheets.get('兌換').getDataRange().getValues().slice(1); }
 function redeemLogs(env) { return env.sheets.get('兌換紀錄').getDataRange().getValues().slice(1); }
 
+test('T010 A3: disabled p2 rejects writes without adding sheet rows', () => {
+  const env = setup(); seedP2(env); const session = parentSession(env);
+  const reward = saveReward(env,session);
+  assert.equal(post(env,'playerDisable',{session,playerId:'p2'}).ok,true);
+  const before = snapshot(env);
+  const rows = [...env.sheets].map(([name,sh])=>[name,sh.getLastRow()]);
+  for (const [action,extra] of [
+    ['saveBank',{bank:bank()}],
+    ['badges',{badges:{demo:earned(100)}}],
+    ['redeemRequest',{rewardId:reward.id,requestId:'disabled-new-request'}],
+  ]) assert.deepEqual(post(env,action,{playerId:'p2',...extra}),{ok:false,code:'player_disabled'});
+  assert.deepEqual([...env.sheets].map(([name,sh])=>[name,sh.getLastRow()]),rows);
+  assert.equal(snapshot(env),before);
+  for (const extra of [{rewardId:'bad:id'},{requestId:'short'}]) {
+    assert.deepEqual(post(env,'redeemRequest',{playerId:'p2',rewardId:reward.id,requestId:'disabled-new-request',...extra}),{ok:false,code:'bad_request'});
+  }
+});
+
+test('T010 A3: disabled p2 replay of old requestId returns player_disabled', () => {
+  const env = setup(); seedP2(env); const session = parentSession(env); fund(env,'p2');
+  const reward = saveReward(env,session), requestId = 'p2-old-request';
+  const first = requestReward(env,reward.id,'p2',requestId);
+  assert.equal(first.ok,true);
+  assert.equal(post(env,'playerDisable',{session,playerId:'p2'}).ok,true);
+  const before = snapshot(env);
+  assert.deepEqual(requestReward(env,reward.id,'p2',requestId),{ok:false,code:'player_disabled'});
+  assert.equal(snapshot(env),before);
+  assert.equal(post(env,'myRedeems',{playerId:'p2'}).redeems[0].status,'取消');
+  assert.equal(post(env,'rewardList',{playerId:'p2'}).ok,true);
+  assert.deepEqual(post(env,'redeemCancel',{playerId:'p2',id:first.redeem.id}),{ok:true,already:true});
+  assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).ok,true);
+  const duplicate = requestReward(env,reward.id,'p2',requestId);
+  assert.equal(duplicate.ok,true); assert.equal(duplicate.duplicate,true);
+  assert.equal(duplicate.redeem.id,first.redeem.id);
+  assert.equal(redeemRows(env).length,1);
+});
+
+test('T010 A3: restore retains rec, earned, approved and cancelled requests with refunded balance', () => {
+  const env = setup(); seedP2(env); const session = parentSession(env);
+  const badge = {earned:[{at:100,dark:false},{at:101,dark:false},{at:102,dark:false},{at:103,dark:true},{at:104,dark:true},{at:105,dark:true}]};
+  assert.equal(post(env,'saveBank',{playerId:'p2',bank:{...bank(),players:{p2:{rec:{q1:2},days:['fake-day'],summary:'測試紀錄',updatedAt:100,badge}}}}).ok,true);
+  const playerBefore = post(env,'listBanks').banks[0].players.p2;
+  assert.deepEqual(playerBefore.rec,{q1:2});
+  assert.deepEqual(playerBefore.badge.earned,badge.earned);
+  const ledgerBefore = plain(ledger(env));
+  const reward = saveReward(env,session,{silver:1,gold:1});
+  const approved = requestReward(env,reward.id,'p2').redeem;
+  assert.equal(decide(env,session,approved.id).redeem.status,'核准');
+  const pending = requestReward(env,reward.id,'p2').redeem;
+  assert.deepEqual(balance(env,'p2'),{ok:true,silver:{available:1,held:1,total:3},gold:{available:1,held:1,total:3}});
+  assert.equal(post(env,'playerDisable',{session,playerId:'p2'}).ok,true);
+  // An active sibling's device carries newer but untrusted progress for disabled p2.
+  assert.equal(post(env,'saveBank',{playerId:'p1',bank:{...bank(),p1At:999,rec:{q1:1},players:{p2:{rec:{q1:999},updatedAt:999,badge:earned(999)}}}}).ok,true);
+  let saved = post(env,'listBanks').banks[0];
+  assert.deepEqual(saved.rec,{q1:1});
+  assert.deepEqual(saved.players.p2,playerBefore);
+  assert.equal(post(env,'playerRestore',{session,playerId:'p2'}).ok,true);
+  assert.deepEqual(balance(env,'p2'),{ok:true,silver:{available:2,held:0,total:3},gold:{available:2,held:0,total:3}});
+  assert.deepEqual(post(env,'listBanks').banks[0].players.p2,playerBefore);
+  assert.deepEqual(plain(ledger(env)),ledgerBefore);
+  const redeems = post(env,'myRedeems',{playerId:'p2'}).redeems;
+  assert.equal(redeems.length,2);
+  assert.equal(redeems.find(r=>r.id===approved.id).status,'核准');
+  assert.equal(redeems.find(r=>r.id===pending.id).status,'取消');
+  assert.equal(requestReward(env,reward.id,'p2').ok,true);
+  assert.equal(post(env,'saveBank',{playerId:'p2',bank:{...bank(),players:{p2:{...playerBefore,rec:{q1:3},updatedAt:1000}}}}).ok,true);
+  saved = post(env,'listBanks').banks[0];
+  assert.deepEqual(saved.players.p2.rec,{q1:3});
+  assert.deepEqual(saved.players.p2.badge.earned,playerBefore.badge.earned);
+});
+
+test('T010 A3: reader code with playerId p2 cannot credit p2 ledger', () => {
+  const env = setup(); seedP2(env);
+  assert.equal(post(env,'readerCreate').ok,true);
+  const readerCode = env.sheets.get('閱讀碼').getRange(2,1).getValue();
+  const before = plain(ledger(env));
+  assert.equal(post(env,'badges',{code:readerCode,playerId:'p2',badges:{demo:earned(100)}}).ok,true);
+  assert.deepEqual(plain(ledger(env)),before);
+});
+
 test('T004 setup/B4: exact headers, idempotence; missing/random/foreign sessions never write', () => {
   const env = setup(); seedP2(env); addOtherFamily(env); const foreign = parentSession(env,otherCode);
   const expected = {
