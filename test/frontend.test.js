@@ -146,19 +146,19 @@ test('T005 fake snapshot preserves dates, formats, properties and cache across J
   assert.deepEqual(copy.snapshot(),env.snapshot());
 });
 
-test('T005 disabled rows are last and inert; rejected/removed active players reload as p1 with notice',async t=>{
+test('T005 disabled rows are hidden; rejected/removed active players reload as p1 with notice',async t=>{
   const first=await open(t);const fetch=first.w.fetch;
   first.w.fetch=async(url,options)=>{
     const res=await fetch(url,options);if(JSON.parse(options.body).action!=='playerList')return res;
     const j=await res.json();j.players.find(p=>p.id==='p2').status='停用';return {json:async()=>j};
   };
-  await first.w.playerSheet();const picks=first.w.document.querySelectorAll('[data-player]');assert.equal(picks[1].dataset.player,'p2');assert.equal(picks[1].disabled,true);assert.ok(picks[0].textContent.includes('使用中'));
+  await first.w.playerSheet();const picks=first.w.document.querySelectorAll('[data-player]');assert.ok(![...picks].some(p=>p.dataset.player==='p2'));assert.ok(picks[0].textContent.includes('使用中'));
   assert.equal(first.w.document.querySelector('[data-edit-player="p2"]'),null);
   for(const code of ['player_disabled','bad_player'])for(const action of ['saveBank','badges']){
     const a=await open(t,{storage:{player:'"p2"'}}),{w}=a;
     w.fetch=async()=>({json:async()=>({ok:false,code})});
     if(action==='badges')await w.badgeSync();else {w.testBank=bank();w.eval('applyView(testBank)');await w.eval('bsSave(testBank)')}
-    assert.equal(JSON.parse(w.localStorage.getItem('player')),'p1');assert.equal(JSON.parse(w.localStorage.getItem('player-notice')),'這位玩家已被停用，先切回 小葉子');assert.ok(a.navigation.length>=1);
+    assert.equal(JSON.parse(w.localStorage.getItem('player')),'p1');assert.equal(JSON.parse(w.localStorage.getItem('player-notice')),'這位玩家已被家長停用，先切回 小葉子');assert.ok(a.navigation.length>=1);
   }
   for(const absent of [false,true]){
     const a=await open(t,{storage:{player:'"p2"'}}),{w}=a;const fetch=w.fetch;
@@ -213,6 +213,103 @@ test('T006 startup balance opt-in and homepage visibility',async t=>{
 });
 
 async function parent(w){return (await w.api('parentSetPin',{setupCode:'MOCK2345',pin:'246810'})).session}
+
+const disabledNotice='這位玩家已被家長停用，先切回 小葉子';
+function assertPlayerFallback(a){
+  assert.equal(JSON.parse(a.w.localStorage.getItem('player')),'p1');
+  assert.equal(JSON.parse(a.w.localStorage.getItem('player-notice')),disabledNotice);
+  assert.equal(JSON.parse(a.w.localStorage.getItem('resume')),null);
+  assert.ok(a.navigation.length>=1);
+}
+function practice(w,group=false){
+  w.HTMLElement.prototype.scrollIntoView=function(){};
+  const b=bank();b.rec={};b.badge={cells:[],ok:[0,0,0],earned:[]};
+  b.questions=[...Array.from({length:3},(_,i)=>({...b.questions[0],id:'q'+(i+1)}))];
+  if(group){b.passages=[{id:'passage',title:'測試文章',text:'一加一是二。'}];b.questions.slice(0,2).forEach(q=>q.p='passage')}
+  w.practiceBank=b;w.eval('CTX=bankCtx(practiceBank);start(practiceBank.questions)');
+}
+function gradePractice(w,group=false){
+  if(group){
+    w.document.querySelectorAll('.opt[data-v="二"]').forEach(b=>b.click());
+    w.document.getElementById('gok').onclick();
+  }else {const btn=w.document.querySelector('.opt[data-v="二"]');btn.onclick()}
+  assert.ok(w.document.getElementById('nx'));
+}
+
+test('T011 A3 a: disabled player hidden, restored identity and badge balances preserved',async t=>{
+  const {w}=await open(t),session=await parent(w);
+  const before=(await w.api('playerList',{withBalance:true})).players.find(p=>p.id==='p2');
+  await w.api('playerDisable',{session,playerId:'p2'});await w.playerSheet();
+  assert.equal(w.document.querySelector('[data-player="p2"]'),null);
+  assert.equal(w.document.querySelector('[data-edit-player="p2"]'),null);
+  await w.api('playerRestore',{session,playerId:'p2'});await w.playerSheet();
+  const pick=w.document.querySelector('[data-player="p2"]');assert.ok(pick);assert.equal(pick.disabled,false);
+  assert.ok(w.document.querySelector('[data-edit-player="p2"]'));
+  const after=(await w.api('playerList',{withBalance:true})).players.find(p=>p.id==='p2');
+  assert.equal(after.name,before.name);assert.equal(after.icon,before.icon);assert.deepEqual(plain(after.balance),plain(before.balance));
+  assert.ok(pick.textContent.includes(`銀 ${before.balance.silver.available}・金 ${before.balance.gold.available}`));
+});
+
+test('T011 A3 b: reload detects disabled p2 and keeps local player keys',async t=>{
+  const a=await open(t,{storage:{player:'"p2"','p2:badges':{earned:[]},'p2:any-custom-key':'保留'}});
+  const session=await parent(a.w);await a.w.api('playerDisable',{session,playerId:'p2'});
+  const b=await open(t,{storage:a.storage()});assertPlayerFallback(b);
+  for(const [k,v] of Object.entries(a.storage()).filter(([k])=>k.startsWith('p2:')))assert.equal(b.storage()[k],v);
+  assert.equal(b.requests.filter(r=>r.action==='playerList').length,1);
+  const c=await open(t,{storage:b.storage()});assert.ok(c.w.document.body.textContent.includes(disabledNotice));
+  assert.equal(JSON.parse(c.w.localStorage.getItem('player-notice')),'');
+});
+
+test('T011 A3 c: returning to libHome detects disabled p2 and clears resume',async t=>{
+  const a=await open(t,{storage:{player:'"p2"'}}),{w}=a,session=await parent(w);
+  await w.api('playerDisable',{session,playerId:'p2'});
+  w.localStorage.setItem('resume',JSON.stringify({p:'plantai',t:Date.now()}));
+  await w.libHome();await settle();assertPlayerFallback(a);
+});
+
+for(const group of [false,true])test(`T011 A3 d: ${group?'gradeGroup':'answer'} blocks next question after disable and retains every pXX key`,async t=>{
+  const a=await open(t,{storage:{player:'"p2"','p2:any-custom-key':'保留','p2:lib-rec:book':{seen:2}}}),{w}=a;
+  const session=await parent(w);practice(w,group);
+  await w.api('playerDisable',{session,playerId:'p2'});gradePractice(w,group);
+  const pos=w.eval('S.pos'),keys=Object.fromEntries(Object.entries(a.storage()).filter(([k])=>/^p[a-z0-9]+:/.test(k)));
+  assert.ok(Object.keys(keys).includes('p2:progress-bank-test'));
+  w.localStorage.setItem('resume',JSON.stringify({p:'plantai',t:Date.now()}));
+  const nx=w.document.getElementById('nx');await nx.onclick();
+  assert.equal(w.eval('S.pos'),pos);assert.equal(w.document.getElementById('nx'),nx);
+  assertPlayerFallback(a);
+  for(const [k,v] of Object.entries(keys))assert.equal(a.storage()[k],v,k);
+});
+
+test('T011 A3 e: offline playerList allows next question without switching',async t=>{
+  const a=await open(t,{storage:{player:'"p2"'}}),{w}=a;practice(w);
+  const fetch=w.fetch;let checks=0;
+  w.fetch=async(u,o)=>{if(JSON.parse(o.body).action==='playerList'){checks++;throw Error('offline')}return fetch(u,o)};
+  gradePractice(w);await w.document.getElementById('nx').onclick();
+  assert.equal(checks,1);assert.equal(w.eval('S.pos'),1);assert.equal(JSON.parse(w.localStorage.getItem('player')),'p2');assert.equal(a.navigation.length,0);
+});
+
+test('T011 A3 e: playerList timeout allows next question without switching',async t=>{
+  const a=await open(t,{storage:{player:'"p2"'}}),{w}=a;practice(w);
+  const fetch=w.fetch;w.fetch=(u,o)=>JSON.parse(o.body).action==='playerList'?new Promise(()=>{}):fetch(u,o);
+  gradePractice(w);const start=Date.now();await w.document.getElementById('nx').onclick();
+  assert.ok(Date.now()-start>=2900);assert.equal(w.eval('S.pos'),1);
+  assert.equal(JSON.parse(w.localStorage.getItem('player')),'p2');assert.equal(a.navigation.length,0);
+});
+
+test('T011 A3 f: p1 returns home and advances synchronously without extra playerList',async t=>{
+  const a=await open(t),{w}=a,count=a.requests.filter(r=>r.action==='playerList').length;
+  await w.libHome();await settle();practice(w);gradePractice(w);
+  const result=w.document.getElementById('nx').onclick();assert.equal(result,undefined);assert.equal(w.eval('S.pos'),1);
+  assert.equal(a.requests.filter(r=>r.action==='playerList').length,count);assert.equal(a.navigation.length,0);
+});
+
+test('T011 A3 g: parent management still lists disabled p2 with restore button',async t=>{
+  const {w}=await parentUI(t),session=w.eval('PARENT_SESSION');
+  await w.api('playerDisable',{session,playerId:'p2'});await w.parentMain('players');
+  const row=w.document.querySelector('[data-manage-player="p2"]');assert.ok(row);assert.ok(row.textContent.includes('停用'));
+  assert.ok(row.querySelector('[data-player-action="playerRestore"]'));
+});
+
 async function newReward(w,session,reward){return (await w.api('rewardSave',{session,reward})).reward.id}
 const text=w=>w.document.getElementById('reward-page').textContent;
 const clickApply=(w,id)=>w.document.querySelector('[data-apply="'+id+'"]').click();
@@ -426,7 +523,7 @@ test('T007 A3 A4: p1 protected, disable/restore ordering, exact purge name, pid 
   const row=()=>w.document.querySelector('[data-manage-player="p2"]');
   row().querySelector('[data-player-action="playerDisable"]').click();assert.ok(row().textContent.includes('他的待核准申請會自動取消'));row().querySelector('[data-player-confirm] button').click();await settle();
   assert.equal([...w.document.querySelectorAll('[data-manage-player]')].at(-1).dataset.managePlayer,'p2');
-  await w.playerSheet();const pick=w.document.querySelector('[data-player="p2"]');assert.equal(pick.disabled,true);assert.ok(pick.closest('.player-off'));w.document.getElementById('player-close').click();
+  await w.playerSheet();assert.equal(w.document.querySelector('[data-player="p2"]'),null);assert.equal(w.document.querySelector('[data-edit-player="p2"]'),null);w.document.getElementById('player-close').click();
   await w.parentMain('players');row().querySelector('[data-player-action="playerRestore"]').click();await settle();assert.equal([...w.document.querySelectorAll('[data-manage-player]')][1].dataset.managePlayer,'p2');
   row().querySelector('[data-player-action="playerDisable"]').click();row().querySelector('[data-player-confirm] button').click();await settle();
   w.localStorage.setItem('p2:badges','{}');w.localStorage.setItem('p2:any-custom-key','x');w.localStorage.setItem(third+':badges','{}');

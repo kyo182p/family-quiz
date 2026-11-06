@@ -132,7 +132,7 @@
     await expect(page.locator('#player-button')).toContainText('🌱');
   });
 
-  test('A3: disable cancels pending, moves to bottom, restore; p1 protected',async ({page})=>{
+  test('A3: disable cancels pending, hides player from menu, restore; p1 protected',async ({page})=>{
     const session=await parent(page);
     const id=await reward(page,session,{name:'一枚獎',silver:1});
     await api(page,'redeemRequest',{playerId:'p2',rewardId:id,requestId:'a3-valid'});
@@ -143,8 +143,7 @@
     await expect(page.locator('[data-manage-player="p2"]')).toContainText('停用');
     expect((await api(page,'myRedeems',{playerId:'p2'})).redeems[0].status).toBe('取消');
     await page.goto(base); await page.locator('#player-button').click();
-    await expect(page.locator('[data-player]').last()).toHaveAttribute('data-player','p2');
-    await expect(page.locator('[data-player="p2"]')).toBeDisabled();
+    await expect(page.locator('[data-player="p2"]')).toHaveCount(0);
     await parent(page); await tab(page,'players');
     await page.locator('[data-player-action="playerRestore"]').click();
     await expect(page.locator('[data-manage-player="p2"]')).toContainText('啟用');

@@ -407,7 +407,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .player-panel button,.player-panel input{min-height:44px;min-width:44px}.player-panel input{width:100%;box-sizing:border-box}
 .player-row{display:flex;gap:6px;margin:8px 0;align-items:center}.player-pick{flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-align:left;white-space:normal}
 .player-pick span:nth-child(2){flex:1;overflow-wrap:anywhere}.player-pick small{display:block;font-size:.9rem;color:var(--muted);font-variant-numeric:tabular-nums}
-.player-avatar{font-size:1.8rem}.player-off{opacity:.6}.player-icons{display:grid;grid-template-columns:repeat(6,minmax(44px,1fr));gap:4px;margin:12px 0}
+.player-avatar{font-size:1.8rem}.player-icons{display:grid;grid-template-columns:repeat(6,minmax(44px,1fr));gap:4px;margin:12px 0}
 .player-icons [aria-pressed=true]{background:var(--leaf-soft);outline:2px solid var(--leaf-strong)}
 @media(max-width:360px){.player-icons{grid-template-columns:repeat(4,minmax(44px,1fr))}}
 
@@ -1343,7 +1343,7 @@ function gradeGroup(){
   const vineEl=app.querySelector('.vine');if(vineEl)vineEl.outerHTML=vine();
   S.justAdded=false;
   saveProgress();
-  document.getElementById('nx').onclick=()=>{S.grp=null;S.pos++;ask()};
+  nextAfterCheck(()=>{S.grp=null;S.pos++;ask()});
   const first=app.querySelector('.feedback.bad')||document.getElementById('gact');first.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
@@ -1352,6 +1352,17 @@ function hintOf(q){
   if(q.hint)return q.hint;
   const t=CTX.conceptText&&CTX.conceptText(q);
   return t?`想想看：${t}`:'再讀一次題目，把每個選項都想一想。';
+}
+// 作答中被家長停用：對答案時就先在背景問，按下一題時才不用等
+function nextAfterCheck(go){
+  const btn=document.getElementById('nx');
+  if(ACTIVE_PLAYER==='p1'){btn.onclick=go;return}
+  const check=api('playerList').then(j=>(j.players||[]).some(p=>p.id===ACTIVE_PLAYER&&p.status==='啟用')).catch(()=>true);
+  btn.onclick=async()=>{
+    btn.disabled=true;
+    const active=await Promise.race([check,new Promise(r=>setTimeout(()=>r(true),3000))]);
+    if(active)go();else fallbackPlayer();
+  };
 }
 function answer(btn){
   const {q,kind,stage}=S.cur, v=btn.dataset.v, ok=v===q.a, c=q.c;
@@ -1404,7 +1415,7 @@ function answer(btn){
   document.getElementById('rw').onclick=say;
   const ds=document.getElementById('det-say');if(ds)ds.onclick=()=>speak(q.detail);
   saveProgress();
-  document.getElementById('nx').onclick=()=>{S.pos++;ask()};
+  nextAfterCheck(()=>{S.pos++;ask()});
   fb.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
@@ -4776,8 +4787,8 @@ function fallbackPlayer(){
   if(ACTIVE_PLAYER==='p1'||switchingPlayer)return;
   const p=PLAYERS.find(p=>p.id==='p1');
   // The server has refused this player: keep local backups, never retry them as p1.
-  switchingPlayer=true;store.set('player','p1');
-  store.set('player-notice','這位玩家已被停用，先切回 '+(p?.name||'玩家 1'));location.reload();
+  switchingPlayer=true;store.set('player','p1');store.set('resume',null);
+  store.set('player-notice','這位玩家已被家長停用，先切回 '+(p?.name||'玩家 1'));location.reload();
 }
 async function playerSheet(){
   document.getElementById('player-sheet')?.remove();
@@ -4798,9 +4809,9 @@ async function playerSheet(){
   msg.textContent='';
   const render=()=>{
     const list=document.getElementById('player-list');
-    list.innerHTML=PLAYERS.slice().sort((a,b)=>(a.status==='停用')-(b.status==='停用')||a.order-b.order).map(p=>{
-      const off=p.status!=='啟用',bal=p.balance;
-      return `<div class="player-row${off?' player-off':''}"><button class="player-pick iconbtn" data-player="${esc(p.id)}" ${off?'disabled':''}><span class="player-avatar">${esc(p.icon)}</span><span>${esc(p.name)}<small>銀 ${bal?.silver.available??'—'}・金 ${bal?.gold.available??'—'}</small></span><span>${off?'停用':p.id===ACTIVE_PLAYER?'使用中':''}</span></button>${off?'':`<button class="iconbtn" data-edit-player="${esc(p.id)}" aria-label="修改${esc(p.name)}">修改</button>`}</div>`;
+    list.innerHTML=PLAYERS.filter(p=>p.status==='啟用').sort((a,b)=>a.order-b.order).map(p=>{
+      const bal=p.balance;
+      return `<div class="player-row"><button class="player-pick iconbtn" data-player="${esc(p.id)}"><span class="player-avatar">${esc(p.icon)}</span><span>${esc(p.name)}<small>銀 ${bal?.silver.available??'—'}・金 ${bal?.gold.available??'—'}</small></span><span>${p.id===ACTIVE_PLAYER?'使用中':''}</span></button><button class="iconbtn" data-edit-player="${esc(p.id)}" aria-label="修改${esc(p.name)}">修改</button></div>`;
     }).join('');
     list.querySelectorAll('[data-player]').forEach(b=>b.onclick=async()=>{b.disabled=true;msg.textContent='儲存中……';await switchPlayer(b.dataset.player)});
     list.querySelectorAll('[data-edit-player]').forEach(b=>b.onclick=()=>form(PLAYERS.find(p=>p.id===b.dataset.editPlayer)));
@@ -4826,7 +4837,7 @@ async function playerSheet(){
 (function hookTours(){
   const wrap=(name,key)=>{const f=window[name];if(typeof f!=='function')return;
     window[name]=function(...a){CUR_TOUR=null;helpBtn();const r=f.apply(this,a);
-      const go=()=>{if(['libHome','home','betaHome'].includes(name))playerButton();const k=typeof key==='function'?key(...a):key;if(k)runTour(k)};
+      const go=()=>{if(['libHome','home','betaHome'].includes(name)){playerButton();if(ACTIVE_PLAYER!=='p1'&&!parentHere())refreshPlayers()}const k=typeof key==='function'?key(...a):key;if(k)runTour(k)};
       if(r&&typeof r.then==='function')r.then(go);else go();return r}};
   wrap('libHome','lib');wrap('home','plant');wrap('betaHome',()=>FAMILY.code?'mine':null);wrap('bankHome','bank');
   wrap('uploadPage','upload');wrap('reviewPage',()=>tourStepsReady('review'));wrap('libBankHome','libBank');
@@ -4850,7 +4861,7 @@ function tourStepsReady(k){return k}
     }
   }
   libHome();
-  refreshPlayers();
+  if(ACTIVE_PLAYER==='p1')refreshPlayers();
   const notice=store.get('player-notice','');if(notice){store.set('player-notice','');toast(notice)}
   setTimeout(badgeSync,3000);   // 開站後在背景把徽章和雲端對一次
 })();
