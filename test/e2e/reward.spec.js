@@ -5,7 +5,8 @@
  * npx playwright test test/e2e/reward.spec.js
  * Opens dist/index.html via file://; FQ_DIST can point to another built HTML file.
  * G3 is manual in cloud: npx lighthouse <網址> --form-factor=mobile --only-categories=performance
- * Use a cloud-hosted mock build for Lighthouse; target performance score >= 70.
+ * Use a cloud-hosted mock build for Lighthouse; target performance score >= 80.
+ * Serve with gzip (GitHub Pages does); an uncompressed static server under-reports.
  */
 'use strict';
 

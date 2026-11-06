@@ -17,20 +17,62 @@ const plain=v=>JSON.parse(JSON.stringify(v));
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function settle(){for(let i=0;i<6;i++)await tick()}
 async function open(t,{storage={},query='',frame=false}={}){
-  const errors=[],navigation=[],requests=[];
+  const errors=[],navigation=[],requests=[],fetchUrls=[];
   const vc=new VirtualConsole();
   vc.on('jsdomError',e=>{if(e.message.includes('navigation'))navigation.push(e);else errors.push(e)});
   const dom=new JSDOM(html,{url:'https://quiz.invalid/'+query,runScripts:'dangerously',virtualConsole:vc,beforeParse(w){
     if(frame)Object.defineProperty(w,'self',{value:{}});
     w.scrollTo=()=>{};w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
     w.speechSynthesis={cancel(){},getVoices(){return []},speak(){},addEventListener(){}};
-    Object.defineProperty(w,'fetch',{configurable:true,set(fn){Object.defineProperty(w,'fetch',{configurable:true,writable:true,value:async(url,options)=>{if(String(url)==='mock://gas')requests.push(JSON.parse(options.body));return fn(url,options)}})}});
+    Object.defineProperty(w,'fetch',{configurable:true,set(fn){Object.defineProperty(w,'fetch',{configurable:true,writable:true,value:async(url,options)=>{fetchUrls.push(String(url));if(String(url)==='mock://gas')requests.push(JSON.parse(options.body));return fn(url,options)}})}});
     for(const [k,v] of Object.entries(storage))w.localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));
   }});
   t.after(()=>{dom.window.close();assert.deepEqual(errors,[])});await settle();
   const w=dom.window;
-  return {w,errors,navigation,requests,storage:()=>Object.fromEntries(Object.keys(w.localStorage).map(k=>[k,w.localStorage.getItem(k)]))};
+  return {w,errors,navigation,requests,fetchUrls,storage:()=>Object.fromEntries(Object.keys(w.localStorage).map(k=>[k,w.localStorage.getItem(k)]))};
 }
+function blockingStylesheets(source){
+  const active=source.replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi,'');
+  return [...active.matchAll(/<link\b[^>]*>/gi)].filter(([tag])=>/\brel\s*=\s*["']stylesheet["']/i.test(tag)&&!/\bmedia\s*=\s*["']print["']/i.test(tag)).length;
+}
+function bytesBeforeContent(source){
+  const at=source.indexOf('<p class="lead">載入中……');
+  return at<0?Infinity:Buffer.byteLength(source.slice(0,at),'utf8');
+}
+
+test('T012 G3: measurement baits and nonblocking first content within 64KB',()=>{
+  assert.equal(blockingStylesheets('<link rel="stylesheet" href="x">'),1);
+  assert.equal(blockingStylesheets('<link rel="stylesheet" href="x" media="print"><noscript><link rel="stylesheet" href="x"></noscript>'),0);
+  assert.equal(bytesBeforeContent('<main id="app"></main>'),Infinity);
+  assert.equal(bytesBeforeContent('字<p class="lead">載入中……'),3);
+  const original=fs.readFileSync(path.join(root,'index.html'),'utf8');
+  for(const [name,source] of [['root',original],['dist',html]]){
+    assert.equal(blockingStylesheets(source),0,name+' blocking stylesheets');
+    assert.ok(bytesBeforeContent(source)<=64*1024,name+' first content bytes');
+    assert.match(source.match(/\bbody\s*\{([^}]+)\}/)[1],/\bline-height\s*:\s*1\.4\s*;/);
+  }
+});
+
+test('T012 G3: mock boot follows main, static banner precedes it, missing main rejected',()=>{
+  const main=html.indexOf('<main id="app">');
+  assert.ok(html.indexOf('createGasEnv')>html.indexOf('</main>',main));
+  const banner=html.indexOf('假後端示範。家長設定碼：MOCK2345');
+  assert.ok(banner>=0&&banner<main);
+  assert.throws(()=>build({outDir:dir,html:"const CONFIG={API_URL:'x'};\n<html></html>"}),/app container/);
+});
+
+test('T012 G3: home and parent replace skeleton, startup fetches stay mock, one banner',async t=>{
+  for(const query of ['', '#parent']){
+    const {w,fetchUrls}=await open(t,{query});
+    const app=w.document.getElementById('app');
+    assert.ok(app.textContent.trim().length>0);
+    assert.notEqual(app.textContent.trim(),'載入中……');
+    assert.ok(fetchUrls.length>0);
+    assert.deepEqual(fetchUrls.filter(url=>url!=='mock://gas'),[]);
+    assert.equal(w.document.body.textContent.split('假後端示範。家長設定碼：MOCK2345').length-1,1);
+    if(query)assert.ok(w.document.getElementById('parent-page'));
+  }
+});
 function bank(){return {id:'bank-test',title:'測試題庫',updatedAt:100,p1At:100,rec:{q1:{seen:7}},days:{p1:1},summary:{text:'p1'},badge:{earned:[]},concepts:[{id:'c1',text:'加法'}],questions:[{id:'q1',c:'c1',t:'mc',lv:1,q:'一加一？',o:['一','二'],a:'二',why:'測試'}],players:{p2:{rec:{q1:{seen:2}},days:{p2:1},summary:null,badge:{earned:[]},updatedAt:200}}}}
 
 test('T005 build: mock only, CONFIG bait, root clean, every inline script compiles',()=>{

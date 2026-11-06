@@ -7,7 +7,8 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Huninn&family=LXGW+WenKai+TC:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=LXGW+WenKai+TC:wght@400;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=LXGW+WenKai+TC:wght@400;700&display=swap"></noscript>
 <script>/* 介面風格：在畫面出現前套用，避免閃一下 */
 try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAttribute('data-style',st)}catch(e){}</script>
 <style>
@@ -39,6 +40,7 @@ try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAt
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{
+  line-height:1.4;
   margin:0; min-height:100%; color:var(--ink);
   font-family:var(--font,"Huninn","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif);
   background-color:var(--paper);
@@ -452,7 +454,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 </style>
 </head>
 <body>
-<main id="app"></main>
+<main id="app"><p class="lead">載入中……</p></main>
 
 <script>
 /* ===== 題庫：依安親班解題錄音整理（三上自然・植物） ===== */

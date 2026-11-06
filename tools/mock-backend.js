@@ -39,8 +39,4 @@
     const result=env.doPost(JSON.parse(options.body));persist();
     return {ok:true,status:200,json:async()=>result,text:async()=>JSON.stringify(result)};
   };
-  document.addEventListener('DOMContentLoaded',()=>{
-    const banner=document.createElement('div');banner.textContent='假後端示範。家長設定碼：MOCK2345';
-    banner.style.cssText='padding:8px 12px;background:var(--sun-soft);color:var(--sun-ink);text-align:center';document.body.prepend(banner);
-  });
 })();
