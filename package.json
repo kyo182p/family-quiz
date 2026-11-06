@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "test": "node --test",
-    "build": "node tools/build.js"
+    "build": "node tools/build.js",
+    "e2e": "node tools/build.js && node tools/e2e.js"
   },
   "devDependencies": {
     "jsdom": "^31.0.0"

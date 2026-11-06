@@ -1,9 +1,10 @@
 /* Cloud only; run from the repository root:
- * npm run build
  * npm i --no-save @playwright/test
  * npx playwright install chromium
- * npx playwright test test/e2e/reward.spec.js
- * Opens dist/index.html via file://; FQ_DIST can point to another built HTML file.
+ * npm run e2e
+ * npm run e2e builds dist/, serves it from a local http server and closes it afterwards.
+ * Never open it via file://: the mock backend's localStorage reads stale values across pages.
+ * FQ_DIST can point to another built HTML file.
  * G3 is manual in cloud: npx lighthouse <網址> --form-factor=mobile --only-categories=performance
  * Use a cloud-hosted mock build for Lighthouse; target performance score >= 80.
  * Serve with gzip (GitHub Pages does); an uncompressed static server under-reports.
@@ -14,16 +15,16 @@
   try { require.resolve('@playwright/test'); } catch { return; }
   // node --test also discovers this file, even when Playwright is installed.
   if (process.env.NODE_TEST_CONTEXT) return;
+  const base = process.env.FQ_BASE;
+  if (!base) throw new Error('FQ_BASE is missing: run this suite with npm run e2e');
   const {test,expect} = require('@playwright/test');
   const {readFileSync} = require('node:fs');
   const {resolve} = require('node:path');
-  const {pathToFileURL} = require('node:url');
   const dist = resolve(process.env.FQ_DIST || 'dist/index.html');
   const html = readFileSync(dist,'utf8');
   if (!html.includes("const CONFIG={API_URL:'mock://gas'};") || html.includes('script.google.com')) {
     throw new Error('FQ_DIST must be a mock build produced by npm run build');
   }
-  const base = pathToFileURL(dist).href;
   const pin = '246810'; // Deliberately fake, used only by the local mock.
   const api = (page,action,data={}) => page.evaluate(async ({action,data}) => {
     const result = await window.api(action,data);
@@ -35,8 +36,8 @@
   test.beforeEach(async ({page}) => {
     page.__errors = [];
     page.on('pageerror',error=>page.__errors.push(error.message));
-    // All service traffic is forbidden. The build's mock://gas adapter is in-page.
-    await page.route(/^https?:\/\//,route=>route.abort());
+    // All other service traffic is forbidden. The build's mock://gas adapter is in-page.
+    await page.route(/^https?:\/\//,route=>new URL(route.request().url()).origin === new URL(base).origin ? route.continue() : route.abort());
     await page.addInitScript(()=>{
       localStorage.setItem('tour-done',JSON.stringify(Object.fromEntries(
         ['lib','plant','mine','bank','upload','review','libBank','practice','feedback','analysis'].map(key=>[key,true])

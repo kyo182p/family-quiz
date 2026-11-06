@@ -238,7 +238,7 @@ const CONFIG={API_URL:'https://script.google.com/macros/s/xxxx/exec'};
 
 家長可設定 PIN、管理玩家與獎項，並核准孩子用徽章申請的獎勵。入口是網站的 `#parent`；一般徽章算銀、進階徽章算金，每位玩家分開計算。
 
-既有試算表的升級步驟請依照[家長權限與獎勵部署說明](docs/DEPLOY-reward.md)。本機使用 `npm install` 安裝開發相依套件，`npm run build` 產生 `dist/index.html` 假後端示範，`node --test` 執行自動測試。
+既有試算表的升級步驟請依照[家長權限與獎勵部署說明](docs/DEPLOY-reward.md)。本機使用 `npm install` 安裝開發相依套件，`npm run build` 產生 `dist/index.html` 假後端示範，`node --test` 執行自動測試。雲端瀏覽器測試用 npm run e2e，它會自己起本機 http 伺服器並在跑完後關閉，不要用 file:// 開。
 
 ## 九、安全與限制
 
