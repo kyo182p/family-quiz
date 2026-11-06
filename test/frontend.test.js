@@ -442,6 +442,80 @@ test('T006 server rejections refresh with plain messages; cancellation conflict;
 });
 
 async function parentRoute(w){w.location.hash='parent';await settle()}
+
+test('T014 player sheet closes on parent route and PIN keypad responds',async t=>{
+  const {w}=await open(t);
+  await w.api('parentSetPin',{setupCode:'MOCK2345',pin:'246810'});
+  await w.playerSheet();assert.ok(w.document.getElementById('player-sheet'));
+  await parentRoute(w);
+  assert.equal(w.document.getElementById('player-sheet'),null);
+  await typePin(w,'2');
+  assert.equal(w.document.querySelectorAll('.parent-dots .filled').length,1);
+});
+
+test('T014 player sheet closes on other hash routes',async t=>{
+  const {w}=await open(t);
+  await w.playerSheet();assert.ok(w.document.getElementById('player-sheet'));
+  w.location.hash='x';await settle();
+  assert.equal(w.document.getElementById('player-sheet'),null);
+});
+
+test('T014 libHome directly closes the player sheet',async t=>{
+  const {w}=await open(t);
+  await w.playerSheet();assert.ok(w.document.getElementById('player-sheet'));
+  await w.libHome();
+  assert.equal(w.document.getElementById('player-sheet'),null);
+});
+
+test('T014 overlay cleanup is safe without a sheet and preserves focus',async t=>{
+  const {w}=await open(t);
+  const button=w.document.getElementById('player-button');button.focus();
+  assert.doesNotThrow(()=>{w.closePlayerSheet();w.closeChildOverlays()});
+  assert.equal(w.document.activeElement,button);
+});
+
+test('T014 parent route cancels confirmation promises and empties MODALS',async t=>{
+  const {w}=await open(t);
+  const first=w.confirmBox('測試確認'),second=w.confirmBox('第二個確認');
+  assert.equal(w.document.querySelectorAll('.modal').length,2);
+  await parentRoute(w);
+  assert.equal(w.document.querySelector('.modal'),null);
+  assert.deepEqual(await Promise.all([first,second]),[false,false]);
+  assert.equal(w.eval('MODALS.length'),0);
+});
+
+test('T014 other hash routes cancel confirmation and empty MODALS',async t=>{
+  const {w}=await open(t);
+  const confirmation=w.confirmBox('測試確認');
+  assert.ok(w.document.querySelector('.modal'));
+  w.location.hash='x';await settle();
+  assert.equal(w.document.querySelector('.modal'),null);
+  assert.equal(await confirmation,false);
+  assert.equal(w.eval('MODALS.length'),0);
+});
+
+test('T014 parentPage directly closes the player sheet on the parent route',async t=>{
+  const {w}=await open(t,{query:'#parent'});
+  await w.playerSheet();assert.ok(w.document.getElementById('player-sheet'));
+  await w.parentPage();
+  assert.equal(w.location.hash,'#parent');
+  assert.equal(w.document.getElementById('player-sheet'),null);
+});
+
+test('T014 delayed forced tour does not open on parent route',async t=>{
+  const {w}=await open(t);
+  const setTimeout=w.setTimeout;let delayed;
+  w.setTimeout=(fn,ms,...args)=>ms===350?(delayed=fn,0):setTimeout(fn,ms,...args);
+  // Supply a visible step: jsdom normally reports no client rects for any node.
+  w.eval('tourSteps=()=>[{node:document.body,title:"測試",text:"導覽"}]');
+  w.runTour('lib',true);w.setTimeout=setTimeout;
+  assert.equal(typeof delayed,'function');
+  await parentRoute(w);
+  delayed();
+  assert.equal(w.document.getElementById('tour-block'),null);
+  assert.equal(w.eval('MODALS.length'),0);
+});
+
 async function setupParentUI(w,pin='246810',code='MOCK2345',repeat=pin){
   w.document.getElementById('parent-code').value=code;
   w.document.getElementById('parent-new-pin').value=pin;

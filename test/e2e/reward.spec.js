@@ -63,6 +63,17 @@
     await expect(page.locator('.reward-skeleton')).toHaveCount(0);
     return page.evaluate(()=>PARENT_SESSION);
   }
+  test('A3 overlay: player sheet closes before parent PIN entry',async ({page})=>{
+    await parent(page);
+    await page.goto(base);
+    await page.locator('#player-button').click();
+    await expect(page.locator('#player-sheet')).toBeVisible();
+    await page.evaluate(()=>{location.hash='parent'});
+    await expect(page.locator('#player-sheet')).toHaveCount(0);
+    for (const digit of pin) await page.locator(`[data-pin-key="${digit}"]`).click();
+    await expect(page.locator('[data-parent-tab="pending"]')).toBeVisible();
+  });
+
   async function tab(page,name) {
     await page.locator(`[data-parent-tab="${name}"]`).click();
     await expect(page.locator('.reward-skeleton')).toHaveCount(0);

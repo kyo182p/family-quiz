@@ -1745,6 +1745,15 @@ function aiPage(){
 
 /* --- 對話框鍵盤操作：Esc 關閉、Tab 留在對話框內、關閉後焦點回到原本的按鈕 --- */
 const MODALS=[];
+function closePlayerSheet(){document.getElementById('player-sheet')?.remove()}
+function closeChildOverlays(){
+  closePlayerSheet();
+  while(MODALS.length){
+    const count=MODALS.length;
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+    if(MODALS.length>=count)break;
+  }
+}
 function modalKeys(root,onEsc){
   const prev=document.activeElement;MODALS.push(root);
   const kd=e=>{
@@ -3530,6 +3539,7 @@ const gradeTag=b=>(b.grade||'').replace('年級','')+(b.term||'');
 const PLANT_CARD={id:'__plant',title:'植物小學堂',grade:'三年級',term:'上',subject:'自然',publisher:'安親班講義',unit:'植物',count:Q.length,builtin:true};
 
 async function libHome(){
+  closePlayerSheet();
   CTX=PLANT_CTX;
   if('speechSynthesis' in window)speechSynthesis.cancel();
   if(libCode()&&!LIB&&!LIBERR){
@@ -4452,6 +4462,7 @@ function runTour(key,force){
   CUR_TOUR=key;helpBtn();
   if(!force&&(tourDone[key]||tourShown.has(key)))return;
   setTimeout(()=>{
+    if(parentHere())return;
     if(CUR_TOUR!==key)return;
     const steps=tourSteps(key);if(!steps.length)return;
     tourShown.add(key);endTour();
@@ -4624,7 +4635,7 @@ function parentLock(){
 }
 document.addEventListener('visibilitychange',()=>{if(parentHere()&&document.visibilityState==='hidden')parentLock()});
 for(const event of ['pointerdown','pointermove','keydown'])document.addEventListener(event,()=>{if(parentHere())parentActivity()},{passive:true});
-window.addEventListener('hashchange',()=>{parentLock();if(!parentHere())libHome()});
+window.addEventListener('hashchange',()=>{closeChildOverlays();parentLock();if(!parentHere())libHome()});
 async function parentCall(action,data={}){
   const session=PARENT_SESSION;
   try{try{return await api(action,{...data,session})}catch(e){if(e.code==='busy'&&session===PARENT_SESSION)return await api(action,{...data,session});throw e}}
@@ -4632,6 +4643,7 @@ async function parentCall(action,data={}){
 }
 function parentError(root,message,retry){root.innerHTML='<p role="status">'+esc(message)+'</p><button class="ghost">再試一次</button>';root.querySelector('button').onclick=retry}
 async function parentPage(){
+  closeChildOverlays();
   const epoch=++parentEpoch;parentActivity();
   app.innerHTML=rewardMedals+'<section id="parent-page" class="parent-page"><header class="parent-bar"><strong>家長</strong><button id="parent-lock">上鎖</button><button id="parent-exit">回首頁</button></header><div id="parent-content" class="parent-body"></div></section>';
   document.getElementById('parent-lock').onclick=parentLock;
