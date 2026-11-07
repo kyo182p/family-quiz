@@ -7,7 +7,8 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Huninn&family=LXGW+WenKai+TC:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=LXGW+WenKai+TC:wght@400;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=LXGW+WenKai+TC:wght@400;700&display=swap"></noscript>
 <script>/* 介面風格：在畫面出現前套用，避免閃一下 */
 try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAttribute('data-style',st)}catch(e){}</script>
 <style>
@@ -39,6 +40,7 @@ try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAt
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{
+  line-height:1.4;
   margin:0; min-height:100%; color:var(--ink);
   font-family:var(--font,"Huninn","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif);
   background-color:var(--paper);
@@ -400,10 +402,59 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .bgo:hover,.bgo:focus-visible{border-color:var(--sun)}
 .bgo-tag{display:inline-block;margin:2px 0 4px;padding:2px 10px;border-radius:999px;background:var(--sun);color:#222;font-size:.85rem;font-weight:700;white-space:nowrap}.pixbook figcaption{font-size:1rem;margin-top:4px}
 .pixbook figcaption .tip{color:var(--muted);font-size:.85rem}
+
+.player-overlay{position:fixed;inset:0;z-index:1100;background:rgba(10,25,16,.42);display:flex;align-items:flex-end;justify-content:center}
+.player-panel{width:min(100%,540px);max-height:90dvh;overflow:auto;background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:24px 24px 0 0;padding:16px;padding-bottom:max(20px,env(safe-area-inset-bottom));box-sizing:border-box}
+.player-panel .toprow{justify-content:space-between}.player-panel h2{margin:0;font-size:1.4rem}
+.player-panel button,.player-panel input{min-height:44px;min-width:44px}.player-panel input{width:100%;box-sizing:border-box}
+.player-row{display:flex;gap:6px;margin:8px 0;align-items:center}.player-pick{flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-align:left;white-space:normal}
+.player-pick span:nth-child(2){flex:1;overflow-wrap:anywhere}.player-pick small{display:block;font-size:.9rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.player-avatar{font-size:1.8rem}.player-icons{display:grid;grid-template-columns:repeat(6,minmax(44px,1fr));gap:4px;margin:12px 0}
+.player-icons [aria-pressed=true]{background:var(--leaf-soft);outline:2px solid var(--leaf-strong)}
+@media(max-width:360px){.player-icons{grid-template-columns:repeat(4,minmax(44px,1fr))}}
+
+/* Child rewards */
+.reward-page{max-width:620px;margin:auto;display:grid;gap:14px;overflow-wrap:anywhere}
+.reward-page .toprow{justify-content:space-between}.reward-tabs,.reward-wallet{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.reward-tabs button{min-height:44px}.reward-tabs [aria-selected="true"]{background:var(--leaf-strong);color:var(--on-leaf)}
+.reward-wallet{font-variant-numeric:tabular-nums}.reward-pot{border:2px solid var(--line);border-radius:16px;padding:12px;display:grid;gap:4px;background:var(--card)}
+.reward-pot strong{font-size:2rem}.reward-gold{color:var(--sun-ink);background:var(--sun-soft)}.reward-silver{color:var(--muted);background:var(--paper)}
+.reward-coins{display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap;font-variant-numeric:tabular-nums}.reward-coin{border:1px solid var(--line);border-radius:16px;padding:2px 8px;white-space:nowrap}
+.reward-medal{width:24px;height:24px;vertical-align:middle}.reward-list{display:grid;gap:12px}.reward-card{padding:16px;display:grid;gap:10px;margin:0}.reward-card h2{font-size:1.2rem;margin:0}
+.reward-card.unavailable{border-style:dashed;color:var(--muted);background:transparent}.reward-card button{width:100%;min-height:44px}.reward-card .big{min-height:58px;margin-top:0}
+.reward-page .big:disabled{background:var(--line);color:var(--muted);box-shadow:none;cursor:not-allowed}
+.reward-status{border-radius:16px;padding:4px 10px;display:inline-block}.reward-wait{background:var(--sun-soft);color:var(--sun-ink)}.reward-ok{background:var(--leaf-soft);color:var(--leaf-ink)}.reward-no{background:var(--coral-soft);color:var(--coral-ink)}.reward-off{border:1px dashed var(--line);color:var(--muted)}
+.reward-skeleton{height:100px;border-radius:16px;background:linear-gradient(90deg,var(--line),var(--card),var(--line));background-size:200% 100%;animation:reward-shimmer 1.4s infinite}
+@keyframes reward-shimmer{to{background-position:-200% 0}}@media(prefers-reduced-motion:reduce){.reward-skeleton{animation:none}}
+.reward-dialog{position:fixed;inset:0;background:rgba(10,25,16,.42);z-index:1000;display:flex;align-items:flex-end;justify-content:center}
+.reward-sheet{background:var(--card);border:2px solid var(--line);border-radius:24px 24px 0 0;padding:20px;max-width:620px;width:100%;max-height:90dvh;overflow:auto;display:grid;gap:14px;padding-bottom:max(20px,env(safe-area-inset-bottom))}
+/* 家長頁沿用既有主題與徽章元件 */
+:root{--parent:#183528;--parent-soft:#E3EEE6}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--parent:#0B1711;--parent-soft:#1F3328}}
+:root[data-theme="dark"],:root[data-style="chalk"]{--parent:#0B1711;--parent-soft:#1F3328}
+.parent-page{max-width:620px;margin:auto;overflow-wrap:anywhere}
+.parent-page button{min-width:44px;min-height:44px}
+.parent-page [hidden]{display:none!important}
+.parent-page button[aria-pressed="true"]{background:var(--leaf-soft);border-color:var(--leaf-strong);color:var(--leaf-ink)}
+.parent-bar{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;background:var(--parent);color:#EAF4EC;padding:10px;border-radius:14px}
+.parent-bar strong{flex:1}.parent-bar button{background:transparent;color:inherit;border:1px solid #8EA697;border-radius:10px;padding:8px}
+.parent-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:var(--parent);padding:6px;border-radius:12px}
+.parent-tabs button{padding:4px 0;border:0;border-radius:8px;background:transparent;color:#EAF4EC}
+.parent-tabs [aria-current="page"]{background:var(--parent-soft);color:var(--ink)}
+.parent-count{background:var(--sun);color:#3a2700;border-radius:12px;padding:1px 5px}
+.parent-body,.parent-page form{display:grid;gap:12px;padding:12px 0}
+.parent-page .card{margin:0;display:grid;gap:10px;padding:16px;min-width:0}
+.parent-page input{box-sizing:border-box;width:100%;min-height:48px;background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:10px;padding:10px;font:inherit}
+.parent-page label{display:grid;gap:4px}.parent-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.parent-pad button{height:60px;font-size:1.4rem;border:2px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink)}
+.parent-dots{display:flex;justify-content:center;gap:12px;padding:14px}.parent-dots i{width:16px;height:16px;border:2px solid var(--leaf-strong);border-radius:50%}.parent-dots .filled{background:var(--leaf-strong)}
+.parent-off{border-style:dashed!important;color:var(--muted)}.parent-actions{display:flex;flex-wrap:wrap;gap:8px}
+.parent-step{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;text-align:center;gap:8px}
+.parent-step button{font-size:1.4rem}.parent-page h2{margin:8px 0}.parent-page [role="status"]{white-space:pre-line}
 </style>
 </head>
 <body>
-<main id="app"></main>
+<main id="app"><p class="lead">載入中……</p></main>
 
 <script>
 /* ===== 題庫：依安親班解題錄音整理（三上自然・植物） ===== */
@@ -661,9 +712,11 @@ const PICS={
 function renderPic(key){ if(!key) return ''; const [k,arg]=key.split(':'); return PICS[k]?PICS[k](arg):''; }
 
 /* ===== 紀錄（存在這台裝置） ===== */
+const ACTIVE_PLAYER=(()=>{try{return JSON.parse(localStorage.getItem('reader')||'{}').code?'p1':JSON.parse(localStorage.getItem('player')||'"p1"')}catch(e){return 'p1'}})()||'p1';
+function scopeKey(k){return ACTIVE_PLAYER!=='p1'&&(k==='badges'||k==='g3plants-rec'||k.startsWith('progress-')||k.startsWith('lib-rec:'))?ACTIVE_PLAYER+':'+k:k}
 const store={
-  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
-  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  get(k,d){try{const v=localStorage.getItem(scopeKey(k));return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(scopeKey(k),JSON.stringify(v))}catch(e){}}
 };
 let rec=store.get('g3plants-rec',{});
 let prefs=store.get('g3plants-prefs',{autoRead:false,unit:'all',count:10});
@@ -1014,7 +1067,7 @@ function badgeSync(){
   if(badgeSyncing)return badgeSyncing;
   const own=new Set(BANKS.filter(ownBank).map(b=>b.id));
   const send={};Object.entries(BADGES).forEach(([k,r])=>{if(r&&!own.has(k))send[k]=r});
-  badgeSyncing=libApi('badges',{badges:send}).then(j=>{
+  badgeSyncing=libApi('badges',{badges:send,...(READER.code?{}:{playerId:ACTIVE_PLAYER})}).then(j=>{
     const got=j.badges||{};
     Object.entries(got).forEach(([k,r])=>{if(!own.has(k))BADGES[k]=r});   // 送出後這台裝置才有的新紀錄保留下一輪再送
     store.set('badges',BADGES);return true;
@@ -1109,7 +1162,7 @@ function saveProgress(){
   store.set(progKey(CTX),{queue:S.queue.slice(S.pos+1).map(x=>({id:x.q.id,kind:x.kind,stage:x.stage||0})),
     total:S.total,leaves:S.leaves,used:[...S.used],cs:S.cs,missed:S.missed,t:Date.now()});
 }
-function clearProgress(ctx){try{localStorage.removeItem(progKey(ctx))}catch(e){}}
+function clearProgress(ctx){try{localStorage.removeItem(scopeKey(progKey(ctx)))}catch(e){}}
 function getProgress(ctx){
   const p=store.get(progKey(ctx),null);
   if(!p||!Array.isArray(p.queue))return null;
@@ -1292,7 +1345,7 @@ function gradeGroup(){
   const vineEl=app.querySelector('.vine');if(vineEl)vineEl.outerHTML=vine();
   S.justAdded=false;
   saveProgress();
-  document.getElementById('nx').onclick=()=>{S.grp=null;S.pos++;ask()};
+  nextAfterCheck(()=>{S.grp=null;S.pos++;ask()});
   const first=app.querySelector('.feedback.bad')||document.getElementById('gact');first.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
@@ -1301,6 +1354,17 @@ function hintOf(q){
   if(q.hint)return q.hint;
   const t=CTX.conceptText&&CTX.conceptText(q);
   return t?`想想看：${t}`:'再讀一次題目，把每個選項都想一想。';
+}
+// 作答中被家長停用：對答案時就先在背景問，按下一題時才不用等
+function nextAfterCheck(go){
+  const btn=document.getElementById('nx');
+  if(ACTIVE_PLAYER==='p1'){btn.onclick=go;return}
+  const check=api('playerList').then(j=>(j.players||[]).some(p=>p.id===ACTIVE_PLAYER&&p.status==='啟用')).catch(()=>true);
+  btn.onclick=async()=>{
+    btn.disabled=true;
+    const active=await Promise.race([check,new Promise(r=>setTimeout(()=>r(true),3000))]);
+    if(active)go();else fallbackPlayer();
+  };
 }
 function answer(btn){
   const {q,kind,stage}=S.cur, v=btn.dataset.v, ok=v===q.a, c=q.c;
@@ -1353,7 +1417,7 @@ function answer(btn){
   document.getElementById('rw').onclick=say;
   const ds=document.getElementById('det-say');if(ds)ds.onclick=()=>speak(q.detail);
   saveProgress();
-  document.getElementById('nx').onclick=()=>{S.pos++;ask()};
+  nextAfterCheck(()=>{S.pos++;ask()});
   fb.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
@@ -1457,7 +1521,7 @@ async function api(action,data,signal){
     throw {code:'network',message:'連不上後端'};
   }
   let j; try{j=await res.json()}catch(e){throw {code:'server_error',message:'後端回應格式錯誤'}}
-  if(!j.ok)throw {code:j.code||'server_error',message:j.message||''};
+  if(!j.ok){if(j.code==='no_session'&&parentHere()&&PARENT_SESSION&&(!data?.session||data.session===PARENT_SESSION))parentLock();if(['saveBank','badges'].includes(action)&&['player_disabled','bad_player'].includes(j.code))fallbackPlayer();throw {...j,code:j.code||'server_error',message:j.message||''};}
   return j;
 }
 function parseJSONLoose(t){
@@ -1681,6 +1745,15 @@ function aiPage(){
 
 /* --- 對話框鍵盤操作：Esc 關閉、Tab 留在對話框內、關閉後焦點回到原本的按鈕 --- */
 const MODALS=[];
+function closePlayerSheet(){document.getElementById('player-sheet')?.remove()}
+function closeChildOverlays(){
+  closePlayerSheet();
+  while(MODALS.length){
+    const count=MODALS.length;
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+    if(MODALS.length>=count)break;
+  }
+}
 function modalKeys(root,onEsc){
   const prev=document.activeElement;MODALS.push(root);
   const kd=e=>{
@@ -1727,23 +1800,51 @@ function localPut(b){const all=localBanks();all[b.id]=clone(b);store.set(LS_BANK
 function localDel(id){const all=localBanks();delete all[id];store.set(LS_BANKS,all)}
 function toLocal(note){BS.mode='local';BS.note=note;}
 
+const PLAYER_FIELDS=['rec','days','summary','badge'];
+function playerData(b){return Object.fromEntries(PLAYER_FIELDS.map(k=>[k,clone(b[k]??(k==='rec'||k==='days'?{}:null))]))}
+function applyView(b){
+  if(ACTIVE_PLAYER==='p1'||b.__view)return b;
+  b.__p1={...playerData(b),p1At:b.p1At??b.updatedAt??0};
+  Object.assign(b,playerData((b.players||{})[ACTIVE_PLAYER]||{}));b.__view=ACTIVE_PLAYER;return b;
+}
+function toWire(b,keepTime){
+  const d=clone(b);d.players=d.players||{};
+  if(d.__view){
+    d.players[d.__view]={...playerData(d),updatedAt:keepTime?((d.players[d.__view]||{}).updatedAt||0):Date.now()};
+    Object.assign(d,d.__p1);
+  }else if(!keepTime)d.p1At=Date.now();
+  delete d.__view;delete d.__p1;return d;
+}
+function currentWire(b){const d=clone(b);d.players=ACTIVE_PLAYER==='p1'?{}:{[ACTIVE_PLAYER]:(d.players||{})[ACTIVE_PLAYER]||{}};return d}
+function mergeLocalBank(cloud,local){
+  const d=clone((local.updatedAt||0)>(cloud.updatedAt||0)?local:cloud);
+  const p=(local.p1At??local.updatedAt??0)>(cloud.p1At??cloud.updatedAt??0)?local:cloud;
+  Object.assign(d,playerData(p));d.p1At=p.p1At??p.updatedAt;
+  d.players={...(cloud.players||{})};
+  for(const [pid,v] of Object.entries(local.players||{}))if(!d.players[pid]||(v.updatedAt||0)>(d.players[pid].updatedAt||0))d.players[pid]=clone(v);
+  return d;
+}
 async function bsLoad(){
   await bsReady;
   const loc=localBanks();
   if(BS.mode==='cloud'){
     try{
-      const j=await api('listBanks');
-      const map={};
+      const j=await api('listBanks'),map={};
       (j.banks||[]).forEach(b=>{if(b&&b.id)map[b.id]=b});
-      // 本機有、雲端沒有或比較新的，補上雲端
-      Object.values(loc).forEach(b=>{ if(!map[b.id]||(b.updatedAt||0)>(map[b.id].updatedAt||0)){map[b.id]=b;bsSave(b,true)} });
-      BANKS=Object.values(map);
-    }catch(e){
-      toLocal('目前連不上雲端，先顯示這台裝置上的題庫。');
-      BANKS=Object.values(loc);
-    }
+      for(const b of Object.values(loc)){
+        const cloud=map[b.id];
+        const merged=cloud?mergeLocalBank(cloud,b):b;
+        if(!cloud||(b.updatedAt||0)>(cloud.updatedAt||0))await bsSave(b,true);
+        else {
+          const playerAt=x=>ACTIVE_PLAYER==='p1'?(x.p1At??x.updatedAt??0):((x.players||{})[ACTIVE_PLAYER]?.updatedAt||0);
+          if(playerAt(b)>playerAt(cloud))await bsSave(merged,true);
+        }
+        map[b.id]=merged;
+      }
+      BANKS=Object.values(map);BANKS.filter(b=>Object.hasOwn(loc,b.id)).forEach(localPut);
+    }catch(e){toLocal('目前連不上雲端，先顯示這台裝置上的題庫。');BANKS=Object.values(loc)}
   }else BANKS=Object.values(loc);
-  BANKS.forEach(fixBank);
+  BANKS.forEach(b=>{fixBank(b);applyView(b)});
   BANKS.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
 }
 function fixBank(b){b.concepts=b.concepts||[];b.questions=b.questions||[];b.pending=b.pending||[];b.skipped=b.skipped||[];b.rec=b.rec||{};b.seq=b.seq||0;b.days=b.days||{};return b}
@@ -1752,14 +1853,16 @@ const saving={};
 function bsSave(bank,keepTime){
   if(bank.__lib){libSaveLocal(bank);return Promise.resolve()}
   if(!keepTime)bank.updatedAt=Date.now();
-  localPut(bank);
+  const wire=toWire(bank,keepTime);
+  if(bank.__view)bank.players=clone(wire.players);else bank.p1At=wire.p1At;
+  localPut(wire);
   if(BS.mode!=='cloud')return Promise.resolve();
   const s=saving[bank.id]||(saving[bank.id]={busy:null,next:null});
-  s.next=clone(bank);
+  s.next=currentWire(wire);
   if(!s.busy)s.busy=(async()=>{
     while(s.next){
       const d=s.next;s.next=null;
-      try{await api('saveBank',{bank:d});}
+      try{await api('saveBank',{bank:d,playerId:ACTIVE_PLAYER});}
       catch(e){
         const c=e&&e.code;
         if(c==='too_large')toast('題庫太大，雲端存不下，這次先存在這台裝置。');
@@ -1778,7 +1881,7 @@ async function bsDelete(bank){
   if(BS.mode==='cloud'){try{await api('deleteBank',{id:bank.id})}catch(e){}}
 }
 const recTimers={};
-function scheduleSave(bank){if(bank.__lib){libSaveLocal(bank);return}clearTimeout(recTimers[bank.id]);recTimers[bank.id]=setTimeout(()=>bsSave(bank),6000)}
+function scheduleSave(bank){if(bank.__lib){libSaveLocal(bank);return}clearTimeout(recTimers[bank.id]);recTimers[bank.id]=setTimeout(()=>{delete recTimers[bank.id];bsSave(bank)},6000)}
 
 /* --- 讀取中畫面：等後端回應時蓋住整個畫面，避免重複按 --- */
 let busyN=0;
@@ -2033,7 +2136,7 @@ function bankForm(bank){
     const uno=+v('f-unitno'),uname=v('f-unitname');
     const nb=bank||fixBank({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),createdAt:Date.now()});
     Object.assign(nb,{grade:v('f-grade'),term:v('f-term'),subject:v('f-subject'),publisher:v('f-pub'),unitNo:uno,unit:[uno?`第${UNIT_CN[uno]}單元`:'整冊',uname].filter(Boolean).join(' '),title:v('f-title')});
-    if(!bank)BANKS.unshift(nb);
+    if(!bank){applyView(nb);BANKS.unshift(nb);}
     await busyRun(bank?'儲存中……':'建立題庫中……',()=>bsSave(nb));
     bankHome(nb);
   };
@@ -3221,7 +3324,7 @@ function importBank(file){
       const ids=new Set(nb.concepts.map(c=>c.id));
       nb.questions=(Array.isArray(src.questions)?src.questions:[]).map(q=>{const n=normQ(q,ids);return n?{...n,id:newId(nb,'q')}:null}).filter(Boolean);
       if(!nb.questions.length)throw 0;
-      BANKS.unshift(nb); await bsSave(nb);
+      applyView(nb);BANKS.unshift(nb); await bsSave(nb);
       toast(`已匯入 ${nb.questions.length} 題`); bankHome(nb);
     }catch(e){toast('這個檔案不是可以匯入的題庫檔')}
   };
@@ -3426,7 +3529,7 @@ async function libApi(action,data){
   try{res=await fetch(CONFIG.API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,code:libCode(),...(data||{})}),redirect:'follow'})}
   catch(e){throw {code:'network'}}
   const j=await res.json().catch(()=>({ok:false,code:'server_error'}));
-  if(!j.ok)throw {code:j.code||'server_error',message:j.message||''};
+  if(!j.ok){if(['saveBank','badges'].includes(action)&&['player_disabled','bad_player'].includes(j.code))fallbackPlayer();throw {...j,code:j.code||'server_error',message:j.message||''};}
   return j;
 }
 const libLocalKey=id=>'lib-rec:'+id;
@@ -3436,6 +3539,7 @@ const gradeTag=b=>(b.grade||'').replace('年級','')+(b.term||'');
 const PLANT_CARD={id:'__plant',title:'植物小學堂',grade:'三年級',term:'上',subject:'自然',publisher:'安親班講義',unit:'植物',count:Q.length,builtin:true};
 
 async function libHome(){
+  closePlayerSheet();
   CTX=PLANT_CTX;
   if('speechSynthesis' in window)speechSynthesis.cancel();
   if(libCode()&&!LIB&&!LIBERR){
@@ -3443,6 +3547,7 @@ async function libHome(){
     try{LIB=(await libApi('libList')).banks||[]}
     catch(e){LIBERR=e.code==='bad_code'?'閱讀碼不正確或已停用，請重新輸入。':'目前連不上題庫，請稍後再試。';if(e.code==='bad_code'&&READER.code){READER={code:'',name:''};store.set('reader',READER)}}
   }
+  if(location.hash==='#parent')return;
   const items=[PLANT_CARD].concat(LIB||[]);
   const uniq=f=>[...new Set(items.map(f).filter(Boolean))];
   const chipRow=(key,label,vals)=>vals.length>1?`<div class="section-title">${label}</div><div class="chips">${['',...vals].map(v=>`<button class="chip" data-f="${key}" data-v="${esc(v)}" aria-pressed="${libFilter[key]===v}">${v?esc(v):'全部'}</button>`).join('')}</div>`:'';
@@ -3458,6 +3563,7 @@ async function libHome(){
    ${!libCode()?`<section class="card form"><h2 class="ct">🔑 輸入親友閱讀碼，就能看到更多題庫</h2>
        <label><input id="rc" autocomplete="off" autocapitalize="characters" placeholder="請輸入親友給你的閱讀碼"></label>
        <button class="big" id="rcgo" style="margin-top:10px">確認</button><p class="lead" id="rcmsg" style="margin:8px 0 0"></p></section>`:''}
+   ${FAMILY.code&&!READER.code?'<button class="bankcard" id="rewards-home">🎁 獎勵兌換</button>':''}
    ${LIBERR?`<p class="lead" style="color:var(--coral-ink)">${esc(LIBERR)}</p>`:''}
    ${chipRow('g','年級',uniq(gradeTag))}${chipRow('s','科目',uniq(b=>b.subject))}${chipRow('p','版本',uniq(b=>b.publisher))}
    <div style="margin-top:8px">${shown.map(b=>`<button class="bankcard" data-lib="${esc(b.id)}">${bankBadgeThumb(b.builtin?'__plant':'lib-'+b.id,b.builtin?PLANT_BADGE:bankBadgeMeta(b))}
@@ -3465,6 +3571,7 @@ async function libHome(){
       <span class="bk-meta">${[gradeTag(b),b.subject,b.publisher,b.unit].filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')}</span>
       <span class="bk-meta">${b.count||0} 題</span></button>`).join('')||'<p class="lead">沒有符合的題庫。</p>'}</div>`;
   const $=id=>document.getElementById(id);
+  if($('rewards-home'))$('rewards-home').onclick=()=>rewardPage();
   $('mine').onclick=()=>betaHome();
   $('bdg').onclick=()=>badgeBookPage(libHome);
   $('codes').onclick=()=>codePage();
@@ -3477,7 +3584,7 @@ async function verifyReader(code,msgEl){
   if(!code){msgEl.textContent='請輸入閱讀碼';return}
   msgEl.textContent='確認中……';
   const old=READER;READER={code,name:''};
-  try{LIB=(await busyRun('確認閱讀碼中……',()=>libApi('libList'))).banks||[];LIBERR='';store.set('reader',READER);libHome()}
+  try{LIB=(await busyRun('確認閱讀碼中……',()=>libApi('libList'))).banks||[];LIBERR='';store.set('reader',READER);if(ACTIVE_PLAYER!=='p1'){await flushPlayerSaves();location.reload()}else libHome()}
   catch(e){READER=old;msgEl.textContent=e.code==='bad_code'?'❌ 閱讀碼不正確或已停用':e.code==='not_configured'?'❌ 網站尚未設定後端網址':'❌ 連不上後端，請稍後再試'}
 }
 function codePage(){
@@ -3496,7 +3603,7 @@ function codePage(){
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>libHome();
   $('rcgo').onclick=()=>verifyReader($('rc').value.trim(),$('rcmsg'));
-  if($('rcclr'))$('rcclr').onclick=()=>{READER={code:'',name:''};store.set('reader',READER);LIB=null;LIBERR='';codePage()};
+  if($('rcclr'))$('rcclr').onclick=async()=>{await flushPlayerSaves();READER={code:'',name:''};store.set('reader',READER);LIB=null;LIBERR='';if(store.get('player','p1')!=='p1')location.reload();else codePage()};
   $('fam').onclick=()=>familyPage(()=>{LIB=null;LIBERR='';codePage()});
 }
 async function libLoad(id){
@@ -4355,6 +4462,7 @@ function runTour(key,force){
   CUR_TOUR=key;helpBtn();
   if(!force&&(tourDone[key]||tourShown.has(key)))return;
   setTimeout(()=>{
+    if(parentHere())return;
     if(CUR_TOUR!==key)return;
     const steps=tourSteps(key);if(!steps.length)return;
     tourShown.add(key);endTour();
@@ -4438,11 +4546,347 @@ function helpBtn(){
   b.style.display=CUR_TOUR?'':'none';
 }
 
+/* ===== 小孩端獎勵 ===== */
+const rewardMedals="<svg width=\"0\" height=\"0\" style=\"position:absolute\" aria-hidden=\"true\" focusable=\"false\">\n  <defs>\n    <linearGradient id=\"mS\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\".22\" stop-color=\"#D9DEE4\"/><stop offset=\".5\" stop-color=\"#8E97A3\"/><stop offset=\".72\" stop-color=\"#E8ECF1\"/><stop offset=\"1\" stop-color=\"#6E7782\"/></linearGradient>\n    <linearGradient id=\"mG\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFF3B8\"/><stop offset=\".22\" stop-color=\"#E9B949\"/><stop offset=\".5\" stop-color=\"#B07A1E\"/><stop offset=\".72\" stop-color=\"#F2CF6A\"/><stop offset=\"1\" stop-color=\"#8A5E14\"/></linearGradient>\n  </defs>\n  <symbol id=\"medal-s\" viewBox=\"0 0 24 24\"><path d=\"M7 2h4l1 5-3 1zM17 2h-4l-1 5 3 1z\" fill=\"#3D8B4F\"/><circle cx=\"12\" cy=\"14.5\" r=\"7\" fill=\"url(#mS)\" stroke=\"#6E7782\" stroke-width=\".9\"/><circle cx=\"12\" cy=\"14.5\" r=\"4.4\" fill=\"none\" stroke=\"#6E7782\" stroke-width=\"1.2\"/><path d=\"M12 11.4c1.8 1 2.1 3.1.4 5.3-2.2-.6-2.8-2.4-1.9-4.2.5-.6 1-.9 1.5-1.1z\" fill=\"#3D8B4F\"/></symbol>\n  <symbol id=\"medal-g\" viewBox=\"0 0 24 24\"><path d=\"M7 2h4l1 5-3 1zM17 2h-4l-1 5 3 1z\" fill=\"#E25D44\"/><circle cx=\"12\" cy=\"14.5\" r=\"7\" fill=\"url(#mG)\" stroke=\"#8A5E14\" stroke-width=\".9\"/><circle cx=\"12\" cy=\"14.5\" r=\"4.4\" fill=\"none\" stroke=\"#8A5E14\" stroke-width=\"1.2\"/><path d=\"M12 11.4c1.8 1 2.1 3.1.4 5.3-2.2-.6-2.8-2.4-1.9-4.2.5-.6 1-.9 1.5-1.1z\" fill=\"#2E7340\"/></symbol>\n</svg>";
+function rewardMedal(gold){return '<svg class="reward-medal" aria-hidden="true"><use href="#medal-'+(gold?'g':'s')+'"/></svg>'}
+function rewardCoins(pay,zeros=false){
+  return '<span class="reward-coins">'+[['silver','銀'],['gold','金']].filter(([k])=>zeros||pay[k]>0).map(([k,label])=>'<span class="reward-coin reward-'+k+'">'+rewardMedal(k==='gold')+label+' '+esc(pay[k])+'</span>').join('・')+'</span>';
+}
+function rewardWallet(balance){
+  return ['silver','gold'].map((k,i)=>'<div class="reward-pot reward-'+k+'"><span>'+rewardMedal(!!i)+(i?'金':'銀')+'色可用</span><strong>'+esc(balance[k].available)+'</strong><span>保留 '+esc(balance[k].held)+'</span></div>').join('');
+}
+async function rewardCall(action,data){
+  try{return await api(action,{playerId:ACTIVE_PLAYER,...data})}
+  catch(e){if(e.code==='busy')return api(action,{playerId:ACTIVE_PLAYER,...data});throw e}
+}
+function rewardRequestId(){
+  if(crypto.randomUUID)return crypto.randomUUID();
+  const a=crypto.getRandomValues(new Uint8Array(16));a[6]=(a[6]&15)|64;a[8]=(a[8]&63)|128;
+  const h=Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');return [h.slice(0,8),h.slice(8,12),h.slice(12,16),h.slice(16,20),h.slice(20)].join('-');
+}
+async function rewardPage(tab='rewards',notice=''){
+  if(!FAMILY.code||READER.code)return libHome();
+  app.innerHTML=rewardMedals+'<section class="reward-page" id="reward-page"></section>';
+  const root=document.getElementById('reward-page'),p=PLAYERS.find(p=>p.id===ACTIVE_PLAYER);
+  root.innerHTML='<div class="toprow"><button class="iconbtn" id="reward-back" aria-label="回首頁">←</button><span>'+esc(p?.icon||'🌱')+' '+esc(p?.name||'玩家 1')+'</span></div><h1 class="pg">🎁 獎勵兌換</h1><div class="reward-tabs" role="tablist"><button class="iconbtn" role="tab" data-reward-tab="rewards" aria-selected="'+(tab==='rewards')+'">獎勵</button><button class="iconbtn" role="tab" data-reward-tab="mine" aria-selected="'+(tab==='mine')+'">我的申請</button></div><p role="status" id="reward-notice">'+esc(notice)+'</p><div class="reward-wallet" id="reward-wallet"><div class="reward-skeleton"></div><div class="reward-skeleton"></div></div><div class="reward-list" id="reward-list" aria-live="polite"><div class="reward-skeleton"></div><span>正在跟雲端對銀、金徽章數……</span></div>';
+  const find=id=>root.querySelector('#'+id),alive=()=>root.isConnected;
+  find('reward-back').onclick=()=>libHome();
+  root.querySelectorAll('[data-reward-tab]').forEach(b=>b.onclick=()=>rewardPage(b.dataset.rewardTab));
+  try{
+    await flushPlayerSaves();try{await badgeSync()}catch(e){}
+    if(!alive())return;
+    const j=await rewardCall('rewardList');if(!alive())return;
+    const mine=tab==='mine'?await rewardCall('myRedeems'):null;if(!alive())return;
+    find('reward-wallet').innerHTML=rewardWallet(j.balance);
+    const list=find('reward-list');
+    if(tab==='mine'){
+      const states={'待核准':['等家長核准','wait','保留'],'核准':['已核准','ok','用掉'],'拒絕':['被拒絕','no','退回'],'取消':['已取消','off','退回']};
+      const rows=(mine.redeems||[]).slice().sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+      list.innerHTML=rows.map(r=>{const st=states[r.status]||['未知狀態','off','實扣'];return '<article class="card reward-card"><h2>'+esc(r.name)+'</h2><span class="reward-status reward-'+st[1]+'">'+st[0]+'</span><time>'+esc(new Date(r.requestedAt).toLocaleString('zh-TW'))+'</time><div>'+st[2]+' '+rewardCoins(r.pay)+'</div>'+(r.status==='拒絕'&&r.reason?'<p class="reward-status reward-no">家長說：'+esc(r.reason)+'</p>':'')+(r.status==='待核准'?'<button class="iconbtn" data-cancel="'+esc(r.id)+'">取消申請</button>':'')+'</article>'}).join('')||'<p>還沒有申請</p>';
+      list.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=()=>sheet(rows.find(r=>r.id===b.dataset.cancel),true,b));
+    }else{
+      list.innerHTML=(j.rewards||[]).map(r=>'<article class="card reward-card'+(r.canRedeem?'':' unavailable')+'"><h2>'+esc(r.name)+'</h2><div>需要 '+rewardCoins(r)+'</div><div>你有 '+rewardCoins({silver:j.balance.silver.available,gold:j.balance.gold.available},true)+'</div>'+(r.weeklyLimit?'<div>本週剩 '+esc(r.weekLeft)+' 次</div>':'')+(!r.canRedeem?'<p>'+esc(r.reason)+'</p>':r.pay.gold>r.gold?'<p class="reward-gold">銀不夠的 '+esc(r.pay.gold-r.gold)+' 枚會用金補</p>':'')+'<button class="big" data-apply="'+esc(r.id)+'" '+(!r.canRedeem?'disabled':'')+'>申請兌換</button></article>').join('')||'<p>還沒有獎勵，請家長新增</p>';
+      list.querySelectorAll('[data-apply]:not(:disabled)').forEach(b=>b.onclick=()=>sheet(j.rewards.find(r=>r.id===b.dataset.apply),false,b));
+    }
+  }catch(e){
+    if(!alive())return;
+    if(['player_disabled','bad_player'].includes(e.code))fallbackPlayer();
+    find('reward-wallet').innerHTML='';find('reward-list').innerHTML='<p>連不到雲端，現在不能申請</p><button class="ghost" id="reward-retry">再試一次</button>';
+    find('reward-retry').onclick=()=>rewardPage(tab,notice);
+  }
+  function sheet(item,cancel,opener){
+    if(root.querySelector('.reward-dialog'))return;
+    const overlay=document.createElement('div');overlay.className='reward-dialog';
+    overlay.innerHTML='<section class="reward-sheet" role="dialog" aria-modal="true" aria-labelledby="reward-confirm-title"><h2 id="reward-confirm-title">'+(cancel?'取消申請':'申請兌換')+'：'+esc(item.name)+'</h2><div>'+(cancel?'會退回':'會先保留')+' '+rewardCoins(item.pay,true)+'</div><p>等家長核准才真的扣掉，拒絕或取消就退回。</p><p role="status" id="reward-error"></p><button class="big" id="reward-send">'+(cancel?'確定取消':'送出')+'</button><button class="ghost" id="reward-close">先不要</button></section>';
+    root.append(overlay);const send=overlay.querySelector('#reward-send'),closeButton=overlay.querySelector('#reward-close'),error=overlay.querySelector('#reward-error');
+    let sending=false;const requestId=cancel?null:rewardRequestId();
+    const close=()=>{if(sending)return;overlay.remove();opener.focus()};closeButton.onclick=close;
+    overlay.onclick=e=>{if(e.target===overlay)close()};overlay.onkeydown=e=>{if(e.key==='Escape')close();if(e.key==='Tab'){const btns=[...overlay.querySelectorAll('button:not(:disabled)')],first=btns[0],last=btns.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}};send.focus();
+    send.onclick=async()=>{
+      if(sending)return;sending=true;send.disabled=true;closeButton.disabled=true;send.textContent='送出中……';error.textContent='';
+      try{
+        const j=await rewardCall(cancel?'redeemCancel':'redeemRequest',cancel?{id:item.id}:{rewardId:item.id,requestId});
+        if(!alive())return;
+        if(j.balance)find('reward-wallet').innerHTML=rewardWallet(j.balance);
+        overlay.remove();await rewardPage(tab,cancel?'已取消申請':'已送出，等家長核准');
+      }catch(e){
+        if(!alive())return;
+        if(['player_disabled','bad_player'].includes(e.code)){fallbackPlayer();overlay.remove();await rewardPage(tab);return}
+        const messages={reward_disabled:'這個獎項剛剛停用了',not_found:'找不到這個獎項，請重新整理',conflict:'家長剛剛已經決定了'};
+        const message=['insufficient','quota'].includes(e.code)?e.reason:messages[e.code];
+        if(message){overlay.remove();await rewardPage(tab,message);return}
+        error.textContent='送出失敗，請再試一次';send.textContent='再試一次';
+      }finally{sending=false;send.disabled=false;closeButton.disabled=false}
+    };
+  }
+}
+
+/* ===== 家長端：憑證只留記憶體，世代號隔離上鎖前的回應 ===== */
+let PARENT_SESSION=null;
+const PARENT_IDLE_MS=180000;
+let parentEpoch=0,parentTimer=null;
+const parentHere=()=>location.hash==='#parent';
+function parentActivity(){clearTimeout(parentTimer);if(parentHere())parentTimer=setTimeout(parentLock,PARENT_IDLE_MS)}
+function parentLock(){
+  const session=PARENT_SESSION;PARENT_SESSION=null;parentEpoch++;clearTimeout(parentTimer);
+  document.getElementById('parent-page')?.replaceChildren();
+  if(session)api('parentLogout',{session}).catch(()=>{});
+  if(parentHere())parentPage();
+}
+document.addEventListener('visibilitychange',()=>{if(parentHere()&&document.visibilityState==='hidden')parentLock()});
+for(const event of ['pointerdown','pointermove','keydown'])document.addEventListener(event,()=>{if(parentHere())parentActivity()},{passive:true});
+window.addEventListener('hashchange',()=>{closeChildOverlays();parentLock();if(!parentHere())libHome()});
+async function parentCall(action,data={}){
+  const session=PARENT_SESSION;
+  try{try{return await api(action,{...data,session})}catch(e){if(e.code==='busy'&&session===PARENT_SESSION)return await api(action,{...data,session});throw e}}
+  catch(e){if(e.code==='no_session'&&session&&session===PARENT_SESSION)parentLock();throw e}
+}
+function parentError(root,message,retry){root.innerHTML='<p role="status">'+esc(message)+'</p><button class="ghost">再試一次</button>';root.querySelector('button').onclick=retry}
+async function parentPage(){
+  closeChildOverlays();
+  const epoch=++parentEpoch;parentActivity();
+  app.innerHTML=rewardMedals+'<section id="parent-page" class="parent-page"><header class="parent-bar"><strong>家長</strong><button id="parent-lock">上鎖</button><button id="parent-exit">回首頁</button></header><div id="parent-content" class="parent-body"></div></section>';
+  document.getElementById('parent-lock').onclick=parentLock;
+  document.getElementById('parent-exit').onclick=()=>{parentLock();location.hash=''};
+  const root=document.getElementById('parent-content'),alive=()=>parentHere()&&epoch===parentEpoch&&root.isConnected;
+  if(!FAMILY.code||READER.code){root.innerHTML='<p>這台裝置還沒有輸入家庭邀請碼，請先到首頁輸入。</p>';return}
+  if(PARENT_SESSION)return parentMain();
+  root.textContent='讀取中……';
+  try{const status=await parentCall('parentStatus');if(alive())parentAuth(root,status,alive)}catch(e){if(alive())parentError(root,'連不到雲端，請稍後再試',parentPage)}
+}
+function pinKeyAction(e){
+  if(e.ctrlKey||e.altKey||e.metaKey||e.isComposing)return null;
+  const target=e.target;
+  if(target&&typeof target.closest==='function'&&target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])'))return null;
+  if(/^[0-9]$/.test(e.key))return e.repeat?null:'digit';
+  if(e.key==='Backspace')return 'back';
+  if(e.key==='Enter'){
+    if(e.repeat)return null;
+    const button=target&&typeof target.closest==='function'&&target.closest('button');
+    return button&&!button.hasAttribute('data-pin-key')?null:'enter';
+  }
+  return null;
+}
+let parentAuthKeys=null;
+document.addEventListener('keydown',e=>{if(parentAuthKeys)parentAuthKeys(e)});
+function parentAuth(root,status,alive){
+  let pin='',sending=false,locked=!!status.locked,weakAccepted='';const setup=!status.hasPin;
+  root.innerHTML='<h1 class="pg">'+(setup?'第一次設定家長 PIN':'輸入家長 PIN')+'</h1><p id="parent-auth-message" role="status"></p>'+(setup?'<p>設定碼由管理者提供。PIN 用 4～6 位數字，建議 6 位。</p><form id="parent-setup"><label>設定碼<input id="parent-code" autocapitalize="characters" autocomplete="off"></label><label>新 PIN<input id="parent-new-pin" type="password" inputmode="numeric" autocomplete="off"></label><label>再輸入一次<input id="parent-repeat-pin" type="password" inputmode="numeric" autocomplete="off"></label><button class="big">設定 PIN</button></form>':'<div class="parent-dots" aria-label="已輸入 0 位"></div><div class="parent-pad">'+['1','2','3','4','5','6','7','8','9','刪除','0','確定'].map(k=>'<button type="button" data-pin-key="'+k+'">'+k+'</button>').join('')+'</div><p>忘記 PIN 了？請管理者重設，並取得新的設定碼。</p>'+(window.self===window.top?'<button class="ghost" disabled>使用 Face ID（之後才有）</button>':''))+'<button class="ghost" id="parent-auth-retry">再試一次</button>';
+  const msg=root.querySelector('#parent-auth-message');
+  function draw(){
+    if(!alive())return;
+    if(!setup){const dots=root.querySelector('.parent-dots');dots.innerHTML=Array.from({length:6},(_,i)=>'<i class="'+(i<pin.length?'filled':'')+'"></i>').join('');dots.setAttribute('aria-label','已輸入 '+pin.length+' 位')}
+    root.querySelectorAll('input,button').forEach(b=>{if(!b.textContent.includes('Face ID'))b.disabled=sending||locked});
+    if(!setup)root.querySelector('[data-pin-key="確定"]').disabled=sending||locked||pin.length<4;
+    if(locked)root.querySelector('#parent-auth-retry').disabled=false;
+  }
+  function lockMessage(minutes){locked=true;msg.textContent='輸入錯太多次，請 '+minutes+' 分鐘後再試'}
+  if(locked)lockMessage(status.minutes);root.querySelector('#parent-auth-retry').onclick=parentPage;
+  async function send(){
+    if(sending||locked||!alive())return;let data;
+    if(setup){
+      const a=root.querySelector('#parent-new-pin').value,b=root.querySelector('#parent-repeat-pin').value;
+      if(a!==b){msg.textContent='兩次輸入的 PIN 不一樣';return}
+      if(!/^\d{4,6}$/.test(a)){msg.textContent='PIN 要 4～6 位數字';return}
+      if((/^(\d)\1+$/.test(a)||'0123456789'.includes(a)||'9876543210'.includes(a))&&weakAccepted!==a){weakAccepted=a;msg.textContent='這組 PIN 很容易被猜到，建議換一組';return}
+      data={pin:a,setupCode:root.querySelector('#parent-code').value.trim().toUpperCase()};
+    }else{if(pin.length<4)return;data={pin};pin=''}
+    sending=true;draw();
+    try{
+      const j=await parentCall(setup?'parentSetPin':'parentLogin',data);
+      if(!alive()||document.visibilityState==='hidden'){if(j.session)api('parentLogout',{session:j.session}).catch(()=>{});return}
+      PARENT_SESSION=j.session;root.querySelectorAll('input').forEach(i=>i.value='');await parentMain();
+    }catch(e){
+      if(!alive())return;
+      if(e.code==='pin_exists'||e.code==='no_pin'){parentPage();return}
+      if(e.code==='locked'||e.left===0)lockMessage(e.minutes||15);
+      else msg.textContent=e.code==='bad_pin'?'PIN 不對，還可以再試 '+e.left+' 次':e.code==='bad_setup_code'?'設定碼不對，還可以再試 '+e.left+' 次':'連不到雲端，請稍後再試';
+    }finally{sending=false;draw()}
+  }
+  function act(action,digit){
+    if(sending||locked)return;
+    if(action==='enter')return send();
+    if(setup){
+      const a=root.querySelector('#parent-new-pin'),b=root.querySelector('#parent-repeat-pin');
+      const field=b.value||a.value.length>=6?b:a;
+      if(action==='back'){const last=b.value?b:a;last.value=last.value.slice(0,-1)}
+      else if(field.value.length<6)field.value+=digit;
+      return;
+    }
+    pin=action==='back'?pin.slice(0,-1):(pin+digit).slice(0,6);
+    draw();if(pin.length===6)return send();
+  }
+  if(setup)root.querySelector('form').onsubmit=e=>{e.preventDefault();return send()};
+  else root.querySelectorAll('[data-pin-key]').forEach(b=>b.onclick=()=>{const k=b.dataset.pinKey;return act(k==='確定'?'enter':k==='刪除'?'back':'digit',k)});
+  parentAuthKeys=e=>{
+    if(!alive()){parentAuthKeys=null;return}
+    if(MODALS.length)return;
+    const action=pinKeyAction(e);if(action===null)return;
+    e.preventDefault();if(sending||locked)return;
+    return act(action,e.key);
+  };
+  draw();
+}
+async function parentMain(tab='pending',notice=''){
+  if(!PARENT_SESSION||!parentHere())return;
+  const epoch=++parentEpoch;parentActivity();const root=document.getElementById('parent-content');if(!root)return;
+  root.innerHTML='<nav class="parent-tabs" aria-label="家長分頁">'+[['pending','待核准'],['rewards','獎項'],['players','玩家'],['log','紀錄']].map(([k,v])=>'<button data-parent-tab="'+k+'" aria-current="'+(tab===k?'page':'false')+'">'+v+(k==='pending'?'<span id="parent-count"></span>':'')+'</button>').join('')+'</nav><p id="parent-notice" role="status">'+esc(notice)+'</p><div class="parent-body" id="parent-list"><div class="reward-skeleton"></div>讀取中……</div>';
+  const list=root.querySelector('#parent-list'),alive=()=>parentHere()&&!!PARENT_SESSION&&epoch===parentEpoch&&root.isConnected;
+  root.querySelectorAll('[data-parent-tab]').forEach(b=>b.onclick=()=>parentMain(b.dataset.parentTab));
+  if(notice){const retry=document.createElement('button');retry.className='ghost';retry.textContent='再試一次';retry.onclick=()=>parentMain(tab);root.querySelector('#parent-notice').append(retry)}
+  try{
+    const pending=await parentCall('redeemList');if(!alive())return;
+    root.querySelector('#parent-count').innerHTML=pending.pendingCount?'<span class="parent-count">'+esc(pending.pendingCount)+'</span>':'';
+    if(tab==='pending'){
+      list.innerHTML=(pending.redeems||[]).map(r=>'<article class="card" data-request="'+esc(r.id)+'"><h2>'+esc(r.playerIcon)+' '+esc(r.playerName)+'</h2><strong>'+esc(r.name)+'</strong><div>需要 '+rewardCoins(r)+'</div><div>這筆保留 '+rewardCoins(r.pay,true)+'</div><div>他目前可用 '+rewardCoins({silver:r.balance.silver.available,gold:r.balance.gold.available},true)+'</div><div>本週已換 '+esc(r.weekUsed)+' 次</div>'+(r.pay.gold>r.gold?'<p>其中金 '+esc(r.pay.gold-r.gold)+' 枚用來抵銀</p>':'')+'<div class="parent-actions"><button class="iconbtn" data-approve>核准</button><button class="iconbtn" data-reject>拒絕</button></div><div data-reason-area hidden><label>拒絕原因（可留空）<input maxlength="40"></label><button class="iconbtn" data-confirm-reject>確定拒絕</button></div><p role="status"></p></article>').join('')||'<p>現在沒有待核准的申請</p>';
+      list.querySelectorAll('[data-request]').forEach(card=>{
+        card.querySelector('[data-reject]').onclick=()=>{card.querySelector('[data-reason-area]').hidden=false};
+        const decide=async decision=>{
+          card.querySelectorAll('button').forEach(b=>b.disabled=true);
+          try{await parentCall('redeemDecide',{id:card.dataset.request,decision,reason:card.querySelector('input').value});if(alive())await parentMain(tab)}
+          catch(e){if(!alive())return;if(e.code==='conflict'){await parentMain(tab,'這筆剛剛已經被決定了');return}parentError(card,e.code==='insufficient'?'他的徽章不夠，不能核准':'連不到雲端，請稍後再試',()=>parentMain(tab))}
+        };
+        card.querySelector('[data-approve]').onclick=()=>decide('approve');card.querySelector('[data-confirm-reject]').onclick=()=>decide('reject');
+      });
+    }else if(tab==='rewards'){
+      const j=await parentCall('rewardList',{playerId:'p1'});if(!alive())return;
+      list.innerHTML=(j.rewards||[]).map(r=>'<article class="card'+(r.enabled?'':' parent-off')+'"><h2>'+esc(r.name)+'</h2>'+rewardCoins(r)+'<span>'+(r.enabled?'啟用':'停用')+'</span><button class="iconbtn" data-edit-reward="'+esc(r.id)+'">修改</button></article>').join('')+'<button class="ghost" id="parent-add-reward">新增獎項</button><div id="parent-reward-form"></div>';
+      list.querySelectorAll('[data-edit-reward]').forEach(b=>b.onclick=()=>parentRewardForm(list.querySelector('#parent-reward-form'),j.rewards.find(r=>r.id===b.dataset.editReward),alive));
+      list.querySelector('#parent-add-reward').onclick=()=>parentRewardForm(list.querySelector('#parent-reward-form'),null,alive);
+    }else if(tab==='players'){
+      const j=await parentCall('playerList',{withBalance:true});if(!alive())return;
+      PLAYERS=j.players||[];store.set('players-cache',PLAYERS.map(({balance,...p})=>p));
+      list.innerHTML=PLAYERS.slice().sort((a,b)=>(a.status==='停用')-(b.status==='停用')||a.order-b.order).map(p=>'<article class="card'+(p.status==='啟用'?'':' parent-off')+'" data-manage-player="'+esc(p.id)+'"><h2>'+esc(p.icon)+' '+esc(p.name)+'</h2>'+['available','held','total'].map((k,i)=>'<div>'+['可用','保留','累計'][i]+' '+rewardCoins({silver:p.balance.silver[k],gold:p.balance.gold[k]},true)+'</div>').join('')+'<span>'+esc(p.status)+'</span>'+(p.id==='p1'?'':p.status==='啟用'?'<button class="iconbtn" data-player-action="playerDisable">停用</button>':'<button class="iconbtn" data-player-action="playerRestore">還原</button><button class="iconbtn" data-player-action="playerPurge">永久刪除</button>')+'<div data-player-confirm></div></article>').join('')+'<aside class="card">'+['這裡存了什麼：暱稱、圖示、徽章數、兌換紀錄。','存在哪裡：這個家庭的 Google 試算表。','怎麼刪除：先停用這位玩家，再按「永久刪除」。','家長 PIN 只存雜湊，看不到原本的數字。','暱稱請用代號，不要填真名。'].map(s=>'<p>'+esc(s)+'</p>').join('')+'</aside>';
+      list.querySelectorAll('[data-player-action]').forEach(b=>b.onclick=()=>{
+        const card=b.closest('[data-manage-player]'),pid=card.dataset.managePlayer,p=PLAYERS.find(p=>p.id===pid),area=card.querySelector('[data-player-confirm]'),action=b.dataset.playerAction;
+        const run=async()=>{area.querySelectorAll('button,input').forEach(x=>x.disabled=true);b.disabled=true;try{await flushPlayerSaves();if(!alive())return;await parentCall(action,{playerId:pid});if(!alive())return;if(action==='playerPurge'){for(const k of Object.keys(localStorage))if(k.startsWith(pid+':'))localStorage.removeItem(k)}if(pid===ACTIVE_PLAYER&&action!=='playerRestore')fallbackPlayer();await parentMain(tab)}catch(e){if(alive())parentError(area,'連不到雲端，請稍後再試',()=>parentMain(tab))}};
+        if(action==='playerRestore'){area.innerHTML='<p>還原中……</p>';return run()}
+        area.innerHTML='<p>'+esc(action==='playerPurge'?'這位玩家的徽章、兌換紀錄都會刪除，不能復原。':'他的待核准申請會自動取消')+'</p>'+(action==='playerPurge'?'<label>輸入暱稱確認<input autocomplete="off"></label>':'')+'<button class="iconbtn" '+(action==='playerPurge'?'disabled':'')+'>確定'+(action==='playerPurge'?'永久刪除':'停用')+'</button><button class="ghost" data-dismiss>取消</button>';
+        const confirm=area.querySelector('button');area.querySelector('[data-dismiss]').onclick=()=>area.replaceChildren();
+        if(action==='playerPurge')area.querySelector('input').oninput=e=>confirm.disabled=e.target.value!==p.name;confirm.onclick=run;
+      });
+    }else{
+      const j=await parentCall('parentLog');if(!alive())return;
+      list.innerHTML=(j.entries||[]).map(r=>'<article class="card"><time>'+esc(new Date(r.at).toLocaleString('zh-TW'))+'</time><span>'+esc(r.playerName)+'</span><span>'+esc(r.type==='anomaly'?'異常':r.status)+'</span><span>'+esc(r.type==='anomaly'?r.color:r.name)+'</span><p>'+esc(r.reason||'')+'</p></article>').join('')||'<p>還沒有紀錄</p>';
+    }
+  }catch(e){if(alive())parentError(list,'連不到雲端，請稍後再試',()=>parentMain(tab))}
+}
+function parentRewardForm(root,item,alive){
+  const r={name:'',silver:0,gold:0,goldForSilver:true,weeklyLimit:0,enabled:true,...item};let saving=false;
+  root.innerHTML='<form class="card"><h2>'+(item?'修改獎項':'新增獎項')+'</h2><label>名稱<input id="parent-reward-name" maxlength="40" required value="'+esc(r.name)+'"></label>'+[['silver','銀'],['gold','金'],['weeklyLimit','每週上限']].map(([k,label])=>'<div>'+label+'<div class="parent-step"><button type="button" data-step="'+k+'" data-delta="-1" aria-label="'+label+'減一">−</button><output data-value="'+k+'"></output><button type="button" data-step="'+k+'" data-delta="1" aria-label="'+label+'加一">＋</button></div></div>').join('')+'<p>0 表示不限</p><button type="button" class="iconbtn" id="parent-substitute">金可以抵銀</button><button type="button" class="iconbtn" id="parent-enabled">啟用</button><p id="parent-preview"></p><p role="status" id="parent-save-message"></p><button class="big" id="parent-save-reward">儲存獎項</button><button type="button" class="ghost" id="parent-save-retry" hidden>再試一次</button></form>';
+  const name=root.querySelector('input'),save=root.querySelector('#parent-save-reward'),msg=root.querySelector('#parent-save-message'),retry=root.querySelector('#parent-save-retry');
+  function draw(){
+    root.querySelectorAll('[data-value]').forEach(o=>o.textContent=r[o.dataset.value]);
+    root.querySelectorAll('[data-step]').forEach(b=>b.disabled=saving||(Number(b.dataset.delta)<0?r[b.dataset.step]===0:r[b.dataset.step]===(b.dataset.step==='weeklyLimit'?14:99)));
+    for(const [id,k,label] of [['parent-substitute','goldForSilver','金可以抵銀'],['parent-enabled','enabled','啟用']]){const button=root.querySelector('#'+id);button.setAttribute('aria-pressed',String(r[k]));button.textContent=label+'：'+(r[k]?'開':'關')}
+    root.querySelector('#parent-preview').innerHTML='小孩會看到 需要 '+rewardCoins(r)+(r.silver?(r.goldForSilver?'（銀不夠可以用金補）':'（只收銀，不能用金抵）'):'');
+    save.disabled=saving||r.silver+r.gold===0||!name.value.trim()||Array.from(name.value.trim()).length>20;
+  }
+  root.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{r[b.dataset.step]+=Number(b.dataset.delta);draw()});name.oninput=draw;
+  for(const [id,k] of [['parent-substitute','goldForSilver'],['parent-enabled','enabled']])root.querySelector('#'+id).onclick=()=>{if(!saving){r[k]=!r[k];draw()}};
+  const submit=async()=>{
+    if(saving||save.disabled||!alive())return;saving=true;r.name=name.value.trim();draw();retry.hidden=true;
+    try{await parentCall('rewardSave',{reward:r});if(alive())await parentMain('rewards')}
+    catch(e){if(alive()){msg.textContent='連不到雲端，請稍後再試';retry.hidden=false}}
+    finally{saving=false;if(alive())draw()}
+  };
+  root.querySelector('form').onsubmit=e=>{e.preventDefault();return submit()};retry.onclick=submit;draw();
+}
+
+/* ===== 家庭玩家 ===== */
+let PLAYERS=store.get('players-cache',[]);
+const PLAYER_ICONS=['🌱','🦊','🐢','🐳','🦄','🚀','🐼','🐰','🦖','🐝','🌈','⭐'];
+let switchingPlayer=false;
+function playerButton(){
+  const row=app.querySelector('.toprow');
+  if(!row||!FAMILY.code||READER.code||document.getElementById('player-button'))return;
+  const p=PLAYERS.find(p=>p.id===ACTIVE_PLAYER);
+  const b=document.createElement('button');b.id='player-button';b.className='iconbtn';b.textContent=p?.icon||'🌱';
+  b.setAttribute('aria-label','切換玩家：'+(p?.name||'玩家 1'));b.style.cssText='width:48px;height:48px;border-radius:50%;padding:0;flex-shrink:0';
+  b.onclick=playerSheet;row.append(b);
+}
+async function refreshPlayers(withBalance=false){
+  if(!FAMILY.code||READER.code)return;
+  try{
+    const j=await api('playerList',withBalance?{withBalance:true}:{});
+    PLAYERS=j.players||[];
+    // Cache identities only: balances must always come from the backend.
+    store.set('players-cache',PLAYERS.map(({balance,...p})=>p));
+    const ids=new Set(PLAYERS.map(p=>p.id));
+    for(const k of Object.keys(localStorage)){const m=/^(p[a-z0-9]{1,12}):/.exec(k);if(m&&!ids.has(m[1]))localStorage.removeItem(k)}
+    const p=PLAYERS.find(p=>p.id===ACTIVE_PLAYER);
+    if(!p||p.status!=='啟用'){fallbackPlayer();return}
+    document.getElementById('player-button')?.remove();playerButton();return PLAYERS;
+  }catch(e){return null}
+}
+async function flushPlayerSaves(){
+  for(const id of Object.keys(recTimers)){
+    clearTimeout(recTimers[id]);delete recTimers[id];
+    const b=BANKS.find(b=>b.id===id);if(b)bsSave(b);
+  }
+  await Promise.all(Object.values(saving).map(s=>s.busy).filter(Boolean));
+  if(badgeSyncing)await badgeSyncing;
+}
+async function switchPlayer(pid){
+  if(switchingPlayer)return;
+  switchingPlayer=true;
+  try{await flushPlayerSaves();store.set('player',pid);location.reload()}finally{switchingPlayer=false}
+}
+function fallbackPlayer(){
+  if(ACTIVE_PLAYER==='p1'||switchingPlayer)return;
+  const p=PLAYERS.find(p=>p.id==='p1');
+  // The server has refused this player: keep local backups, never retry them as p1.
+  switchingPlayer=true;store.set('player','p1');store.set('resume',null);
+  store.set('player-notice','這位玩家已被家長停用，先切回 '+(p?.name||'玩家 1'));location.reload();
+}
+async function playerSheet(){
+  document.getElementById('player-sheet')?.remove();
+  const overlay=document.createElement('div');overlay.id='player-sheet';overlay.className='player-overlay';
+  overlay.innerHTML='<section class="player-panel" role="dialog" aria-modal="true" aria-labelledby="player-title"><div class="toprow"><h2 id="player-title">選一位玩家</h2><button class="iconbtn" id="player-close" aria-label="關閉">✕</button></div><p id="player-message" role="status">讀取中……</p><div id="player-list"></div><div id="player-form"></div></section>';
+  document.body.append(overlay);
+  const close=()=>{overlay.remove();document.getElementById('player-button')?.focus()};
+  document.getElementById('player-close').onclick=close;
+  overlay.onclick=e=>{if(e.target===overlay)close()};
+  overlay.onkeydown=e=>{
+    if(e.key==='Escape')close();
+    if(e.key==='Tab'){const items=[...overlay.querySelectorAll('button:not(:disabled),input')];const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}
+  };
+  document.getElementById('player-close').focus();
+  const players=await refreshPlayers(true);if(!overlay.isConnected)return;
+  const msg=document.getElementById('player-message');
+  if(!players){msg.textContent='連不到雲端，請稍後再試。';const retry=document.createElement('button');retry.className='ghost';retry.textContent='再試一次';retry.onclick=playerSheet;msg.after(retry);return}
+  msg.textContent='';
+  const render=()=>{
+    const list=document.getElementById('player-list');
+    list.innerHTML=PLAYERS.filter(p=>p.status==='啟用').sort((a,b)=>a.order-b.order).map(p=>{
+      const bal=p.balance;
+      return `<div class="player-row"><button class="player-pick iconbtn" data-player="${esc(p.id)}"><span class="player-avatar">${esc(p.icon)}</span><span>${esc(p.name)}<small>銀 ${bal?.silver.available??'—'}・金 ${bal?.gold.available??'—'}</small></span><span>${p.id===ACTIVE_PLAYER?'使用中':''}</span></button><button class="iconbtn" data-edit-player="${esc(p.id)}" aria-label="修改${esc(p.name)}">修改</button></div>`;
+    }).join('');
+    list.querySelectorAll('[data-player]').forEach(b=>b.onclick=async()=>{b.disabled=true;msg.textContent='儲存中……';await switchPlayer(b.dataset.player)});
+    list.querySelectorAll('[data-edit-player]').forEach(b=>b.onclick=()=>form(PLAYERS.find(p=>p.id===b.dataset.editPlayer)));
+  };
+  function form(p){
+    let icon=p?.icon||'🌱';
+    const root=document.getElementById('player-form');
+    root.innerHTML=`<form class="form"><h3>${p?'修改玩家':'新增玩家'}</h3><label>暱稱<input id="player-name" maxlength="24" placeholder="不要填真名" value="${esc(p?.name||'')}" required></label><div class="player-icons" role="group" aria-label="選一個圖示">${PLAYER_ICONS.map(i=>`<button type="button" class="iconbtn" data-player-icon="${i}" aria-pressed="${i===icon}">${i}</button>`).join('')}</div><button class="big" id="player-submit">${p?'儲存修改':'新增玩家'}</button>${p?'<button type="button" class="ghost" id="player-new">改為新增玩家</button>':''}</form>`;
+    root.querySelectorAll('[data-player-icon]').forEach(b=>b.onclick=()=>{icon=b.dataset.playerIcon;root.querySelectorAll('[data-player-icon]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))});
+    document.getElementById('player-new')?.addEventListener('click',()=>form());
+    root.querySelector('form').onsubmit=async e=>{
+      e.preventDefault();const name=document.getElementById('player-name').value.trim();
+      if(!name||Array.from(name).length>12){msg.textContent='暱稱請填 1～12 個字';return}
+      const button=document.getElementById('player-submit');button.disabled=true;msg.textContent='儲存中……';
+      try{await api('playerSave',{name,icon,...(p?{playerId:p.id}:{})});if(!await refreshPlayers(true))throw {code:'network'};render();form();msg.textContent='已儲存'}
+      catch(e){msg.textContent=e.code==='player_limit'?'最多可以有 12 位玩家':'儲存失敗，請再試一次。'}finally{button.disabled=false}
+    };
+  }
+  render();form();
+}
+
 // 每個頁面畫完後自動檢查是否要顯示導覽
 (function hookTours(){
   const wrap=(name,key)=>{const f=window[name];if(typeof f!=='function')return;
     window[name]=function(...a){CUR_TOUR=null;helpBtn();const r=f.apply(this,a);
-      const go=()=>{const k=typeof key==='function'?key(...a):key;if(k)runTour(k)};
+      const go=()=>{if(['libHome','home','betaHome'].includes(name)){playerButton();if(ACTIVE_PLAYER!=='p1'&&!parentHere())refreshPlayers()}const k=typeof key==='function'?key(...a):key;if(k)runTour(k)};
       if(r&&typeof r.then==='function')r.then(go);else go();return r}};
   wrap('libHome','lib');wrap('home','plant');wrap('betaHome',()=>FAMILY.code?'mine':null);wrap('bankHome','bank');
   wrap('uploadPage','upload');wrap('reviewPage',()=>tourStepsReady('review'));wrap('libBankHome','libBank');
@@ -4453,17 +4897,21 @@ function tourStepsReady(k){return k}
 
 /* --- 重新整理後回到原本的頁面 --- */
 (async()=>{
+  if(parentHere()){parentPage();return}
   const r=store.get('resume',null); store.set('resume',null);
   if(r&&Date.now()-r.t<120000){
     if(r.p==='plantai'){aiState.phase='idle';aiPage();return}
     if(r.b){
       app.innerHTML='<p class="lead">載入中……</p>';
       await bsLoad();
+      if(parentHere())return;
       const b=BANKS.find(x=>x.id===r.b);
       if(b){(r.p==='gen'?genPage:uploadPage)(b);return}
     }
   }
   libHome();
+  if(ACTIVE_PLAYER==='p1')refreshPlayers();
+  const notice=store.get('player-notice','');if(notice){store.set('player-notice','');toast(notice)}
   setTimeout(badgeSync,3000);   // 開站後在背景把徽章和雲端對一次
 })();
 </script>
