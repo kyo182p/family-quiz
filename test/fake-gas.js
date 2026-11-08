@@ -18,6 +18,11 @@ function createGasEnv(options = {}) {
   ClockDate.now = () => now;
 
   const sheets = new Map(), logs = [], formulaCells = [];
+  const stats = {
+    reads: {},
+    locks: 0,
+    reset() { this.reads = {}; this.locks = 0; },
+  };
   let hook, insideHook = false, currentRequest = null, lockOwner = null;
   const pending = [];
   const lockMode = options.lockMode || 'real';
@@ -65,6 +70,7 @@ function createGasEnv(options = {}) {
       const range = {
         getRow: () => row,
         getValues() {
+          stats.reads[sheet.name] = (stats.reads[sheet.name] || 0) + 1;
           return Array.from({ length: rows }, (_, i) => Array.from({ length: cols }, (_, j) => {
             before(sheet, 'read', row + i, col + j);
             return clone(sheet.data[row + i - 1]?.[col + j - 1] ?? '');
@@ -188,6 +194,7 @@ function createGasEnv(options = {}) {
     },
     LockService: {
       getScriptLock() {
+        stats.locks++;
         const owner = currentRequest;
         const lock = {
           waitLock() {
@@ -229,7 +236,7 @@ function createGasEnv(options = {}) {
     return JSON.parse(run('doPost', { postData: { contents } }).getContent());
   }
   return {
-    doPost, run, clock, sheets, props, cache, logs, formulaCells,
+    doPost, run, clock, sheets, props, cache, logs, formulaCells, stats,
     snapshot() {
       const encode = v => v instanceof Date ? {__gasDate:v.getTime()} : Array.isArray(v) ? v.map(encode) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k,x])=>[k,encode(x)])) : v;
       return encode({sheets:[...sheets].map(([name,s])=>({name,data:s.data,formats:[...s.formats],frozenRows:s.frozenRows})),props:[...propertyData],cache:[...cacheData]});
