@@ -415,6 +415,9 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 
 /* Child rewards */
 .reward-page{max-width:620px;margin:auto;display:grid;gap:14px;overflow-wrap:anywhere}
+.reward-page,.parent-page{padding-bottom:calc(118px + env(safe-area-inset-bottom,0px))}
+#reward-notice:empty{display:none}
+#reward-notice,#reward-updating{margin:0}
 .reward-page .toprow{justify-content:space-between}.reward-tabs,.reward-wallet{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .reward-tabs button{min-height:44px}.reward-tabs [aria-selected="true"]{background:var(--leaf-strong);color:var(--on-leaf)}
 .reward-wallet{font-variant-numeric:tabular-nums}.reward-pot{border:2px solid var(--line);border-radius:16px;padding:12px;display:grid;gap:4px;background:var(--card)}

@@ -952,3 +952,19 @@ test('T021 parent clears reader for saved p2 and reloads on the parent route',as
   assert.equal(w.location.hash,'#parent');
   assert.equal(JSON.parse(w.localStorage.getItem('player')),'p2');
 });
+
+test('T022 built HTML includes the exact reward and parent spacing rules',()=>{
+  for(const rule of [
+    '.reward-page,.parent-page{padding-bottom:calc(118px + env(safe-area-inset-bottom,0px))}',
+    '#reward-notice:empty{display:none}',
+    '#reward-notice,#reward-updating{margin:0}'
+  ])assert.ok(html.includes(rule),rule);
+});
+
+test('T022 reward notice is hidden only when empty',async t=>{
+  const {w}=await open(t);
+  await w.rewardPage();
+  assert.equal(w.getComputedStyle(w.document.getElementById('reward-notice')).display,'none');
+  await w.rewardPage('rewards','已送出，等家長核准');
+  assert.notEqual(w.getComputedStyle(w.document.getElementById('reward-notice')).display,'none');
+});
