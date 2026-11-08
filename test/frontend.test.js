@@ -420,7 +420,7 @@ test('T006 race: late rewardList or myRedeems cannot replace active tab or homep
   w.fetch=async(u,o)=>{if(JSON.parse(o.body).action==='rewardList'&&++count===1)await gate;return fetch(u,o)};
   const old=w.rewardPage();await settle();await w.rewardPage('mine');release();await old;
   assert.equal(w.document.querySelector('[aria-selected=true]').textContent,'我的申請');assert.ok(text(w).includes('還沒有申請'));
-  let releaseMine;const gateMine=new Promise(r=>releaseMine=r);w.fetch=async(u,o)=>{if(JSON.parse(o.body).action==='myRedeems')await gateMine;return fetch(u,o)};
+  let releaseMine;const gateMine=new Promise(r=>releaseMine=r);w.fetch=async(u,o)=>{if(JSON.parse(o.body).action==='rewardList')await gateMine;return fetch(u,o)};
   const pending=w.rewardPage('mine');await settle();await w.libHome();releaseMine();await pending;assert.equal(w.document.getElementById('reward-page'),null);assert.ok(w.document.getElementById('rewards-home'));
 });
 
@@ -798,4 +798,123 @@ test('T007 routing race: late homepage cannot replace PIN; old no_session cannot
   w.fetch=async(u,o)=>{const req=JSON.parse(o.body);if(req.action==='redeemList'&&req.session===old){await oldGate;return {json:async()=>({ok:false,code:'no_session'})}}return fetch(u,o)};
   const pending=w.parentMain();await settle();w.parentLock();await settle();await typePin(w,'246810');const current=w.eval('PARENT_SESSION');assert.ok(current&&current!==old);releaseOld();await pending;assert.equal(w.eval('PARENT_SESSION'),current);assert.ok(w.document.querySelector('[data-parent-tab]'));
   w.fetch=async()=>({json:async()=>({ok:false,code:'no_session'})});await assert.rejects(w.api('parentLog',{session:current}));assert.equal(w.eval('PARENT_SESSION'),null);
+});
+
+function t020DelayFetch(w){const f=w.fetch;w.fetch=async(u,o)=>{await new Promise(r=>w.setTimeout(r,2000));return f(u,o)}}
+const t020Wait=()=>new Promise(r=>setTimeout(r,300));
+function t020Disabled(w,selector){const buttons=[...w.document.querySelectorAll(selector)];assert.ok(buttons.length);for(const b of buttons){assert.equal(b.disabled,true);assert.equal(b.onclick,null)}}
+
+test('T020 R3 rewards: cached wallet immediately, disabled until fresh and no credentials',async t=>{
+  const {w}=await open(t);await w.rewardPage();
+  const raw=w.localStorage.getItem('p1:reward-cache:TEST-0000');assert.ok(raw);assert.doesNotMatch(raw,/session|pin|requestId/i);
+  assert.deepEqual(Object.keys(JSON.parse(raw)).sort(),['balance','redeems','rewards']);
+  const wallet=w.document.querySelector('#reward-wallet').textContent;
+  t020DelayFetch(w);const p=w.rewardPage();
+  assert.equal(w.document.querySelector('#reward-wallet').textContent,wallet);
+  await t020Wait();assert.equal(w.document.querySelector('#reward-wallet').textContent,wallet);
+  assert.equal(w.document.querySelector('#reward-updating').textContent,'更新中…');t020Disabled(w,'[data-apply]');
+  await p;assert.equal(w.document.querySelector('#reward-updating'),null);assert.equal(w.document.querySelector('[data-apply="mock-s"]').disabled,false);
+});
+
+test('T020 R3 mine: cached pending request cannot cancel until fresh',async t=>{
+  const {w}=await open(t);await w.api('redeemRequest',{rewardId:'mock-s',requestId:w.rewardRequestId()});await w.rewardPage('mine');
+  t020DelayFetch(w);const p=w.rewardPage('mine');await t020Wait();
+  assert.ok(text(w).includes('等家長核准'));assert.equal(w.document.querySelector('#reward-updating').textContent,'更新中…');t020Disabled(w,'[data-cancel]');
+  await p;assert.equal(w.document.querySelector('#reward-updating'),null);assert.equal(w.document.querySelector('[data-cancel]').disabled,false);
+});
+
+test('T020 both reward tabs use a single rewardList with redeems',async t=>{
+  const {w,requests}=await open(t);
+  for(const tab of ['rewards','mine']){const start=requests.length;await w.rewardPage(tab);const reads=requests.slice(start).filter(r=>['rewardList','myRedeems'].includes(r.action));assert.equal(reads.length,1);assert.equal(reads[0].action,'rewardList');assert.equal(reads[0].withRedeems,true)}
+});
+
+test('T020 R4 apply and cancel invalidate before redraw, next cache has fresh balances',async t=>{
+  const {w}=await open(t);await w.rewardPage();const before=JSON.parse(w.localStorage.getItem(w.rewardCacheKey())).balance.silver.available;
+  clickApply(w,'mock-s');await sendSheet(w);
+  const after=JSON.parse(w.localStorage.getItem(w.rewardCacheKey())).balance.silver.available;assert.ok(after<before);
+  assert.equal(Number(w.document.querySelector('.reward-silver strong').textContent),after);
+  const f=w.fetch;t020DelayFetch(w);const p=w.rewardPage();await t020Wait();assert.equal(Number(w.document.querySelector('.reward-silver strong').textContent),after);await p;
+  w.fetch=f;await w.rewardPage('mine');w.document.querySelector('[data-cancel]').click();await sendSheet(w);
+  assert.equal(JSON.parse(w.localStorage.getItem(w.rewardCacheKey())).balance.silver.available,before);
+});
+
+test('T020 offline discards displayed cached numbers and updating status',async t=>{
+  const {w}=await open(t);await w.rewardPage();w.fetch=async()=>{throw Error('offline')};await w.rewardPage();
+  assert.ok(text(w).includes('連不到雲端，現在不能申請'));assert.equal(w.document.querySelector('#reward-wallet').textContent,'');assert.equal(w.document.querySelector('#reward-updating'),null);assert.ok(w.document.querySelector('#reward-retry'));
+});
+
+test('T020 caches isolate player and family; corrupt JSON and storage failures are harmless',async t=>{
+  const a=await open(t);await a.w.rewardPage();const raw=a.w.localStorage.getItem(a.w.rewardCacheKey());
+  const {w}=await open(t,{storage:{player:'"p2"','p1:reward-cache:TEST-0000':raw}});t020DelayFetch(w);const p=w.rewardPage();
+  assert.equal(w.rewardCacheKey(),'p2:reward-cache:TEST-0000');assert.equal(w.document.querySelector('#reward-updating'),null);assert.equal(w.document.querySelectorAll('.reward-skeleton').length,3);await p;
+  w.eval("FAMILY.code='OTHER-0000'");assert.equal(w.rewardCacheKey(),'p2:reward-cache:OTHER-0000');assert.equal(w.rewardCacheGet(),null);
+  w.localStorage.setItem(w.rewardCacheKey(),'{bad');assert.equal(w.rewardCacheGet(),null);
+  const proto=Object.getPrototypeOf(w.localStorage),get=proto.getItem,set=proto.setItem;
+  try{proto.getItem=()=>{throw Error('blocked')};proto.setItem=()=>{throw Error('full')};assert.equal(w.rewardCacheGet(),null);assert.doesNotThrow(()=>w.rewardCacheSet({}));assert.doesNotThrow(()=>w.parentCacheSet({}))}finally{proto.getItem=get;proto.setItem=set}
+});
+
+test('T020 parent rewards: fetches start in parallel while cache controls stay disabled',async t=>{
+  const {w,requests}=await parentUI(t);await w.parentMain('rewards');
+  const raw=w.localStorage.getItem('parent-cache:TEST-0000');assert.ok(raw);assert.doesNotMatch(raw,/session|pin|requestId/i);
+  const f=w.fetch;let release;const gate=new Promise(r=>release=r);w.fetch=async(u,o)=>{const response=f(u,o);await gate;return response};
+  const start=requests.length,p=w.parentMain('rewards');await t020Wait();
+  try{assert.deepEqual(requests.slice(start).map(r=>r.action).sort(),['redeemList','rewardList']);assert.equal(w.document.querySelector('#parent-updating').textContent,'更新中…');t020Disabled(w,'#parent-list button');assert.ok([...w.document.querySelectorAll('[data-parent-tab]')].every(b=>!b.disabled))}finally{release()}
+  await p;assert.equal(w.document.querySelector('#parent-updating'),null);assert.equal(w.document.querySelector('#parent-add-reward').disabled,false);
+});
+
+test('T020 parent pending and players cache stays read-only and never changes player metadata',async t=>{
+  const {w}=await parentUI(t);await w.api('redeemRequest',{rewardId:'mock-s',requestId:w.rewardRequestId()});await w.parentMain('pending');await w.parentMain('players');
+  const cache=JSON.parse(w.localStorage.getItem(w.parentCacheKey()));assert.ok(cache.pending.redeems.length);assert.ok(cache.players.length);
+  cache.players[0].name='cached nickname';w.localStorage.setItem(w.parentCacheKey(),JSON.stringify(cache));const metadata=w.localStorage.getItem('players-cache'),players=w.eval('JSON.stringify(PLAYERS)');
+  const f=w.fetch;let release;const gate=new Promise(r=>release=r);w.fetch=async(u,o)=>{await gate;return f(u,o)};
+  let p=w.parentMain('pending');assert.ok(w.document.querySelector('#parent-count').textContent.includes('1'));t020Disabled(w,'#parent-list button,#parent-list input');release();await p;
+  let releasePlayers;const playersGate=new Promise(r=>releasePlayers=r);w.fetch=async(u,o)=>{await playersGate;return f(u,o)};p=w.parentMain('players');
+  try{assert.ok(ptext(w).includes('cached nickname'));assert.equal(w.localStorage.getItem('players-cache'),metadata);assert.equal(w.eval('JSON.stringify(PLAYERS)'),players);t020Disabled(w,'#parent-list button')}finally{releasePlayers()}
+  await p;assert.ok(!ptext(w).includes('cached nickname'));
+  w.fetch=async()=>{throw Error('offline')};await w.parentMain('players');assert.equal(w.document.querySelector('#parent-updating'),null);assert.ok(ptext(w).includes('連不到雲端，請稍後再試'));
+});
+
+test('T020 malformed child cache falls back to skeleton',async t=>{
+  for(const raw of ['{"x":1}','5','[]','{"balance":{"silver":{"available":1,"held":0,"total":1}}}']){
+    await t.test(raw,async t=>{
+      const {w}=await open(t,{storage:{'p1:reward-cache:TEST-0000':raw}});
+      await w.rewardPage();
+      assert.equal(w.document.querySelector('[data-apply="mock-s"]').disabled,false);
+      assert.equal(w.document.querySelector('#reward-updating'),null);
+      assert.ok(JSON.parse(w.localStorage.getItem(w.rewardCacheKey())).balance.gold);
+    });
+  }
+  await t.test('slow refresh keeps skeleton',async t=>{
+    const {w}=await open(t,{storage:{'p1:reward-cache:TEST-0000':'{"x":1}'}});
+    t020DelayFetch(w);const p=w.rewardPage();
+    // Attach rejection handling immediately so the pre-fix failure is reported as an assertion.
+    const outcome=p.then(()=>null,e=>e);
+    try{
+      await t020Wait();
+      assert.equal(w.document.querySelectorAll('.reward-skeleton').length,3);
+      assert.equal(w.document.querySelector('#reward-updating'),null);
+      assert.equal(w.localStorage.getItem(w.rewardCacheKey()),null);
+    }finally{const error=await outcome;assert.equal(error,null)}
+    assert.equal(w.document.querySelector('[data-apply="mock-s"]').disabled,false);
+  });
+});
+
+test('T020 malformed parent cache falls back to skeleton',async t=>{
+  const {w}=await parentUI(t);
+  const fresh=await w.api('redeemRequest',{rewardId:'mock-s',requestId:w.rewardRequestId()});
+  // Login populates the parent cache, so seed the malformed value after login.
+  w.localStorage.setItem('parent-cache:TEST-0000','{"pending":{"redeems":[{"id":"x"}],"pendingCount":1}}');
+  t020DelayFetch(w);const p=w.parentMain('pending');
+  const outcome=p.then(()=>null,e=>e);
+  try{
+    await t020Wait();
+    assert.equal(w.document.querySelector('#parent-list').innerHTML,'<div class="reward-skeleton"></div>讀取中……');
+    assert.equal(w.document.querySelector('#parent-count').textContent,'');
+    assert.equal(w.document.querySelector('#parent-updating'),null);
+    assert.equal(w.localStorage.getItem(w.parentCacheKey()),null);
+  }finally{const error=await outcome;assert.equal(error,null)}
+  assert.ok(w.document.querySelector('[data-request="'+fresh.redeem.id+'"]'));
+  assert.equal(w.document.querySelector('[data-approve]').disabled,false);
+  assert.equal(w.document.querySelector('#parent-updating'),null);
+  assert.ok(JSON.parse(w.localStorage.getItem(w.parentCacheKey())).pending.redeems[0].balance.gold);
 });
