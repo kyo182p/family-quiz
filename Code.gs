@@ -46,6 +46,14 @@ const MAX_PROMPT_CHARS = 150000;
 const CHUNK = 45000;          // 試算表單一儲存格上限 50,000 字元，保留緩衝
 const MAX_BANK_CHARS = 900000;
 const TIMEZONE = 'Asia/Taipei';
+const MAX_PLAYERS = 12;
+const DAILY_BADGE_CAP = 10;
+const PLAYER_ICONS = ['🌱','🦊','🐢','🐳','🦄','🚀','🐼','🐰','🦖','🐝','🌈','⭐'];
+const PLAYER_HEADER = ['邀請碼','玩家ID','暱稱','圖示','排序','狀態','建立時間','更新時間','停用時間'];
+const REWARD_HEADER = ['獎勵ID','家庭','名稱','銀價','金價','金可抵銀','每週上限','啟用','更新時間'];
+const REDEEM_HEADER = ['ID','requestId','家庭','玩家','獎勵ID','名稱快照','銀價快照','金價快照','金可抵銀快照','實扣銀','實扣金','週鍵','狀態','拒絕原因','申請時間','決定時間','版本'];
+const REDEEM_LOG_HEADER = ['時間','兌換ID','舊狀態','新狀態','操作者'];
+const LEDGER_HEADER = ['家庭','玩家','徽章鍵','at','顏色','入帳時間','異常','數量','來源'];
 
 /* ===== 進入點 ===== */
 function doGet() {
@@ -61,10 +69,11 @@ function doPost(e) {
   }
   // 題庫書架：閱讀碼或邀請碼都可以使用（只能讀，不能寫、不能用 AI）
   // 定期掃題（管理者金鑰）
-  if (req.action === 'adminPending' || req.action === 'adminVerdict') {
+  if (['adminPending', 'adminVerdict', 'adminIssueSetupCode', 'adminResetPin'].indexOf(req.action) >= 0) {
     const token = PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN');
     if (!token || String(req.token || '') !== token) return out({ ok: false, code: 'bad_token', message: '管理者金鑰錯誤' });
     try {
+      if (req.action === 'adminIssueSetupCode' || req.action === 'adminResetPin') return out(adminParent(req));
       return out(req.action === 'adminPending' ? adminPending(Number(req.limit) || 60) : adminVerdict(req));
     } catch (err) {
       console.error(err);
@@ -104,7 +113,7 @@ function doPost(e) {
     const readerB = famB ? null : findReader(req.code);
     if (!famB && !readerB) return out({ ok: false, code: 'bad_code', message: '代碼不正確或已停用' });
     try {
-      return out(badgeSync(famB ? famB.code : readerB.code, famB ? '家庭' : '閱讀碼', req.badges));
+      return out(badgeSync(famB ? famB.code : readerB.code, famB ? '家庭' : '閱讀碼', req.badges, req.playerId));
     } catch (err) {
       console.error(err);
       return out({ ok: false, code: 'server_error', message: String(err && err.message || err) });
@@ -130,7 +139,21 @@ function doPost(e) {
   const fam = findFamily(req.code);
   if (!fam) return out({ ok: false, code: 'bad_code', message: '邀請碼不正確或已停用' });
   try {
+    if (['parentStatus','parentSetPin','parentLogin','parentLogout'].indexOf(req.action) >= 0) return out(parentAction(fam, req));
+    if (['playerDisable','playerRestore','playerPurge'].indexOf(req.action) >= 0) return out(managePlayer(fam, req));
+    if (['rewardList','rewardSave','redeemRequest','redeemCancel','myRedeems','redeemList','redeemDecide','parentLog'].indexOf(req.action) >= 0) return out(rewardAction(fam, req));
     switch (req.action) {
+      case 'playerList':
+        return out(withLock(() => { ensureP1(fam.code); return {ok:true, players:readPlayers(fam.code).map(p => { if(req.withBalance === true) { syncLedger(fam.code,p.id,{}); p.balance=playerBalance(fam.code,p.id); } return p; }).sort((a,b) => (a.status === '停用') - (b.status === '停用') || a.order-b.order)}; }));
+      case 'playerSave':
+        return out(playerSave(fam.code, req));
+      case 'balance':
+        return out(withLock(() => {
+          const pid = req.playerId || 'p1', err = checkPlayer(fam.code, pid);
+          if (err) return err;
+          syncLedger(fam.code, pid, {});
+          return playerBalance(fam.code, pid);
+        }));
       case 'ping':
         return out({ ok: true, family: fam.name, remaining: remaining(fam), bonus: fam.bonus, canPublish: fam.canPublish });
       case 'setPublish':
@@ -146,7 +169,7 @@ function doPost(e) {
       case 'listBanks':
         return out({ ok: true, banks: listBanks(fam) });
       case 'saveBank':
-        return out(saveBank(fam, req.bank));
+        return out(saveBank(fam, req.bank, req.playerId));
       case 'handoutList':
         return out({ ok: true, handouts: handoutList(fam, String(req.bankId || '')) });
       case 'handoutGet': {
@@ -196,9 +219,16 @@ function setup() {
   if (String(fam.getRange(1, 7).getValue()) === '') fam.getRange(1, 7).setValue('獎勵 AI 次數').setFontWeight('bold');
   ensure(SHEET_REPORT, ['回報ID', '時間', '題庫ID', '題目ID', '題目快照', '回報者代碼', '身分', '原因', '說明', '狀態', 'AI 判讀意見', '判讀時間', '獎勵']);
   const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('PEPPER')) props.setProperty('PEPPER', parentRandom());
   if (!props.getProperty('ADMIN_TOKEN')) props.setProperty('ADMIN_TOKEN', Utilities.getUuid().replace(/-/g, ''));
   ensure(SHEET_HANDOUT, ['講義ID', '邀請碼', '題庫ID', '標題', '觀念', '建立時間', '狀態', '驗算意見', '驗算時間', 'JSON 分段數', 'JSON1']);
-  ensure(SHEET_BADGE, ['代碼', '身分', '更新時間', '徽章 JSON']);
+  const badge = ensure(SHEET_BADGE, ['代碼', '身分', '更新時間', '徽章 JSON', '玩家ID']);
+  if (String(badge.getRange(1,5).getValue()) === '') badge.getRange(1,5).setValue('玩家ID');
+  ensure('玩家', PLAYER_HEADER);
+  ensure('徽章入帳', LEDGER_HEADER);
+  ensure('獎勵', REWARD_HEADER);
+  ensure('兌換', REDEEM_HEADER);
+  ensure('兌換紀錄', REDEEM_LOG_HEADER);
   ensure(SHEET_USAGE, ['時間', '邀請碼', '家庭', '模型', '照片數', '輸入 token', '輸出 token', '估計美元']);
   if (fam.getLastRow() === 1) fam.appendRow(['TEST-0000', '測試家庭', 10, true, '測試用，可刪除', false]);
 }
@@ -326,12 +356,43 @@ function listBanks(fam) {
   return banks;
 }
 
-function saveBank(fam, bank) {
-  if (!bank || !bank.id) return { ok: false, code: 'bad_request', message: '缺少題庫' };
-  const old = listBanks(fam).filter(b => String(b.id) === String(bank.id))[0];
-  const changed = mergeChecks(old, bank);
-  if (changed.length) closeReports(String(bank.id), changed);
-  return putBank(fam, bank);
+function saveBank(fam, bank, pid) {
+  if (!bank || !/^[\w-]{1,80}$/.test(String(bank.id || ''))) return {ok:false, code:'bad_request'};
+  return withLock(() => {
+    const err = checkPlayer(fam.code, pid);
+    if (err) return err;
+    const old = listBanks(fam).find(b => String(b.id) === String(bank.id)) || {};
+    const modern = Object.prototype.hasOwnProperty.call(bank, 'players');
+    const incomingPlayers = bank.players || {};
+    const players = Object.assign({}, old.players || {});
+    const valid = readPlayers(fam.code).filter(p => p.status === '啟用').map(p => p.id);
+    const sync = [{pid:'p1', badge:bank.badge}];
+    if (modern) {
+      const at = Number(bank.p1At === undefined ? bank.updatedAt : bank.p1At) || 0;
+      const oldAt = Number(old.p1At === undefined ? old.updatedAt : old.p1At) || 0;
+      if (at < oldAt) ['rec','days','summary'].forEach(k => { if (k in old) bank[k] = old[k]; else delete bank[k]; });
+      bank.p1At = Math.max(at, oldAt);
+      bank.badge = mergeBadgeRec(old.badge, bank.badge);
+      if (bank.badge === undefined) delete bank.badge;
+      Object.keys(incomingPlayers).forEach(id => {
+        if (id === 'p1' || valid.indexOf(id) < 0) return;
+        const inc = incomingPlayers[id];
+        if (!inc || typeof inc !== 'object') return;
+        const prev = players[id] || {};
+        if (JSON.stringify(inc) === JSON.stringify(prev)) return;
+        const progress = (Number(inc.updatedAt)||0) >= (Number(prev.updatedAt)||0) ? inc : prev;
+        players[id] = Object.assign({}, progress, {badge:mergeBadgeRec(prev.badge, inc.badge)});
+        sync.push({pid:id, badge:inc.badge});
+      });
+    } else bank.p1At = Number(bank.updatedAt) || 0;
+    if (Object.keys(players).length || modern || old.players) bank.players = players;
+    else delete bank.players;
+    const changed = mergeChecks(old, bank);
+    if (JSON.stringify(bank).length > MAX_BANK_CHARS) return {ok:false, code:'too_large', message:'題庫太大'};
+    sync.forEach(x => syncLedger(fam.code, x.pid, {[bank.id]:x.badge}));
+    if (changed.length) closeReports(String(bank.id), changed);
+    return putBank(fam, bank, true);
+  });
 }
 
 // 寫入題庫（不做合併），定期掃題寫回判讀結果時也用這個
@@ -357,7 +418,7 @@ function putBank(fam, bank, noLock) {
     // 清掉舊的多餘分段
     const lastCol = sh.getLastColumn();
     if (lastCol > values.length) sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent();
-    sh.getRange(rowIdx, 1, 1, values.length).setValues([values]);
+    sh.getRange(rowIdx, 1, 1, values.length).setValues([values.map(v => typeof v === 'string' ? safeCell(v) : v)]);
     // 題目有變才重寫「題目」工作表（只改作答紀錄時不重寫）
     if (oldHash !== qHash) writeQuestionRows(fam, bank, title);
     updatePublicMeta(fam, bank, title);
@@ -462,7 +523,7 @@ function setPublish(fam, id, published) {
     const title = String(bank.title || [bank.grade, bank.subject, bank.unit].filter(Boolean).join(' ') || '未命名');
     removePublicRow(fam, id);
     publicSheet().appendRow([id, fam.code, title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
-      bank.unit || '', (bank.questions || []).length, new Date(), fam.name]);
+      bank.unit || '', (bank.questions || []).length, new Date(), fam.name].map(v => typeof v === 'string' ? safeCell(v) : v));
     clearLibCache();
     return { ok: true };
   } finally {
@@ -475,7 +536,7 @@ function updatePublicMeta(fam, bank, title) {
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(bank.id) && String(rows[i][1]) === fam.code) {
       sh.getRange(i + 1, 3, 1, 7).setValues([[title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
-        bank.unit || '', (bank.questions || []).length]]);
+        bank.unit || '', (bank.questions || []).length].map(v => typeof v === 'string' ? safeCell(v) : v)]);
       clearLibCache();
       return;
     }
@@ -924,30 +985,397 @@ function mergeBadgeRec(a, b) {
   const cur = la !== lb ? (la > lb ? a : b) : ((b.cells || []).length >= (a.cells || []).length ? b : a);
   return { cells: (cur.cells || []).slice(0, 400), ok: cur.ok || [0, 0, 0], earned: earned.slice(-500), meta: b.meta || a.meta || null };
 }
-function badgeSync(code, role, incoming) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const sh = badgeSheet();
-    const rows = sh.getDataRange().getValues();
+function badgeSync(code, role, incoming, pid) {
+  return withLock(() => {
+    pid = pid || 'p1';
+    const inc = incoming && typeof incoming === 'object' ? incoming : {};
+    if (role === '家庭') { const err = checkPlayer(code, pid); if (err) return err; }
+    const sh = badgeSheet(), rows = sh.getDataRange().getValues();
     let row = 0, stored = {};
-    for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][0]) === code) { row = i + 1; try { stored = JSON.parse(String(rows[i][3] || '{}')) || {}; } catch (e) { stored = {}; } break; }
+    for (let i=1; i<rows.length; i++) {
+      if (String(rows[i][0]) === code && (role !== '家庭' || String(rows[i][4] || 'p1') === pid)) {
+        row = i+1; try { stored = JSON.parse(String(rows[i][3] || '{}')) || {}; } catch(e) {}
+        break;
+      }
     }
     const merged = {};
-    const inc = incoming && typeof incoming === 'object' ? incoming : {};
     Object.keys(stored).concat(Object.keys(inc)).forEach(k => {
-      if (k in merged || !/^[\w\-]{1,80}$/.test(k)) return;
-      merged[k] = mergeBadgeRec(stored[k], inc[k]);
+      if (Object.prototype.hasOwnProperty.call(merged,k) || !/^[\w-]{1,80}$/.test(k)) return;
+      Object.defineProperty(merged,k,{value:mergeBadgeRec(stored[k],inc[k]), enumerable:true});
     });
     const json = JSON.stringify(merged);
-    if (json.length > 49000) return { ok: false, code: 'too_large', message: '徽章資料太大' };
+    if (json.length > 49000) return {ok:false, code:'too_large', message:'徽章資料太大'};
+    if (role === '家庭') syncLedger(code, pid, inc);
     if (json !== JSON.stringify(stored)) {
-      if (row) sh.getRange(row, 2, 1, 3).setValues([[role, new Date(), json]]);
-      else sh.appendRow([code, role, new Date(), json]);
+      const values = [safeCell(code),safeCell(role),new Date(),safeCell(json)];
+      if (role === '家庭') values.push(safeCell(pid));
+      if (row) sh.getRange(row,1,1,values.length).setValues([values]); else sh.appendRow(values);
     }
-    return { ok: true, badges: merged };
-  } finally {
-    lock.releaseLock();
+    return {ok:true, badges:merged};
+  });
+}
+/* ===== 家長憑證與玩家管理 ===== */
+function parentRandom() { return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, ''); }
+function parentHex(bytes) { return bytes.map(b => ('0' + (b & 255).toString(16)).slice(-2)).join(''); }
+function parentHash(value) { return parentHex(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, value)); }
+function parentPinHash(salt, pin, pepper) { return parentHex(Utilities.computeHmacSha256Signature(salt + pin, pepper)); }
+function adminParent(req) {
+  return withLock(() => {
+    const fam = findFamily(req.family);
+    if (!fam) return {ok:false, code:'not_found'};
+    const props = PropertiesService.getScriptProperties();
+    if (req.action === 'adminResetPin') {
+      ['pin:','pinfail:','pinsetup:'].forEach(prefix => props.deleteProperty(prefix + fam.code));
+      return {ok:true};
+    }
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    // Fresh UUID's first eight bytes avoid its fixed version/variant bits.
+    const bytes = Utilities.getUuid().replace(/-/g,'').slice(0,16).match(/../g);
+    const setupCode = bytes.map(b => alphabet[parseInt(b,16) % alphabet.length]).join('');
+    props.setProperty('pinsetup:' + fam.code, parentHash(setupCode));
+    return {ok:true, setupCode};
+  });
+}
+function parentAction(fam, req) {
+  return withLock(() => {
+    const props = PropertiesService.getScriptProperties(), code = fam.code;
+    const pepper = props.getProperty('PEPPER');
+    if (!pepper) return {ok:false, code:'server_error', message:'請管理者執行 setup'};
+    const pin = JSON.parse(props.getProperty('pin:' + code) || 'null');
+    const failKey = 'pinfail:' + code;
+    let fail = JSON.parse(props.getProperty(failKey) || '{"n":0,"until":0}');
+    if (fail.until && fail.until <= Date.now()) {
+      fail = {n:0, until:0}; props.setProperty(failKey, JSON.stringify(fail));
+    }
+    const minutes = Math.max(0, Math.ceil((fail.until - Date.now()) / 60000));
+    if (req.action === 'parentStatus') return Object.assign({ok:true, hasPin:!!pin, locked:minutes > 0, minutes}, pin ? {} : {needSetup:true});
+    if (req.action === 'parentLogout') {
+      if (typeof req.session === 'string' && !requireSession(fam, req)) CacheService.getScriptCache().remove('ps:' + parentHash(req.session));
+      return {ok:true};
+    }
+    if (minutes) return {ok:false, code:'locked', minutes};
+    const failed = code => {
+      fail.n++; fail.until = fail.n >= 5 ? Date.now() + 900000 : 0;
+      props.setProperty(failKey, JSON.stringify(fail));
+      return {ok:false, code, left:Math.max(0, 5-fail.n)};
+    };
+    let credential = pin;
+    if (req.action === 'parentSetPin') {
+      if (pin) return {ok:false, code:'pin_exists'};
+      const setupHash = props.getProperty('pinsetup:' + code);
+      if (!setupHash || typeof req.setupCode !== 'string' || parentHash(req.setupCode) !== setupHash) return failed('bad_setup_code');
+      if (typeof req.pin !== 'string' || !/^\d{4,6}$/.test(req.pin)) return {ok:false, code:'bad_pin_format'};
+      const salt = parentRandom();
+      credential = {salt, h:parentPinHash(salt, req.pin, pepper)};
+      props.setProperty('pin:' + code, JSON.stringify(credential));
+      props.deleteProperty('pinsetup:' + code);
+    } else {
+      if (!pin) return {ok:false, code:'no_pin'};
+      if (typeof req.pin !== 'string' || !/^\d{4,6}$/.test(req.pin) || parentPinHash(pin.salt, req.pin, pepper) !== pin.h) return failed('bad_pin');
+    }
+    props.setProperty(failKey, JSON.stringify({n:0, until:0}));
+    const session = parentRandom();
+    CacheService.getScriptCache().put('ps:' + parentHash(session), code + '|' + credential.salt, 1800);
+    return {ok:true, session};
+  });
+}
+function requireSession(fam, req) {
+  const pin = JSON.parse(PropertiesService.getScriptProperties().getProperty('pin:' + fam.code) || 'null');
+  if (pin && typeof req.session === 'string' && CacheService.getScriptCache().get('ps:' + parentHash(req.session)) === fam.code + '|' + pin.salt) return null;
+  return {ok:false, code:'no_session', message:'請重新輸入家長 PIN'};
+}
+// Callers already hold the script lock.
+function cancelPendingFor(code, pid) {
+  readRedeems(code).filter(r => r.playerId === pid && r.status === '待核准').forEach(r => changeRedeem(r,'取消','','parent'));
+}
+function purgeRedeemsFor(code, pid) {
+  const rows = readRedeems(code).filter(r => r.playerId === pid), ids = new Set(rows.map(r => r.id));
+  const logs = SpreadsheetApp.getActive().getSheetByName('兌換紀錄');
+  if (logs) {
+    const data = logs.getDataRange().getValues();
+    for (let i=data.length-1; i>0; i--) if (ids.has(String(data[i][1]))) logs.deleteRow(i+1);
   }
+  const sh = SpreadsheetApp.getActive().getSheetByName('兌換');
+  rows.reverse().forEach(r => sh.deleteRow(r.row));
+}
+function managePlayer(fam, req) {
+  return withLock(() => {
+    const err = requireSession(fam, req);
+    if (err) return err;
+    const pid = req.playerId;
+    if (typeof pid !== 'string' || !/^p[a-z0-9]{1,12}$/.test(pid) || (pid === 'p1' && req.action !== 'playerRestore')) return {ok:false, code:'bad_request'};
+    const sh = SpreadsheetApp.getActive().getSheetByName('玩家');
+    const rows = sh ? sh.getDataRange().getValues() : [];
+    const row = rows.findIndex((r,i) => i > 0 && String(r[0]) === fam.code && String(r[1]) === pid);
+    if (row < 1) return {ok:false, code:'bad_player'};
+    if (req.action === 'playerPurge') {
+      listBanks(fam).forEach(bank => {
+        if (bank.players && Object.prototype.hasOwnProperty.call(bank.players,pid)) {
+          delete bank.players[pid];
+          const result = putBank(fam, bank, true);
+          if (!result.ok) throw new Error('玩家資料清除失敗');
+        }
+      });
+      const remove = (name, matches) => {
+        const sheet = SpreadsheetApp.getActive().getSheetByName(name);
+        if (!sheet) return;
+        const data = sheet.getDataRange().getValues();
+        for (let i=data.length-1; i>0; i--) if (String(data[i][0]) === fam.code && matches(data[i])) sheet.deleteRow(i+1);
+      };
+      remove('徽章', r => String(r[1]) === '家庭' && String(r[4] || 'p1') === pid);
+      remove('徽章入帳', r => String(r[1]) === pid);
+      purgeRedeemsFor(fam.code, pid);
+      PropertiesService.getScriptProperties().deleteProperty('ledgerinit:' + fam.code + ':' + pid);
+      sh.deleteRow(row+1);
+    } else {
+      const disabled = req.action === 'playerDisable';
+      sh.getRange(row+1,6).setValue(safeCell(disabled ? '停用' : '啟用'));
+      sh.getRange(row+1,8,1,2).setValues([[new Date(),disabled ? new Date() : '']]);
+      if (disabled) cancelPendingFor(fam.code, pid);
+    }
+    return {ok:true};
+  });
+}
+function safeCell(s) { s = String(s == null ? '' : s); return s === '' ? '' : "'" + s; }
+function withLock(fn) {
+  const lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch(e) { return {ok:false, code:'busy', message:'系統忙碌，請再試一次'}; }
+  try { return fn(); } finally { try { SpreadsheetApp.flush(); } finally { lock.releaseLock(); } }
+}
+function rewardSheet(name, header) {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(name);
+  if (!sh) { sh = ss.insertSheet(name); sh.appendRow(header); sh.setFrozenRows(1); }
+  return sh;
+}
+function readPlayers(code) {
+  const sh = SpreadsheetApp.getActive().getSheetByName('玩家');
+  if (!sh) return [];
+  return sh.getDataRange().getValues().slice(1).filter(r => String(r[0]) === code).map(r => ({id:String(r[1]),name:String(r[2]),icon:String(r[3]),order:Number(r[4])||0,status:String(r[5])}));
+}
+function ensureP1(code) {
+  if (!readPlayers(code).some(p => p.id === 'p1')) rewardSheet('玩家',PLAYER_HEADER).appendRow([safeCell(code),safeCell('p1'),safeCell('玩家 1'),safeCell('🌱'),0,safeCell('啟用'),new Date(),new Date(),'']);
+}
+function checkPlayer(code, pid) {
+  pid = pid || 'p1';
+  if (!/^p[a-z0-9]{1,12}$/.test(String(pid))) return {ok:false, code:'bad_request'};
+  if (pid === 'p1') ensureP1(code);
+  const p = readPlayers(code).find(p => p.id === pid);
+  if (!p) return {ok:false, code:'bad_player'};
+  if (p.status !== '啟用') return {ok:false, code:'player_disabled'};
+  return null;
+}
+function playerSave(code, req) {
+  const name = String(req.name || '').trim(), icon = String(req.icon || '');
+  if (!name || Array.from(name).length > 12 || PLAYER_ICONS.indexOf(icon) < 0 || (req.playerId && !/^p[a-z0-9]{1,12}$/.test(String(req.playerId)))) return {ok:false, code:'bad_request'};
+  return withLock(() => {
+    ensureP1(code);
+    const sh = rewardSheet('玩家',PLAYER_HEADER), rows = sh.getDataRange().getValues();
+    let pid = req.playerId, row = 0;
+    if (pid) {
+      row = rows.findIndex((r,i) => i > 0 && String(r[0]) === code && String(r[1]) === pid) + 1;
+      if (!row) return {ok:false, code:'bad_player'};
+      sh.getRange(row,3,1,2).setValues([[safeCell(name),safeCell(icon)]]);
+      sh.getRange(row,8).setValue(new Date());
+    } else {
+      const players = readPlayers(code);
+      if (players.length >= MAX_PLAYERS) return {ok:false, code:'player_limit'};
+      do { pid = 'p' + Utilities.getUuid().replace(/-/g,'').slice(0,8).toLowerCase(); } while (rows.some(r => String(r[1]) === pid));
+      sh.appendRow([safeCell(code),safeCell(pid),safeCell(name),safeCell(icon),Math.max(...players.map(p => p.order))+1,safeCell('啟用'),new Date(),new Date(),'']);
+    }
+    return {ok:true, player:readPlayers(code).find(p => p.id === pid)};
+  });
+}
+// Called only under withLock, before either cloud snapshot is overwritten.
+function syncLedger(code, pid, incoming) {
+  const sh = rewardSheet('徽章入帳',LEDGER_HEADER), rows = sh.getDataRange().getValues().slice(1);
+  const props = PropertiesService.getScriptProperties(), initKey = 'ledgerinit:' + code + ':' + pid;
+  const initial = !props.getProperty(initKey), now = new Date();
+  const day = d => Utilities.formatDate(new Date(d),TIMEZONE,'yyyy-MM-dd');
+  const seen = new Set(rows.filter(r => String(r[0]) === code && String(r[1]) === pid).map(r => JSON.stringify([String(r[2]),Number(r[3])])));
+  let count = rows.filter(r => String(r[0]) === code && String(r[1]) === pid && !r[6] && String(r[8]) === '同步' && day(r[5]) === day(now)).length;
+  const add = (key, rec, source) => {
+    if (!/^[\w-]{1,80}$/.test(key)) return;
+    (rec && Array.isArray(rec.earned) ? rec.earned : []).forEach(e => {
+      const at = Number(e && e.at);
+      // Malformed timestamps cannot create spendable credit.
+      if (!Number.isFinite(at) || at <= 0) return;
+      const unique = JSON.stringify([key,at]);
+      if (seen.has(unique)) return;
+      seen.add(unique);
+      const anomaly = at > now.getTime()+300000 ? '時間異常' : source === '同步' && count >= DAILY_BADGE_CAP ? '超過每日上限' : '';
+      if (!anomaly && source === '同步') count++;
+      sh.appendRow([safeCell(code),safeCell(pid),safeCell(key),at,safeCell(e.dark ? '金' : '銀'),now,safeCell(anomaly),1,safeCell(source)]);
+    });
+  };
+  if (initial) {
+    listBanks({code}).forEach(b => add(String(b.id),pid === 'p1' ? b.badge : (b.players || {})[pid] && b.players[pid].badge,'補入'));
+    badgeSheet().getDataRange().getValues().slice(1).filter(r => String(r[0]) === code && String(r[4] || 'p1') === pid).forEach(r => {
+      let badges = {}; try { badges = JSON.parse(String(r[3] || '{}')) || {}; } catch(e) {}
+      Object.keys(badges).forEach(k => add(k,badges[k],'補入'));
+    });
+  }
+  Object.keys(incoming || {}).forEach(k => add(k,incoming[k],initial && pid === 'p1' ? '補入' : '同步'));
+  if (initial) props.setProperty(initKey,'1');
+}
+function playerBalance(code, pid) {
+  const sh = SpreadsheetApp.getActive().getSheetByName('徽章入帳');
+  const result = {ok:true,silver:{available:0,held:0,total:0},gold:{available:0,held:0,total:0}};
+  if (sh) sh.getDataRange().getValues().slice(1).forEach(r => {
+    if (String(r[0]) !== code || String(r[1]) !== pid || r[6]) return;
+    const color = String(r[4]) === '金' ? result.gold : String(r[4]) === '銀' ? result.silver : null;
+    if (color) color.total += r[7] === '' ? 1 : Number(r[7]) || 0;
+  });
+  result.silver.available = result.silver.total;
+  result.gold.available = result.gold.total;
+  readRedeems(code).filter(r => r.playerId === pid && (r.status === '核准' || r.status === '待核准')).forEach(r => {
+    result.silver.available -= r.pay.silver;
+    result.gold.available -= r.pay.gold;
+    if (r.status === '待核准') { result.silver.held += r.pay.silver; result.gold.held += r.pay.gold; }
+  });
+  return result;
+}
+
+/* ===== 獎勵與兌換：由 rewardAction 持鎖 ===== */
+function rewardIdValid(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(id); }
+function weekKey(time) {
+  const d = new Date(Number(time) + 8*3600000);
+  d.setUTCDate(d.getUTCDate() - (d.getUTCDay()+6)%7);
+  return d.toISOString().slice(0,10);
+}
+function normalizeWeek(value) {
+  return value instanceof Date ? Utilities.formatDate(value,TIMEZONE,'yyyy-MM-dd') : String(value);
+}
+function readRewards(code) {
+  const sh = SpreadsheetApp.getActive().getSheetByName('獎勵');
+  return sh ? sh.getDataRange().getValues().slice(1).map((r,i) => ({row:i+2,id:String(r[0]),family:String(r[1]),name:String(r[2]),silver:Number(r[3]),gold:Number(r[4]),goldForSilver:isTrue(r[5]),weeklyLimit:Number(r[6]),enabled:isTrue(r[7])})).filter(r => r.family === code) : [];
+}
+function readRedeems(code) {
+  const sh = SpreadsheetApp.getActive().getSheetByName('兌換');
+  return sh ? sh.getDataRange().getValues().slice(1).map((r,i) => ({row:i+2,id:String(r[0]),requestId:String(r[1]),family:String(r[2]),playerId:String(r[3]),rewardId:String(r[4]),name:String(r[5]),silver:Number(r[6]),gold:Number(r[7]),goldForSilver:isTrue(r[8]),pay:{silver:Number(r[9]),gold:Number(r[10])},weekKey:normalizeWeek(r[11]),status:String(r[12]),reason:String(r[13] || ''),requestedAt:r[14],decidedAt:r[15],version:Number(r[16])})).filter(r => r.family === code) : [];
+}
+// requestId globally unique; callers must not expose foreign records.
+function findRedeemRequest(requestId) {
+  const sh = SpreadsheetApp.getActive().getSheetByName('兌換');
+  if (!sh) return null;
+  const r = sh.getDataRange().getValues().slice(1).find(r => String(r[1]) === requestId);
+  return r ? {family:String(r[2]),playerId:String(r[3]),id:String(r[0])} : null;
+}
+function publicReward(r) { const {row,family,...value} = r; return value; }
+function publicRedeem(r) { const {row,family,...value} = r; return value; }
+function weekUsed(code, pid, rewardId) {
+  const week = weekKey(Date.now());
+  return readRedeems(code).filter(r => r.playerId === pid && r.rewardId === rewardId && r.weekKey === week && (r.status === '核准' || r.status === '待核准')).length;
+}
+function rewardOffer(reward, bal, used) {
+  const silver = Math.max(0,bal.silver.available), gold = Math.max(0,bal.gold.available);
+  const paySilver = Math.min(silver,reward.silver), gap = reward.silver-paySilver;
+  const missingGold = Math.max(0,reward.gold-gold);
+  const missingSilver = Math.max(0,gap-(reward.goldForSilver ? Math.max(0,gold-reward.gold) : 0));
+  let reason = [missingSilver ? '銀 '+missingSilver : '',missingGold ? '金 '+missingGold : ''].filter(Boolean).join('、');
+  if (reason) reason = '還差'+reason;
+  if (!reason && (bal.silver.available < 0 || bal.gold.available < 0)) reason = '還差'+(bal.silver.available < 0 ? '銀 '+(-bal.silver.available) : '金 '+(-bal.gold.available));
+  let code = reason ? 'insufficient' : '';
+  if (reward.weeklyLimit && used >= reward.weeklyLimit) { code = 'quota'; reason = '本週額度用完，下週一再來'; }
+  if (!reward.enabled) { code = 'reward_disabled'; reason = 'reward_disabled'; }
+  return {weekUsed:used,weekLeft:reward.weeklyLimit ? Math.max(0,reward.weeklyLimit-used) : null,canRedeem:!code,reason,pay:{silver:paySilver,gold:reward.gold+(reward.goldForSilver ? gap : 0)},code};
+}
+function appendRedeemLog(id, oldStatus, status, actor) {
+  rewardSheet('兌換紀錄',REDEEM_LOG_HEADER).appendRow([new Date(),safeCell(id),safeCell(oldStatus),safeCell(status),safeCell(actor)]);
+}
+function changeRedeem(r, status, reason, actor) {
+  rewardSheet('兌換',REDEEM_HEADER).getRange(r.row,13,1,5).setValues([[safeCell(status),safeCell(reason),r.requestedAt,new Date(),r.version+1]]);
+  appendRedeemLog(r.id,r.status,status,actor);
+}
+function rewardAction(fam, req) {
+  return withLock(() => {
+    const code = fam.code, action = req.action;
+    if (['rewardSave','redeemList','redeemDecide','parentLog'].indexOf(action) >= 0) {
+      const err = requireSession(fam,req); if (err) return err;
+    }
+    if (action === 'rewardSave') {
+      const r = req.reward || {}, name = typeof r.name === 'string' ? r.name.trim() : '';
+      if (!name || Array.from(name).length > 20 || ![r.silver,r.gold].every(n => Number.isInteger(n) && n >= 0 && n <= 99) || r.silver+r.gold < 1 || !Number.isInteger(r.weeklyLimit) || r.weeklyLimit < 0 || r.weeklyLimit > 14 || (r.id !== undefined && !rewardIdValid(r.id))) return {ok:false,code:'bad_request'};
+      const sh = rewardSheet('獎勵',REWARD_HEADER), old = r.id === undefined ? null : readRewards(code).find(w => w.id === r.id);
+      if (r.id !== undefined && !old) return {ok:false,code:'not_found'};
+      const id = old ? old.id : 'w'+Utilities.getUuid().replace(/-/g,'').slice(0,12);
+      const values = [safeCell(id),safeCell(code),safeCell(name),r.silver,r.gold,r.goldForSilver === undefined ? true : isTrue(r.goldForSilver),r.weeklyLimit,r.enabled === undefined ? true : isTrue(r.enabled),new Date()];
+      if (old) sh.getRange(old.row,1,1,values.length).setValues([values]); else sh.appendRow(values);
+      return {ok:true,reward:publicReward(readRewards(code).find(w => w.id === id))};
+    }
+    if (action === 'parentLog') {
+      const redeems = readRedeems(code), byId = new Map(redeems.map(r => [r.id,r])), players = readPlayers(code);
+      const log = SpreadsheetApp.getActive().getSheetByName('兌換紀錄');
+      const entries = (log ? log.getDataRange().getValues().slice(1) : []).filter(r => byId.has(String(r[1])) && ['核准','拒絕'].indexOf(String(r[3])) >= 0).map(r => {
+        const redeem = byId.get(String(r[1])), player = players.find(p => p.id === redeem.playerId);
+        return {type:'decision',at:r[0],id:redeem.id,playerId:redeem.playerId,playerName:player ? player.name : '',name:redeem.name,oldStatus:String(r[2]),status:String(r[3]),actor:String(r[4]),reason:redeem.reason};
+      }).reverse().sort((a,b) => new Date(b.at)-new Date(a.at)).slice(0,50);
+      const ledger = SpreadsheetApp.getActive().getSheetByName('徽章入帳');
+      const anomalies = (ledger ? ledger.getDataRange().getValues().slice(1) : []).filter(r => String(r[0]) === code && r[6]).map(r => ({type:'anomaly',playerId:String(r[1]),playerName:(players.find(p => p.id === String(r[1])) || {}).name || '',badgeKey:String(r[2]),at:r[3],color:String(r[4]),reason:String(r[6]),creditedAt:r[5]})).reverse().sort((a,b) => new Date(b.creditedAt)-new Date(a.creditedAt));
+      return {ok:true,entries:entries.concat(anomalies)};
+    }
+    if (action === 'redeemList') {
+      const all = readRedeems(code), players = readPlayers(code), balances = {};
+      const redeems = all.filter(r => !req.status ? r.status === '待核准' : req.status === 'all' || r.status === req.status).reverse().map(r => {
+        const p = players.find(p => p.id === r.playerId) || {};
+        if (!balances[r.playerId]) { syncLedger(code,r.playerId,{}); balances[r.playerId] = playerBalance(code,r.playerId); }
+        return Object.assign(publicRedeem(r),{playerName:p.name || '',playerIcon:p.icon || '',balance:balances[r.playerId],weekUsed:weekUsed(code,r.playerId,r.rewardId)});
+      });
+      return {ok:true,redeems,pendingCount:all.filter(r => r.status === '待核准').length};
+    }
+    if (action === 'redeemDecide') {
+      if (!rewardIdValid(req.id) || ['approve','reject'].indexOf(req.decision) < 0) return {ok:false,code:'bad_request'};
+      const r = readRedeems(code).find(r => r.id === req.id);
+      if (!r) return {ok:false,code:'not_found'};
+      const status = req.decision === 'approve' ? '核准' : '拒絕';
+      if (r.status === status) return {ok:true,already:true};
+      if (r.status !== '待核准') return {ok:false,code:'conflict',status:r.status};
+      syncLedger(code,r.playerId,{});
+      const bal = playerBalance(code,r.playerId);
+      if (status === '核准' && (bal.silver.available < 0 || bal.gold.available < 0)) return {ok:false,code:'insufficient'};
+      changeRedeem(r,status,status === '拒絕' ? Array.from(String(req.reason || '').trim()).slice(0,40).join('') : '','parent');
+      return {ok:true,redeem:publicRedeem(readRedeems(code).find(x => x.id === r.id)),balance:playerBalance(code,r.playerId)};
+    }
+    const pid = req.playerId || 'p1';
+    if (typeof pid !== 'string' || !/^p[a-z0-9]{1,12}$/.test(pid)) return {ok:false,code:'bad_request'};
+    if (action === 'redeemRequest') {
+      if (!rewardIdValid(req.rewardId) || typeof req.requestId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(req.requestId)) return {ok:false,code:'bad_request'};
+    }
+    const err = checkPlayer(code,pid);
+    if (err && !(err.code === 'player_disabled' && action !== 'redeemRequest')) return err;
+    if (action === 'redeemRequest') {
+      const duplicate = findRedeemRequest(req.requestId);
+      if (duplicate) {
+        if (duplicate.family !== code || duplicate.playerId !== pid) return {ok:false,code:'bad_request'};
+        return {ok:true,duplicate:true,redeem:publicRedeem(readRedeems(code).find(r => r.id === duplicate.id)),balance:playerBalance(code,pid)};
+      }
+    }
+    if (action === 'myRedeems') return {ok:true,redeems:readRedeems(code).filter(r => r.playerId === pid).reverse().map(publicRedeem)};
+    if (action === 'redeemCancel') {
+      if (!rewardIdValid(req.id)) return {ok:false,code:'bad_request'};
+      const r = readRedeems(code).find(r => r.id === req.id && r.playerId === pid);
+      if (!r) return {ok:false,code:'not_found'};
+      if (r.status === '取消') return {ok:true,already:true};
+      if (r.status !== '待核准') return {ok:false,code:'conflict',status:r.status};
+      changeRedeem(r,'取消','','child');
+      return {ok:true,redeem:publicRedeem(readRedeems(code).find(x => x.id === r.id)),balance:playerBalance(code,pid)};
+    }
+    syncLedger(code,pid,{});
+    const bal = playerBalance(code,pid), rewards = readRewards(code);
+    if (action === 'rewardList') {
+      const parent = !requireSession(fam,req);
+      return {ok:true,rewards:rewards.filter(r => parent || r.enabled).map(r => {
+        const {code:unused,...offer} = rewardOffer(r,bal,weekUsed(code,pid,r.id));
+        return Object.assign(publicReward(r),offer);
+      }),balance:bal};
+    }
+    const reward = rewards.find(r => r.id === req.rewardId);
+    if (!reward) return {ok:false,code:'not_found'};
+    const offer = rewardOffer(reward,bal,weekUsed(code,pid,reward.id));
+    if (!offer.canRedeem) return {ok:false,code:offer.code,reason:offer.reason};
+    const id = 'r'+Utilities.getUuid().replace(/-/g,'').slice(0,12), now = new Date();
+    rewardSheet('兌換',REDEEM_HEADER).appendRow([safeCell(id),safeCell(req.requestId),safeCell(code),safeCell(pid),safeCell(reward.id),safeCell(reward.name),reward.silver,reward.gold,reward.goldForSilver,offer.pay.silver,offer.pay.gold,safeCell(weekKey(now.getTime())),safeCell('待核准'),'',now,'',1]);
+    appendRedeemLog(id,'','待核准','child');
+    return {ok:true,redeem:publicRedeem(readRedeems(code).find(r => r.id === id)),balance:playerBalance(code,pid)};
+  });
 }
