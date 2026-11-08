@@ -3587,6 +3587,11 @@ async function verifyReader(code,msgEl){
   try{LIB=(await busyRun('確認閱讀碼中……',()=>libApi('libList'))).banks||[];LIBERR='';store.set('reader',READER);if(ACTIVE_PLAYER!=='p1'){await flushPlayerSaves();location.reload()}else libHome()}
   catch(e){READER=old;msgEl.textContent=e.code==='bad_code'?'❌ 閱讀碼不正確或已停用':e.code==='not_configured'?'❌ 網站尚未設定後端網址':'❌ 連不上後端，請稍後再試'}
 }
+async function clearReaderCode(){
+  await flushPlayerSaves();READER={code:'',name:''};store.set('reader',READER);LIB=null;LIBERR='';
+  if(store.get('player','p1')!=='p1'){location.reload();return true}
+  return false;
+}
 function codePage(){
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 題庫書架</button></div>
@@ -3603,7 +3608,7 @@ function codePage(){
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>libHome();
   $('rcgo').onclick=()=>verifyReader($('rc').value.trim(),$('rcmsg'));
-  if($('rcclr'))$('rcclr').onclick=async()=>{await flushPlayerSaves();READER={code:'',name:''};store.set('reader',READER);LIB=null;LIBERR='';if(store.get('player','p1')!=='p1')location.reload();else codePage()};
+  if($('rcclr'))$('rcclr').onclick=async()=>{if(!await clearReaderCode())codePage()};
   $('fam').onclick=()=>familyPage(()=>{LIB=null;LIBERR='';codePage()});
 }
 async function libLoad(id){
@@ -4662,7 +4667,13 @@ async function parentPage(){
   document.getElementById('parent-lock').onclick=parentLock;
   document.getElementById('parent-exit').onclick=()=>{parentLock();location.hash=''};
   const root=document.getElementById('parent-content'),alive=()=>parentHere()&&epoch===parentEpoch&&root.isConnected;
-  if(!FAMILY.code||READER.code){root.innerHTML='<p>這台裝置還沒有輸入家庭邀請碼，請先到首頁輸入。</p>';return}
+  if(!FAMILY.code){root.innerHTML='<p>這台裝置還沒有輸入家庭邀請碼，請先到首頁輸入。</p>';return}
+  if(READER.code){
+    root.innerHTML='<p>這台裝置同時存了閱讀碼，家長頁要先清除閱讀碼。</p><button class="big" id="parent-clear-reader">清除閱讀碼</button>';
+    const button=document.getElementById('parent-clear-reader');
+    button.onclick=async()=>{button.disabled=true;if(!await clearReaderCode())return parentPage()};
+    return;
+  }
   if(PARENT_SESSION)return parentMain();
   root.textContent='讀取中……';
   try{const status=await parentCall('parentStatus');if(alive())parentAuth(root,status,alive)}catch(e){if(alive())parentError(root,'連不到雲端，請稍後再試',parentPage)}

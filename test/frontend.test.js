@@ -774,7 +774,7 @@ test('T007 G2 routing, offline/retry without stale data, notice sentences, ifram
   const offline=await open(t,{query:'?mock=offline#parent'});assert.ok(ptext(offline.w).includes('連不到雲端，請稍後再試'));assert.ok(ptext(offline.w).includes('再試一次'));
   w.eval("FAMILY={code:''}");await parentRoute(w);assert.ok(ptext(w).includes('這台裝置還沒有輸入家庭邀請碼，請先到首頁輸入。'));assert.ok(w.document.getElementById('parent-exit'));
   const framed=await parentUI(t,{frame:true});framed.w.parentLock();await settle();assert.ok(!ptext(framed.w).includes('Face ID'));
-  const reader=await parentUI(t);reader.w.eval("READER={code:'READER'}");reader.w.parentLock();await settle();assert.ok(ptext(reader.w).includes('這台裝置還沒有輸入家庭邀請碼'));
+  const reader=await parentUI(t);reader.w.eval("READER={code:'READER'}");reader.w.parentLock();await settle();assert.ok(ptext(reader.w).includes('這台裝置同時存了閱讀碼，家長頁要先清除閱讀碼。'));assert.ok(reader.w.document.getElementById('parent-clear-reader'));
 });
 
 test('T007 XSS: player/reward/rejection and anomaly text escaped in all parent views',async t=>{
@@ -917,4 +917,38 @@ test('T020 malformed parent cache falls back to skeleton',async t=>{
   assert.equal(w.document.querySelector('[data-approve]').disabled,false);
   assert.equal(w.document.querySelector('#parent-updating'),null);
   assert.ok(JSON.parse(w.localStorage.getItem(w.parentCacheKey())).pending.redeems[0].balance.gold);
+});
+
+test('T021 parent without family keeps the invitation message even with a reader code',async t=>{
+  for(const reader of [{code:'',name:''},{code:'READ-1234',name:'x'}]){
+    const {w}=await open(t,{storage:{family:{code:'',name:''},reader}});
+    w.eval('FAMILY={code:"",name:""};READER='+JSON.stringify(reader));
+    await parentRoute(w);
+    assert.equal(w.document.querySelector('#parent-content').innerHTML,'<p>這台裝置還沒有輸入家庭邀請碼，請先到首頁輸入。</p>');
+    assert.equal(w.document.querySelector('#parent-clear-reader'),null);
+  }
+});
+
+test('T021 parent clears reader for p1 and enters PIN flow without navigation',async t=>{
+  const seed=await open(t),reader=(await seed.w.api('readerCreate',{note:'T021'})).reader;
+  const {w,navigation}=await open(t,{storage:{...seed.storage(),reader:{code:reader,name:'x'}}});
+  await parentRoute(w);
+  assert.equal(w.document.querySelector('#parent-content').innerHTML,'<p>這台裝置同時存了閱讀碼，家長頁要先清除閱讀碼。</p><button class="big" id="parent-clear-reader">清除閱讀碼</button>');
+  const button=w.document.querySelector('#parent-clear-reader');
+  const clearing=button.onclick();assert.equal(button.disabled,true);await clearing;
+  assert.deepEqual(JSON.parse(w.localStorage.getItem('reader')),{code:'',name:''});
+  assert.match(w.document.querySelector('#parent-content').textContent,/輸入家長 PIN|第一次設定家長 PIN/);
+  assert.equal(navigation.length,0);
+});
+
+test('T021 parent clears reader for saved p2 and reloads on the parent route',async t=>{
+  const seed=await open(t),reader=(await seed.w.api('readerCreate',{note:'T021'})).reader;
+  const {w,navigation}=await open(t,{storage:{...seed.storage(),reader:{code:reader,name:'x'},player:'"p2"'}});
+  await parentRoute(w);
+  const button=w.document.querySelector('#parent-clear-reader');assert.ok(button);
+  const clearing=button.onclick();assert.equal(button.disabled,true);await clearing;
+  assert.deepEqual(JSON.parse(w.localStorage.getItem('reader')),{code:'',name:''});
+  assert.ok(navigation.length>0);
+  assert.equal(w.location.hash,'#parent');
+  assert.equal(JSON.parse(w.localStorage.getItem('player')),'p2');
 });
