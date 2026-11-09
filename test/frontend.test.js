@@ -401,8 +401,8 @@ test('T006 D3: double send, lost response manual retry and busy retry retain UUI
   const {w}=await open(t);await w.rewardPage();const fetch=w.fetch,sent=[];let release;
   const gate=new Promise(r=>release=r);
   w.fetch=async(u,o)=>{const r=JSON.parse(o.body);if(r.action==='redeemRequest'){sent.push(r);await gate;const res=await fetch(u,o);if(sent.length===1)throw Error('lost response');return res}return fetch(u,o)};
-  clickApply(w,'mock-s');const first=w.document.getElementById('reward-send').onclick();const second=w.document.getElementById('reward-send').onclick();assert.equal(sent.length,1);assert.equal(w.document.getElementById('reward-send').disabled,true);release();await Promise.all([first,second]);
-  assert.equal(w.document.getElementById('reward-send').textContent,'再試一次');await sendSheet(w);assert.equal(sent.length,2);assert.equal(sent[0].requestId,sent[1].requestId);assert.match(sent[0].requestId,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+  clickApply(w,'mock-s');const send=w.document.getElementById('reward-send');const first=send.onclick();const second=send.onclick();assert.equal(sent.length,1);assert.equal(send.disabled,true);assert.equal(w.document.getElementById('reward-send'),null);release();await Promise.all([first,second]);
+  assert.ok(text(w).includes('送出失敗，請再試一次'));clickApply(w,'mock-s');await sendSheet(w);assert.equal(sent.length,2);assert.equal(sent[0].requestId,sent[1].requestId);assert.match(sent[0].requestId,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
   assert.equal((await w.api('myRedeems')).redeems.length,1);
   const busy=[];w.fetch=async(u,o)=>{const r=JSON.parse(o.body);if(r.action==='redeemRequest'){busy.push(r);if(busy.length===1)return {json:async()=>({ok:false,code:'busy'})}}return fetch(u,o)};
   clickApply(w,'mock-g');await sendSheet(w);assert.equal(busy.length,2);assert.equal(busy[0].requestId,busy[1].requestId);
@@ -1067,8 +1067,8 @@ test('T025 prefetch race: applying prevents a delayed old response from restorin
   const prefetch=w.rewardPrefetch();await settle();const gen=w.eval('rewardWriteGen');
   clickApply(w,'mock-s');const sending=sendSheet(w);await settle();
   assert.ok(requests.some(r=>r.action==='redeemRequest'));assert.equal(w.eval('rewardWriteGen'),gen+1);
-  assert.equal(w.rewardCacheGet(),null);
-  releaseOld();assert.equal(await prefetch,null);await settle();assert.equal(w.rewardCacheGet(),null);
+  assert.equal(w.rewardCacheGet().at,undefined);assert.equal(w.rewardCacheGet().balance.silver.held,2);
+  releaseOld();assert.equal(await prefetch,null);await settle();assert.equal(w.rewardCacheGet().at,undefined);assert.equal(w.rewardCacheGet().balance.silver.held,2);
   releaseFresh();await sending;assert.ok(w.rewardCacheGet().balance.silver.held>0);
   w.fetch=fetch;await w.rewardPage('mine');w.document.querySelector('[data-cancel]').click();await sendSheet(w);
   assert.equal(w.eval('rewardWriteGen'),gen+2);assert.equal(w.rewardCacheGet().balance.silver.held,0);
@@ -1093,4 +1093,130 @@ test('T025 parentLock removes the parent cache',async t=>{
   const {w}=await parentUI(t);await w.parentMain('rewards');
   const key=w.parentCacheKey();assert.ok(w.localStorage.getItem(key));w.parentLock();
   assert.equal(w.localStorage.getItem(key),null);await settle();assert.equal(w.localStorage.getItem(key),null);
+});
+
+function t026Slow(w,override){
+  const fetch=w.fetch,seen=[];
+  w.fetch=async(u,o)=>{const r=JSON.parse(o.body);seen.push(r);await new Promise(resolve=>w.setTimeout(resolve,2000));return override?.(r,u,o)??fetch(u,o)};
+  return seen;
+}
+const t026Wait=ms=>new Promise(r=>setTimeout(r,ms));
+const t026Wallet=w=>[...w.document.querySelectorAll('.reward-pot')].map(c=>c.textContent);
+
+test('T026 R3 child: every fetch delayed two seconds, immediate apply/cancel, background stays rendered',async t=>{
+  const {w}=await open(t);await w.rewardPage();const seen=t026Slow(w);
+  clickApply(w,'mock-sg');const send=w.document.getElementById('reward-send'),sending=send.onclick();
+  await t026Wait(100);
+  assert.deepEqual(t026Wallet(w),['銀色可用2保留 3','金色可用1保留 1']);
+  assert.equal(w.document.querySelector('[data-apply="mock-sg"]').textContent,'送出中…');
+  assert.ok(w.document.querySelector('p.reward-status.reward-wait'));
+  assert.ok([...w.document.querySelectorAll('[data-apply]')].every(b=>b.disabled));
+  await send.onclick();clickApply(w,'mock-s');assert.equal(w.document.querySelector('.reward-dialog'),null);
+  assert.equal(seen.filter(r=>r.action==='redeemRequest').length,1);
+  await sending;
+  assert.equal(w.document.querySelector('p.reward-status.reward-wait'),null);
+  assert.equal(w.rewardCacheGet().at,undefined);
+  assert.equal(w.document.querySelector('[data-apply="mock-s"]').disabled,false);
+  assert.equal(seen.filter(r=>r.action==='rewardList').length,1);
+  assert.equal(seen.at(-1).withRedeems,true);
+  assert.equal(w.document.querySelector('.reward-skeleton,#reward-updating'),null);
+  await t026Wait(2100);assert.ok(w.rewardCacheGet().at);
+  await w.rewardPage('mine');const count=seen.length;
+  w.document.querySelector('[data-cancel]').click();const cancel=sendSheet(w);
+  await t026Wait(100);assert.deepEqual(t026Wallet(w),['銀色可用5保留 0','金色可用2保留 0']);
+  assert.equal(w.document.querySelector('[data-cancel]').textContent,'送出中…');
+  assert.equal(w.document.querySelector('[data-cancel]').disabled,true);
+  await cancel;assert.ok(text(w).includes('已取消申請'));assert.equal(w.document.querySelector('p.reward-status.reward-wait'),null);
+  assert.equal(w.document.querySelector('.reward-skeleton,#reward-updating'),null);
+  assert.equal(seen.slice(count).filter(r=>r.action==='rewardList').length,1);
+  await t026Wait(2100);assert.equal(w.rewardCacheGet().balance.silver.available,5);
+});
+
+test('T026 R3 child failure: rollback and exact backend reason before silent alignment',async t=>{
+  const {w}=await open(t);await w.rewardPage();const before=t026Wallet(w);
+  const seen=t026Slow(w,r=>r.action==='redeemRequest'?{json:async()=>({ok:false,code:'insufficient',reason:'還差銀 9'})}:undefined);
+  clickApply(w,'mock-s');const sending=sendSheet(w);await t026Wait(100);
+  assert.notDeepEqual(t026Wallet(w),before);await sending;
+  assert.deepEqual(t026Wallet(w),before);assert.equal(w.document.querySelector('#reward-notice').textContent,'還差銀 9');
+  assert.equal(w.document.querySelector('p.reward-status.reward-wait'),null);
+  assert.equal(seen.filter(r=>r.action==='rewardList').length,1);
+  assert.equal(w.document.querySelector('.reward-skeleton,#reward-updating'),null);
+  await t026Wait(2100);assert.equal(w.document.querySelector('#reward-notice').textContent,'還差銀 9');
+});
+
+test('T026 retry IDs: network retry survives reopening page, success and definite refusal clear ID',async t=>{
+  const {w}=await open(t);await w.rewardPage();const fetch=w.fetch,ids=[];let mode='network';
+  w.fetch=async(u,o)=>{const r=JSON.parse(o.body);if(r.action==='redeemRequest'){ids.push(r.requestId);if(mode==='network')throw Error('offline');if(mode==='quota')return {json:async()=>({ok:false,code:'quota',reason:'額度用完'})}}return fetch(u,o)};
+  clickApply(w,'mock-s');await sendSheet(w);await w.rewardPage();mode='ok';clickApply(w,'mock-s');await sendSheet(w);
+  assert.equal(ids[0],ids[1]);await w.rewardPage();mode='quota';clickApply(w,'mock-s');await sendSheet(w);
+  assert.notEqual(ids[1],ids[2]);await w.rewardPage();mode='ok';clickApply(w,'mock-s');await sendSheet(w);assert.notEqual(ids[2],ids[3]);
+  assert.ok(!JSON.stringify(Object.fromEntries(Object.entries(w.localStorage).filter(([k])=>k!=='mock-gas-state'))).includes(ids[0]));
+});
+
+async function t026Parent(t){
+  const ctx=await parentUI(t),{w}=ctx,session=w.eval('PARENT_SESSION');
+  for(let i=0;i<2;i++)await w.api('redeemRequest',{rewardId:'mock-s',requestId:w.rewardRequestId()});
+  await w.parentMain();return ctx;
+}
+for(const decision of ['approve','reject'])test('T026 R3 parent '+decision+': two-second requests, count, wallet, one send and silent alignment',async t=>{
+  const {w}=await t026Parent(t);const cards=[...w.document.querySelectorAll('[data-request]')],card=cards[0],id=card.dataset.request;
+  const seen=t026Slow(w);if(decision==='reject')card.querySelector('[data-reject]').click();
+  const button=card.querySelector(decision==='approve'?'[data-approve]':'[data-confirm-reject]');const sending=button.onclick();await t026Wait(100);
+  assert.equal(w.document.querySelector('#parent-count').textContent,'1');assert.ok(card.querySelector('p.reward-status.reward-wait'));
+  assert.ok([...w.document.querySelectorAll('[data-request] button')].every(b=>b.disabled));
+  for(const c of cards)assert.equal(c.children[4].textContent,decision==='reject'?'他目前可用 銀 3・金 2':'他目前可用 銀 1・金 2');
+  await button.onclick();assert.equal(seen.filter(r=>r.action==='redeemDecide').length,1);await sending;
+  assert.equal(w.document.querySelector('[data-request="'+id+'"]'),null);
+  assert.equal(w.document.querySelector('#parent-notice').textContent,decision==='approve'?'已核准':'已拒絕');
+  assert.equal(w.document.querySelector('[data-approve]').disabled,false);
+  assert.equal(seen.filter(r=>r.action==='redeemList').length,1);
+  assert.equal(w.document.querySelector('.reward-skeleton,#parent-updating'),null);
+  await t026Wait(2100);assert.equal(w.parentCacheGet().pending.pendingCount,1);
+});
+
+test('T026 R3 parent network failure restores count and same-player balances',async t=>{
+  const {w}=await t026Parent(t);const card=w.document.querySelector('[data-request]');
+  t026Slow(w,r=>{if(r.action==='redeemDecide')throw Error('offline')});
+  card.querySelector('[data-reject]').click();const sending=card.querySelector('[data-confirm-reject]').onclick();
+  await t026Wait(100);assert.equal(w.document.querySelector('#parent-count').textContent,'1');
+  assert.ok([...w.document.querySelectorAll('[data-request]')].every(c=>c.children[4].textContent==='他目前可用 銀 3・金 2'));
+  await sending;assert.equal(w.document.querySelector('#parent-count').textContent,'2');
+  assert.ok(ptext(w).includes('連不到雲端，請稍後再試'));
+  assert.ok([...w.document.querySelectorAll('button')].some(b=>b.textContent==='再試一次'));
+  assert.equal(w.document.querySelector('p.reward-status.reward-wait'),null);
+  assert.equal(w.document.querySelectorAll('[data-request]').length,2);
+  assert.equal(w.document.querySelectorAll('[data-request]')[1].children[4].textContent,'他目前可用 銀 1・金 2');
+  assert.equal(w.document.querySelector('[data-approve]').disabled,false);
+});
+
+test('T026 child background race: old list cannot undo a later write or navigation; errors stay silent',async t=>{
+  const {w}=await open(t);await w.rewardPage();const fetch=w.fetch;let release,count=0;
+  const gate=new Promise(r=>release=r);
+  w.fetch=async(u,o)=>{const response=await fetch(u,o);if(JSON.parse(o.body).action==='rewardList'&&++count===1)await gate;return response};
+  clickApply(w,'mock-s');await sendSheet(w);await settle();
+  clickApply(w,'mock-g');await sendSheet(w);await settle();release();await settle();
+  assert.equal(w.rewardCacheGet().balance.gold.held,1);assert.equal(w.document.querySelector('.reward-gold strong').textContent,'1');
+  assert.ok(text(w).includes('已送出，等家長核准'));
+  w.fetch=async(u,o)=>{if(JSON.parse(o.body).action==='rewardList')throw Error('offline');return fetch(u,o)};
+  clickApply(w,'mock-s');await sendSheet(w);await settle();
+  assert.ok(text(w).includes('已送出，等家長核准'));assert.equal(w.document.querySelector('.reward-skeleton,#reward-updating'),null);
+  assert.equal(w.rewardCacheGet().at,undefined);
+  let finish;const late=new Promise(r=>finish=r);w.fetch=async(u,o)=>{const response=await fetch(u,o);if(JSON.parse(o.body).action==='rewardList')await late;return response};
+  clickApply(w,'mock-g');await sendSheet(w);await settle();await w.libHome();finish();await settle();
+  assert.equal(w.document.querySelector('#reward-page'),null);assert.ok(w.document.querySelector('#rewards-home'));
+});
+
+test('T026 parent background race: old list cannot restore decided cards or another tab',async t=>{
+  const {w}=await t026Parent(t);const fetch=w.fetch;let release,count=0;const gate=new Promise(r=>release=r);
+  w.fetch=async(u,o)=>{const response=await fetch(u,o);if(JSON.parse(o.body).action==='redeemList'&&++count===1)await gate;return response};
+  await w.document.querySelector('[data-approve]').onclick();await settle();
+  await w.document.querySelector('[data-approve]').onclick();await settle();release();await settle();
+  assert.equal(w.parentCacheGet().pending.pendingCount,0);assert.equal(w.document.querySelector('[data-request]'),null);
+  assert.ok(ptext(w).includes('現在沒有待核准的申請'));
+  await w.api('redeemRequest',{rewardId:'mock-g',requestId:w.rewardRequestId()});await w.parentMain();
+  let finish;const late=new Promise(r=>finish=r);w.fetch=async(u,o)=>{const response=await fetch(u,o);if(JSON.parse(o.body).action==='redeemList')await late;return response};
+  await w.document.querySelector('[data-approve]').onclick();await settle();
+  const other=w.parentMain('log');finish();await other;await settle();
+  assert.equal(w.document.querySelector('[aria-current="page"]').dataset.parentTab,'log');
+  assert.equal(w.document.querySelector('[data-request]'),null);assert.ok(ptext(w).includes('核准'));
 });
