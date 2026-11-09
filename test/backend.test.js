@@ -1078,7 +1078,7 @@ function seededRandom(seed) {
   let value = seed >>> 0;
   return () => { value = (Math.imul(value,1664525)+1013904223)>>>0; return value/4294967296; };
 }
-function randomizedRedeemInterleavings(lockMode) {
+function randomizedRedeemInterleavings(lockMode, outer = 'redeemRequest') {
   const env = setup({lockMode}), session = parentSession(env); seedP2(env);
   const players = ['p1','p2']; for (const pid of players) fund(env,pid,8,5);
   const rewards = [saveReward(env,session,{silver:2,gold:1,weeklyLimit:2}),saveReward(env,session,{silver:1,gold:0,weeklyLimit:3})];
@@ -1097,7 +1097,7 @@ function randomizedRedeemInterleavings(lockMode) {
   for (let round=0;round<200;round++) {
     let injected = false;
     env.onSheetOp(({sheet}) => {
-      // All top-level operations read players under the lock; family lookups are outside it.
+      // Lock-holding redeemRequest reads players inside the lock; family lookups are outside it.
       if (sheet!=='玩家' || injected) return;
       injected = true; counts.injections++;
       const kinds = [0,1,2,3].sort(()=>random()-.5).slice(0,2+Math.floor(random()*3));
@@ -1106,9 +1106,14 @@ function randomizedRedeemInterleavings(lockMode) {
         if (result.deferred) counts.deferred++;
       }
     });
-    // rewardList ensures a lock-internal hook even if all requests have hit quota.
-    const result = post(env,'rewardList',{playerId:choose(players)});
-    assert.equal(result.ok,true);
+    // redeemRequest takes the lock even when quota or balance rejects it.
+    if (outer === 'redeemRequest') {
+      const result = requestReward(env,choose(rewards).id,choose(players));
+      assert.ok(result.ok === true || ['insufficient','quota'].includes(result.code));
+    } else {
+      const result = post(env,'rewardList',{playerId:choose(players)});
+      assert.equal(result.ok,true);
+    }
     env.onSheetOp(null); env.runDeferred();
     operation(Math.floor(random()*4));
     assertRedeemInvariants(env,players,rewards);
@@ -1116,7 +1121,7 @@ function randomizedRedeemInterleavings(lockMode) {
   }
   assert.equal(counts.injections,200);
   for (const kind of ['request','approve','reject','cancel']) assert.ok(counts[kind]>0);
-  if (lockMode==='real') assert.ok(counts.deferred>=400);
+  if (lockMode==='real' && outer==='redeemRequest') assert.ok(counts.deferred>=400);
   return counts;
 }
 test('T004 D4: seeded 200 interleavings inject multiple requests/approvals/rejections/cancellations at sheet operations', t => {
@@ -1225,4 +1230,151 @@ test('T004 negative gold adjustment: approval cannot consume held gold when adju
   assert.equal(decide(env,session,r.id).code,'insufficient');
   assert.equal(requestReward(env,reward.id).code,'insufficient');
   assert.equal(post(env,'myRedeems').redeems[0].status,'待核准');
+});
+
+function t019Fixture() {
+  const env = setup(), session = parentSession(env);
+  seedP2(env); fund(env,'p1',8,8); fund(env,'p2',8,8);
+  const reward = saveReward(env,session,{silver:1,gold:1});
+  const pending = ['p1','p2'].map(pid => {
+    const result = requestReward(env,reward.id,pid);
+    assert.equal(result.ok,true); return result.redeem;
+  });
+  return {env,session,reward,pending};
+}
+function t019Read(env, action, extra={}) {
+  env.stats.reset();
+  const result = post(env,action,extra);
+  assert.equal(result.ok,true,JSON.stringify(result));
+  assert.equal(env.stats.locks,0,action);
+  assert.ok(Object.values(env.stats.reads).every(n => n <= 1),JSON.stringify(env.stats.reads));
+  return result;
+}
+
+test('T019 R1/R2: six read actions use no lock and read each sheet at most once', () => {
+  const {env,session} = t019Fixture();
+  for (const [action,extra] of [
+    ['rewardList',{withRedeems:true}],['myRedeems',{}],['redeemList',{session}],
+    ['balance',{}],['playerList',{withBalance:true}],['parentLog',{session}],
+  ]) t019Read(env,action,extra);
+  const results = require('../tools/measure-reward').measure();
+  assert.equal(results.length,8);
+  for (const r of results.slice(0,6)) {
+    assert.equal(r.ok,true); assert.equal(r.locks,0,r.action);
+    assert.ok(Object.values(r.reads).every(n => n <= 1),JSON.stringify(r));
+  }
+});
+
+test('T019 write decoys: requests and decisions retain the lock', () => {
+  const {env,session,reward,pending} = t019Fixture();
+  env.stats.reset(); assert.equal(requestReward(env,reward.id).ok,true);
+  assert.ok(env.stats.locks >= 1);
+  env.stats.reset(); assert.equal(decide(env,session,pending[0].id).ok,true);
+  assert.ok(env.stats.locks >= 1);
+});
+
+test('T019 backfill: first ledger initialization and missing p1 take the lock', () => {
+  const env = setup();
+  env.run('putBank',{code},{...bank(),badge:earned(100,101)});
+  env.sheets.get('徽章').appendRow([code,'家庭',new Date(env.clock.now()),JSON.stringify({legacy:earned(102)}),'p1']);
+  env.props.deleteProperty('ledgerinit:'+code+':p1');
+  env.stats.reset();
+  const first = post(env,'rewardList');
+  assert.equal(first.ok,true); assert.ok(env.stats.locks >= 1);
+  assert.equal(env.props.getProperty('ledgerinit:'+code+':p1'),'1');
+  assert.equal(first.balance.silver.total,3);
+  assert.deepEqual(t019Read(env,'rewardList').balance,first.balance);
+  const fresh = setup(); fresh.stats.reset();
+  const players = post(fresh,'playerList');
+  assert.equal(players.ok,true); assert.ok(fresh.stats.locks >= 1);
+  assert.ok(players.players.some(p => p.id === 'p1'));
+});
+
+test('T019 R4: read-write-read reflects holds, rejection, and cancellation immediately', () => {
+  const {env,session,reward} = t019Fixture();
+  const original = t019Read(env,'rewardList').balance;
+  for (const outcome of ['reject','cancel']) {
+    const request = requestReward(env,reward.id);
+    assert.equal(request.ok,true);
+    const held = t019Read(env,'rewardList').balance;
+    for (const color of ['silver','gold']) {
+      assert.equal(held[color].available,original[color].available-1);
+      assert.equal(held[color].held,original[color].held+1);
+    }
+    const result = outcome === 'reject' ? decide(env,session,request.redeem.id,'reject')
+      : post(env,'redeemCancel',{id:request.redeem.id});
+    assert.equal(result.ok,true);
+    assert.deepEqual(t019Read(env,'balance'),original);
+  }
+});
+
+test('T019 exception cleanup: failed read does not leave memo data for writes or later reads', () => {
+  const {env,reward} = t019Fixture();
+  const original = t019Read(env,'rewardList').balance;
+  let thrown = false;
+  env.onSheetOp(({sheet,op}) => {
+    if (!thrown && sheet === '兌換' && op === 'read') { thrown = true; throw new Error('T019 read failure'); }
+  });
+  env.stats.reset();
+  const failure = post(env,'rewardList');
+  env.onSheetOp(null);
+  assert.equal(thrown,true); assert.equal(failure.code,'server_error'); assert.equal(env.stats.locks,0);
+  const request = requestReward(env,reward.id);
+  assert.equal(request.ok,true);
+  for (const color of ['silver','gold']) {
+    assert.equal(request.balance[color].available,original[color].available-1);
+    assert.equal(request.balance[color].held,original[color].held+1);
+  }
+  assert.deepEqual(t019Read(env,'rewardList').balance,request.balance);
+});
+
+test('T019 withRedeems: optional field matches myRedeems and preserves the default response', () => {
+  const {env} = t019Fixture();
+  assert.equal(Object.hasOwn(t019Read(env,'rewardList'),'redeems'),false);
+  assert.deepEqual(t019Read(env,'rewardList',{withRedeems:true}).redeems,t019Read(env,'myRedeems').redeems);
+});
+
+test('T019 D4 lock-free rewardList with injected writes keeps invariants', () => {
+  randomizedRedeemInterleavings('real','rewardList');
+});
+
+test('T019 purge race: read-only request never writes ledger', () => {
+  const {env} = t019Fixture();
+  const key = 'ledgerinit:'+code+':p2';
+  assert.equal(env.props.getProperty(key),'1');
+  const rows = env.sheets.get('徽章入帳').getLastRow();
+  let injected = false;
+  env.onSheetOp(({sheet,op}) => {
+    if (injected || sheet !== '玩家' || op !== 'read') return;
+    injected = true;
+    env.props.deleteProperty(key);
+  });
+  env.stats.reset();
+  const result = post(env,'rewardList',{playerId:'p2'});
+  env.onSheetOp(null);
+  assert.equal(result.ok,true);
+  assert.equal(injected,true);
+  assert.equal(env.stats.locks,0);
+  assert.equal(env.sheets.get('徽章入帳').getLastRow(),rows);
+  assert.equal(env.props.getProperty(key),null);
+});
+
+test('T019 nested read inside write does not leak memo', () => {
+  // real mode defers the nested request before it enters the read-only body.
+  const env = setup({lockMode:'none'}), session = parentSession(env);
+  fund(env,'p1',8,8);
+  const reward = saveReward(env,session,{silver:1,gold:1});
+  assert.equal(post(env,'rewardList').ok,true);
+  let injected = false, nested;
+  env.onSheetOp(({sheet,op}) => {
+    if (injected || sheet !== '兌換' || op !== 'read') return;
+    injected = true;
+    nested = post(env,'rewardList');
+  });
+  const result = requestReward(env,reward.id);
+  env.onSheetOp(null);
+  assert.equal(injected,true);
+  assert.equal(nested.ok,true);
+  assert.equal(result.ok,true);
+  assert.deepEqual(result.balance,balance(env));
 });

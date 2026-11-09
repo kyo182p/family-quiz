@@ -144,11 +144,15 @@ function doPost(e) {
     if (['rewardList','rewardSave','redeemRequest','redeemCancel','myRedeems','redeemList','redeemDecide','parentLog'].indexOf(req.action) >= 0) return out(rewardAction(fam, req));
     switch (req.action) {
       case 'playerList':
-        return out(withLock(() => { ensureP1(fam.code); return {ok:true, players:readPlayers(fam.code).map(p => { if(req.withBalance === true) { syncLedger(fam.code,p.id,{}); p.balance=playerBalance(fam.code,p.id); } return p; }).sort((a,b) => (a.status === '停用') - (b.status === '停用') || a.order-b.order)}; }));
+        return out(readOnlyRun(() => missingP1(fam.code) || (req.withBalance === true && readPlayers(fam.code).some(p => ledgerUninitialized(fam.code,p.id))), () => { ensureP1(fam.code); return {ok:true, players:readPlayers(fam.code).map(p => { if(req.withBalance === true) { syncLedger(fam.code,p.id,{}); p.balance=playerBalance(fam.code,p.id); } return p; }).sort((a,b) => (a.status === '停用') - (b.status === '停用') || a.order-b.order)}; }));
       case 'playerSave':
         return out(playerSave(fam.code, req));
       case 'balance':
-        return out(withLock(() => {
+        return out(readOnlyRun(() => {
+          const pid = req.playerId || 'p1';
+          if (!/^p[a-z0-9]{1,12}$/.test(String(pid))) return false;
+          return (pid === 'p1' && missingP1(fam.code)) || ledgerUninitialized(fam.code,pid);
+        }, () => {
           const pid = req.playerId || 'p1', err = checkPlayer(fam.code, pid);
           if (err) return err;
           syncLedger(fam.code, pid, {});
@@ -1140,7 +1144,28 @@ function safeCell(s) { s = String(s == null ? '' : s); return s === '' ? '' : "'
 function withLock(fn) {
   const lock = LockService.getScriptLock();
   try { lock.waitLock(10000); } catch(e) { return {ok:false, code:'busy', message:'系統忙碌，請再試一次'}; }
-  try { return fn(); } finally { try { SpreadsheetApp.flush(); } finally { lock.releaseLock(); } }
+  const memo = READ_MEMO; READ_MEMO = null;
+  try {
+    try { return fn(); } finally { try { SpreadsheetApp.flush(); } finally { lock.releaseLock(); } }
+  } finally { READ_MEMO = memo; }
+}
+let READ_MEMO = null;
+function sheetRows(name) {
+  if (READ_MEMO !== null && Object.prototype.hasOwnProperty.call(READ_MEMO,name)) return READ_MEMO[name];
+  const sh = SpreadsheetApp.getActive().getSheetByName(name);
+  const rows = sh ? sh.getDataRange().getValues() : null;
+  if (READ_MEMO !== null) READ_MEMO[name] = rows;
+  return rows;
+}
+function readOnlyRun(needsWrite, fn) {
+  const prev = READ_MEMO; READ_MEMO = {};
+  try { if (!needsWrite()) return fn(); }
+  finally { READ_MEMO = prev; }
+  return withLock(fn);
+}
+function missingP1(code) { return !readPlayers(code).some(p => p.id === 'p1'); }
+function ledgerUninitialized(code, pid) {
+  return !PropertiesService.getScriptProperties().getProperty('ledgerinit:' + code + ':' + pid);
 }
 function rewardSheet(name, header) {
   const ss = SpreadsheetApp.getActive();
@@ -1149,9 +1174,9 @@ function rewardSheet(name, header) {
   return sh;
 }
 function readPlayers(code) {
-  const sh = SpreadsheetApp.getActive().getSheetByName('玩家');
-  if (!sh) return [];
-  return sh.getDataRange().getValues().slice(1).filter(r => String(r[0]) === code).map(r => ({id:String(r[1]),name:String(r[2]),icon:String(r[3]),order:Number(r[4])||0,status:String(r[5])}));
+  const rows = sheetRows('玩家');
+  if (!rows) return [];
+  return rows.slice(1).filter(r => String(r[0]) === code).map(r => ({id:String(r[1]),name:String(r[2]),icon:String(r[3]),order:Number(r[4])||0,status:String(r[5])}));
 }
 function ensureP1(code) {
   if (!readPlayers(code).some(p => p.id === 'p1')) rewardSheet('玩家',PLAYER_HEADER).appendRow([safeCell(code),safeCell('p1'),safeCell('玩家 1'),safeCell('🌱'),0,safeCell('啟用'),new Date(),new Date(),'']);
@@ -1186,11 +1211,15 @@ function playerSave(code, req) {
     return {ok:true, player:readPlayers(code).find(p => p.id === pid)};
   });
 }
-// Called only under withLock, before either cloud snapshot is overwritten.
+// Writes only under withLock, before either cloud snapshot is overwritten.
+// 只讀模式絕不寫入;補入帳只在鎖內(READ_MEMO 為 null)進行。
 function syncLedger(code, pid, incoming) {
-  const sh = rewardSheet('徽章入帳',LEDGER_HEADER), rows = sh.getDataRange().getValues().slice(1);
+  if (READ_MEMO !== null) return;
   const props = PropertiesService.getScriptProperties(), initKey = 'ledgerinit:' + code + ':' + pid;
-  const initial = !props.getProperty(initKey), now = new Date();
+  const initial = !props.getProperty(initKey);
+  if (!initial && Object.keys(incoming || {}).length === 0) return;
+  const sh = rewardSheet('徽章入帳',LEDGER_HEADER), rows = sh.getDataRange().getValues().slice(1);
+  const now = new Date();
   const day = d => Utilities.formatDate(new Date(d),TIMEZONE,'yyyy-MM-dd');
   const seen = new Set(rows.filter(r => String(r[0]) === code && String(r[1]) === pid).map(r => JSON.stringify([String(r[2]),Number(r[3])])));
   let count = rows.filter(r => String(r[0]) === code && String(r[1]) === pid && !r[6] && String(r[8]) === '同步' && day(r[5]) === day(now)).length;
@@ -1219,9 +1248,9 @@ function syncLedger(code, pid, incoming) {
   if (initial) props.setProperty(initKey,'1');
 }
 function playerBalance(code, pid) {
-  const sh = SpreadsheetApp.getActive().getSheetByName('徽章入帳');
+  const rows = sheetRows('徽章入帳');
   const result = {ok:true,silver:{available:0,held:0,total:0},gold:{available:0,held:0,total:0}};
-  if (sh) sh.getDataRange().getValues().slice(1).forEach(r => {
+  if (rows) rows.slice(1).forEach(r => {
     if (String(r[0]) !== code || String(r[1]) !== pid || r[6]) return;
     const color = String(r[4]) === '金' ? result.gold : String(r[4]) === '銀' ? result.silver : null;
     if (color) color.total += r[7] === '' ? 1 : Number(r[7]) || 0;
@@ -1236,7 +1265,7 @@ function playerBalance(code, pid) {
   return result;
 }
 
-/* ===== 獎勵與兌換：由 rewardAction 持鎖 ===== */
+/* ===== 獎勵與兌換：寫入由 rewardAction 持鎖 ===== */
 function rewardIdValid(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(id); }
 function weekKey(time) {
   const d = new Date(Number(time) + 8*3600000);
@@ -1247,12 +1276,12 @@ function normalizeWeek(value) {
   return value instanceof Date ? Utilities.formatDate(value,TIMEZONE,'yyyy-MM-dd') : String(value);
 }
 function readRewards(code) {
-  const sh = SpreadsheetApp.getActive().getSheetByName('獎勵');
-  return sh ? sh.getDataRange().getValues().slice(1).map((r,i) => ({row:i+2,id:String(r[0]),family:String(r[1]),name:String(r[2]),silver:Number(r[3]),gold:Number(r[4]),goldForSilver:isTrue(r[5]),weeklyLimit:Number(r[6]),enabled:isTrue(r[7])})).filter(r => r.family === code) : [];
+  const rows = sheetRows('獎勵');
+  return rows ? rows.slice(1).map((r,i) => ({row:i+2,id:String(r[0]),family:String(r[1]),name:String(r[2]),silver:Number(r[3]),gold:Number(r[4]),goldForSilver:isTrue(r[5]),weeklyLimit:Number(r[6]),enabled:isTrue(r[7])})).filter(r => r.family === code) : [];
 }
 function readRedeems(code) {
-  const sh = SpreadsheetApp.getActive().getSheetByName('兌換');
-  return sh ? sh.getDataRange().getValues().slice(1).map((r,i) => ({row:i+2,id:String(r[0]),requestId:String(r[1]),family:String(r[2]),playerId:String(r[3]),rewardId:String(r[4]),name:String(r[5]),silver:Number(r[6]),gold:Number(r[7]),goldForSilver:isTrue(r[8]),pay:{silver:Number(r[9]),gold:Number(r[10])},weekKey:normalizeWeek(r[11]),status:String(r[12]),reason:String(r[13] || ''),requestedAt:r[14],decidedAt:r[15],version:Number(r[16])})).filter(r => r.family === code) : [];
+  const rows = sheetRows('兌換');
+  return rows ? rows.slice(1).map((r,i) => ({row:i+2,id:String(r[0]),requestId:String(r[1]),family:String(r[2]),playerId:String(r[3]),rewardId:String(r[4]),name:String(r[5]),silver:Number(r[6]),gold:Number(r[7]),goldForSilver:isTrue(r[8]),pay:{silver:Number(r[9]),gold:Number(r[10])},weekKey:normalizeWeek(r[11]),status:String(r[12]),reason:String(r[13] || ''),requestedAt:r[14],decidedAt:r[15],version:Number(r[16])})).filter(r => r.family === code) : [];
 }
 // requestId globally unique; callers must not expose foreign records.
 function findRedeemRequest(requestId) {
@@ -1288,8 +1317,8 @@ function changeRedeem(r, status, reason, actor) {
   appendRedeemLog(r.id,r.status,status,actor);
 }
 function rewardAction(fam, req) {
-  return withLock(() => {
-    const code = fam.code, action = req.action;
+  const code = fam.code, action = req.action;
+  function body() {
     if (['rewardSave','redeemList','redeemDecide','parentLog'].indexOf(action) >= 0) {
       const err = requireSession(fam,req); if (err) return err;
     }
@@ -1305,13 +1334,13 @@ function rewardAction(fam, req) {
     }
     if (action === 'parentLog') {
       const redeems = readRedeems(code), byId = new Map(redeems.map(r => [r.id,r])), players = readPlayers(code);
-      const log = SpreadsheetApp.getActive().getSheetByName('兌換紀錄');
-      const entries = (log ? log.getDataRange().getValues().slice(1) : []).filter(r => byId.has(String(r[1])) && ['核准','拒絕'].indexOf(String(r[3])) >= 0).map(r => {
+      const log = sheetRows('兌換紀錄');
+      const entries = (log ? log.slice(1) : []).filter(r => byId.has(String(r[1])) && ['核准','拒絕'].indexOf(String(r[3])) >= 0).map(r => {
         const redeem = byId.get(String(r[1])), player = players.find(p => p.id === redeem.playerId);
         return {type:'decision',at:r[0],id:redeem.id,playerId:redeem.playerId,playerName:player ? player.name : '',name:redeem.name,oldStatus:String(r[2]),status:String(r[3]),actor:String(r[4]),reason:redeem.reason};
       }).reverse().sort((a,b) => new Date(b.at)-new Date(a.at)).slice(0,50);
-      const ledger = SpreadsheetApp.getActive().getSheetByName('徽章入帳');
-      const anomalies = (ledger ? ledger.getDataRange().getValues().slice(1) : []).filter(r => String(r[0]) === code && r[6]).map(r => ({type:'anomaly',playerId:String(r[1]),playerName:(players.find(p => p.id === String(r[1])) || {}).name || '',badgeKey:String(r[2]),at:r[3],color:String(r[4]),reason:String(r[6]),creditedAt:r[5]})).reverse().sort((a,b) => new Date(b.creditedAt)-new Date(a.creditedAt));
+      const ledger = sheetRows('徽章入帳');
+      const anomalies = (ledger ? ledger.slice(1) : []).filter(r => String(r[0]) === code && r[6]).map(r => ({type:'anomaly',playerId:String(r[1]),playerName:(players.find(p => p.id === String(r[1])) || {}).name || '',badgeKey:String(r[2]),at:r[3],color:String(r[4]),reason:String(r[6]),creditedAt:r[5]})).reverse().sort((a,b) => new Date(b.creditedAt)-new Date(a.creditedAt));
       return {ok:true,entries:entries.concat(anomalies)};
     }
     if (action === 'redeemList') {
@@ -1367,7 +1396,7 @@ function rewardAction(fam, req) {
       return {ok:true,rewards:rewards.filter(r => parent || r.enabled).map(r => {
         const {code:unused,...offer} = rewardOffer(r,bal,weekUsed(code,pid,r.id));
         return Object.assign(publicReward(r),offer);
-      }),balance:bal};
+      }),balance:bal,...(req.withRedeems === true ? {redeems:readRedeems(code).filter(r => r.playerId === pid).reverse().map(publicRedeem)} : {})};
     }
     const reward = rewards.find(r => r.id === req.rewardId);
     if (!reward) return {ok:false,code:'not_found'};
@@ -1377,5 +1406,16 @@ function rewardAction(fam, req) {
     rewardSheet('兌換',REDEEM_HEADER).appendRow([safeCell(id),safeCell(req.requestId),safeCell(code),safeCell(pid),safeCell(reward.id),safeCell(reward.name),reward.silver,reward.gold,reward.goldForSilver,offer.pay.silver,offer.pay.gold,safeCell(weekKey(now.getTime())),safeCell('待核准'),'',now,'',1]);
     appendRedeemLog(id,'','待核准','child');
     return {ok:true,redeem:publicRedeem(readRedeems(code).find(r => r.id === id)),balance:playerBalance(code,pid)};
-  });
+  }
+  function needsWrite() {
+    if (action === 'parentLog') return false;
+    if (action === 'redeemList') return readRedeems(code)
+      .filter(r => !req.status ? r.status === '待核准' : req.status === 'all' || r.status === req.status)
+      .some(r => ledgerUninitialized(code,r.playerId));
+    const pid = req.playerId || 'p1';
+    if (typeof pid !== 'string' || !/^p[a-z0-9]{1,12}$/.test(pid)) return false;
+    return (pid === 'p1' && missingP1(code)) || (action === 'rewardList' && ledgerUninitialized(code,pid));
+  }
+  return ['rewardList','myRedeems','redeemList','parentLog'].indexOf(action) >= 0
+    ? readOnlyRun(needsWrite,body) : withLock(body);
 }

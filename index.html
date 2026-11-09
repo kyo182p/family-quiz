@@ -415,6 +415,9 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 
 /* Child rewards */
 .reward-page{max-width:620px;margin:auto;display:grid;gap:14px;overflow-wrap:anywhere}
+.reward-page,.parent-page{padding-bottom:calc(118px + env(safe-area-inset-bottom,0px))}
+#reward-notice:empty{display:none}
+#reward-notice,#reward-updating{margin:0}
 .reward-page .toprow{justify-content:space-between}.reward-tabs,.reward-wallet{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .reward-tabs button{min-height:44px}.reward-tabs [aria-selected="true"]{background:var(--leaf-strong);color:var(--on-leaf)}
 .reward-wallet{font-variant-numeric:tabular-nums}.reward-pot{border:2px solid var(--line);border-radius:16px;padding:12px;display:grid;gap:4px;background:var(--card)}
@@ -3587,6 +3590,11 @@ async function verifyReader(code,msgEl){
   try{LIB=(await busyRun('確認閱讀碼中……',()=>libApi('libList'))).banks||[];LIBERR='';store.set('reader',READER);if(ACTIVE_PLAYER!=='p1'){await flushPlayerSaves();location.reload()}else libHome()}
   catch(e){READER=old;msgEl.textContent=e.code==='bad_code'?'❌ 閱讀碼不正確或已停用':e.code==='not_configured'?'❌ 網站尚未設定後端網址':'❌ 連不上後端，請稍後再試'}
 }
+async function clearReaderCode(){
+  await flushPlayerSaves();READER={code:'',name:''};store.set('reader',READER);LIB=null;LIBERR='';
+  if(store.get('player','p1')!=='p1'){location.reload();return true}
+  return false;
+}
 function codePage(){
   app.innerHTML=`
    <div class="toprow"><button class="iconbtn" id="bk">← 題庫書架</button></div>
@@ -3603,7 +3611,7 @@ function codePage(){
   const $=id=>document.getElementById(id);
   $('bk').onclick=()=>libHome();
   $('rcgo').onclick=()=>verifyReader($('rc').value.trim(),$('rcmsg'));
-  if($('rcclr'))$('rcclr').onclick=async()=>{await flushPlayerSaves();READER={code:'',name:''};store.set('reader',READER);LIB=null;LIBERR='';if(store.get('player','p1')!=='p1')location.reload();else codePage()};
+  if($('rcclr'))$('rcclr').onclick=async()=>{if(!await clearReaderCode())codePage()};
   $('fam').onclick=()=>familyPage(()=>{LIB=null;LIBERR='';codePage()});
 }
 async function libLoad(id){
@@ -4564,6 +4572,9 @@ function rewardRequestId(){
   const a=crypto.getRandomValues(new Uint8Array(16));a[6]=(a[6]&15)|64;a[8]=(a[8]&63)|128;
   const h=Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');return [h.slice(0,8),h.slice(8,12),h.slice(12,16),h.slice(16,20),h.slice(20)].join('-');
 }
+function rewardCacheKey(){return ACTIVE_PLAYER+':reward-cache:'+FAMILY.code}
+function rewardCacheGet(){try{return JSON.parse(localStorage.getItem(rewardCacheKey()))}catch(e){return null}}
+function rewardCacheSet(v){try{const {balance,rewards,redeems}=v;localStorage.setItem(rewardCacheKey(),JSON.stringify({balance,rewards,redeems}))}catch(e){}}
 async function rewardPage(tab='rewards',notice=''){
   if(!FAMILY.code||READER.code)return libHome();
   app.innerHTML=rewardMedals+'<section class="reward-page" id="reward-page"></section>';
@@ -4572,25 +4583,34 @@ async function rewardPage(tab='rewards',notice=''){
   const find=id=>root.querySelector('#'+id),alive=()=>root.isConnected;
   find('reward-back').onclick=()=>libHome();
   root.querySelectorAll('[data-reward-tab]').forEach(b=>b.onclick=()=>rewardPage(b.dataset.rewardTab));
-  try{
-    await flushPlayerSaves();try{await badgeSync()}catch(e){}
-    if(!alive())return;
-    const j=await rewardCall('rewardList');if(!alive())return;
-    const mine=tab==='mine'?await rewardCall('myRedeems'):null;if(!alive())return;
+  function draw(j,stale){
     find('reward-wallet').innerHTML=rewardWallet(j.balance);
     const list=find('reward-list');
     if(tab==='mine'){
       const states={'待核准':['等家長核准','wait','保留'],'核准':['已核准','ok','用掉'],'拒絕':['被拒絕','no','退回'],'取消':['已取消','off','退回']};
-      const rows=(mine.redeems||[]).slice().sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+      const rows=(j.redeems||[]).slice().sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
       list.innerHTML=rows.map(r=>{const st=states[r.status]||['未知狀態','off','實扣'];return '<article class="card reward-card"><h2>'+esc(r.name)+'</h2><span class="reward-status reward-'+st[1]+'">'+st[0]+'</span><time>'+esc(new Date(r.requestedAt).toLocaleString('zh-TW'))+'</time><div>'+st[2]+' '+rewardCoins(r.pay)+'</div>'+(r.status==='拒絕'&&r.reason?'<p class="reward-status reward-no">家長說：'+esc(r.reason)+'</p>':'')+(r.status==='待核准'?'<button class="iconbtn" data-cancel="'+esc(r.id)+'">取消申請</button>':'')+'</article>'}).join('')||'<p>還沒有申請</p>';
-      list.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=()=>sheet(rows.find(r=>r.id===b.dataset.cancel),true,b));
+      if(!stale)list.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=()=>sheet(rows.find(r=>r.id===b.dataset.cancel),true,b));
     }else{
       list.innerHTML=(j.rewards||[]).map(r=>'<article class="card reward-card'+(r.canRedeem?'':' unavailable')+'"><h2>'+esc(r.name)+'</h2><div>需要 '+rewardCoins(r)+'</div><div>你有 '+rewardCoins({silver:j.balance.silver.available,gold:j.balance.gold.available},true)+'</div>'+(r.weeklyLimit?'<div>本週剩 '+esc(r.weekLeft)+' 次</div>':'')+(!r.canRedeem?'<p>'+esc(r.reason)+'</p>':r.pay.gold>r.gold?'<p class="reward-gold">銀不夠的 '+esc(r.pay.gold-r.gold)+' 枚會用金補</p>':'')+'<button class="big" data-apply="'+esc(r.id)+'" '+(!r.canRedeem?'disabled':'')+'>申請兌換</button></article>').join('')||'<p>還沒有獎勵，請家長新增</p>';
-      list.querySelectorAll('[data-apply]:not(:disabled)').forEach(b=>b.onclick=()=>sheet(j.rewards.find(r=>r.id===b.dataset.apply),false,b));
+      if(!stale)list.querySelectorAll('[data-apply]:not(:disabled)').forEach(b=>b.onclick=()=>sheet(j.rewards.find(r=>r.id===b.dataset.apply),false,b));
     }
+    find('reward-updating')?.remove();
+    if(stale){
+      root.querySelectorAll('[data-apply],[data-cancel]').forEach(b=>b.disabled=true);
+      find('reward-notice').insertAdjacentHTML('afterend','<p id="reward-updating" role="status">更新中…</p>');
+    }
+  }
+  const cache=rewardCacheGet();if(cache)try{draw(cache,true)}catch(e){try{localStorage.removeItem(rewardCacheKey())}catch(_){}find('reward-updating')?.remove();find('reward-wallet').innerHTML='<div class="reward-skeleton"></div><div class="reward-skeleton"></div>';find('reward-list').innerHTML='<div class="reward-skeleton"></div><span>正在跟雲端對銀、金徽章數……</span>'}
+  try{
+    await flushPlayerSaves();try{await badgeSync()}catch(e){}
+    if(!alive())return;
+    const j=await rewardCall('rewardList',{withRedeems:true});if(!alive())return;
+    rewardCacheSet(j);draw(j,false);
   }catch(e){
     if(!alive())return;
     if(['player_disabled','bad_player'].includes(e.code))fallbackPlayer();
+    find('reward-updating')?.remove();
     find('reward-wallet').innerHTML='';find('reward-list').innerHTML='<p>連不到雲端，現在不能申請</p><button class="ghost" id="reward-retry">再試一次</button>';
     find('reward-retry').onclick=()=>rewardPage(tab,notice);
   }
@@ -4607,6 +4627,7 @@ async function rewardPage(tab='rewards',notice=''){
       try{
         const j=await rewardCall(cancel?'redeemCancel':'redeemRequest',cancel?{id:item.id}:{rewardId:item.id,requestId});
         if(!alive())return;
+        try{localStorage.removeItem(rewardCacheKey())}catch(e){}
         if(j.balance)find('reward-wallet').innerHTML=rewardWallet(j.balance);
         overlay.remove();await rewardPage(tab,cancel?'已取消申請':'已送出，等家長核准');
       }catch(e){
@@ -4649,7 +4670,13 @@ async function parentPage(){
   document.getElementById('parent-lock').onclick=parentLock;
   document.getElementById('parent-exit').onclick=()=>{parentLock();location.hash=''};
   const root=document.getElementById('parent-content'),alive=()=>parentHere()&&epoch===parentEpoch&&root.isConnected;
-  if(!FAMILY.code||READER.code){root.innerHTML='<p>這台裝置還沒有輸入家庭邀請碼，請先到首頁輸入。</p>';return}
+  if(!FAMILY.code){root.innerHTML='<p>這台裝置還沒有輸入家庭邀請碼，請先到首頁輸入。</p>';return}
+  if(READER.code){
+    root.innerHTML='<p>這台裝置同時存了閱讀碼，家長頁要先清除閱讀碼。</p><button class="big" id="parent-clear-reader">清除閱讀碼</button>';
+    const button=document.getElementById('parent-clear-reader');
+    button.onclick=async()=>{button.disabled=true;if(!await clearReaderCode())return parentPage()};
+    return;
+  }
   if(PARENT_SESSION)return parentMain();
   root.textContent='讀取中……';
   try{const status=await parentCall('parentStatus');if(alive())parentAuth(root,status,alive)}catch(e){if(alive())parentError(root,'連不到雲端，請稍後再試',parentPage)}
@@ -4727,6 +4754,10 @@ function parentAuth(root,status,alive){
   };
   draw();
 }
+function parentCacheKey(){return 'parent-cache:'+FAMILY.code}
+function parentCacheGet(){try{return JSON.parse(localStorage.getItem(parentCacheKey()))||{}}catch(e){return {}}}
+function parentCacheSet(v){try{localStorage.setItem(parentCacheKey(),JSON.stringify({...parentCacheGet(),...v}))}catch(e){}}
+function parentCacheClear(){try{localStorage.removeItem(parentCacheKey())}catch(e){}}
 async function parentMain(tab='pending',notice=''){
   if(!PARENT_SESSION||!parentHere())return;
   const epoch=++parentEpoch;parentActivity();const root=document.getElementById('parent-content');if(!root)return;
@@ -4734,42 +4765,51 @@ async function parentMain(tab='pending',notice=''){
   const list=root.querySelector('#parent-list'),alive=()=>parentHere()&&!!PARENT_SESSION&&epoch===parentEpoch&&root.isConnected;
   root.querySelectorAll('[data-parent-tab]').forEach(b=>b.onclick=()=>parentMain(b.dataset.parentTab));
   if(notice){const retry=document.createElement('button');retry.className='ghost';retry.textContent='再試一次';retry.onclick=()=>parentMain(tab);root.querySelector('#parent-notice').append(retry)}
-  try{
-    const pending=await parentCall('redeemList');if(!alive())return;
+  function draw(pending,j,stale){
     root.querySelector('#parent-count').innerHTML=pending.pendingCount?'<span class="parent-count">'+esc(pending.pendingCount)+'</span>':'';
     if(tab==='pending'){
       list.innerHTML=(pending.redeems||[]).map(r=>'<article class="card" data-request="'+esc(r.id)+'"><h2>'+esc(r.playerIcon)+' '+esc(r.playerName)+'</h2><strong>'+esc(r.name)+'</strong><div>需要 '+rewardCoins(r)+'</div><div>這筆保留 '+rewardCoins(r.pay,true)+'</div><div>他目前可用 '+rewardCoins({silver:r.balance.silver.available,gold:r.balance.gold.available},true)+'</div><div>本週已換 '+esc(r.weekUsed)+' 次</div>'+(r.pay.gold>r.gold?'<p>其中金 '+esc(r.pay.gold-r.gold)+' 枚用來抵銀</p>':'')+'<div class="parent-actions"><button class="iconbtn" data-approve>核准</button><button class="iconbtn" data-reject>拒絕</button></div><div data-reason-area hidden><label>拒絕原因（可留空）<input maxlength="40"></label><button class="iconbtn" data-confirm-reject>確定拒絕</button></div><p role="status"></p></article>').join('')||'<p>現在沒有待核准的申請</p>';
-      list.querySelectorAll('[data-request]').forEach(card=>{
+      if(!stale)list.querySelectorAll('[data-request]').forEach(card=>{
         card.querySelector('[data-reject]').onclick=()=>{card.querySelector('[data-reason-area]').hidden=false};
         const decide=async decision=>{
           card.querySelectorAll('button').forEach(b=>b.disabled=true);
-          try{await parentCall('redeemDecide',{id:card.dataset.request,decision,reason:card.querySelector('input').value});if(alive())await parentMain(tab)}
+          try{await parentCall('redeemDecide',{id:card.dataset.request,decision,reason:card.querySelector('input').value});parentCacheClear();if(alive())await parentMain(tab)}
           catch(e){if(!alive())return;if(e.code==='conflict'){await parentMain(tab,'這筆剛剛已經被決定了');return}parentError(card,e.code==='insufficient'?'他的徽章不夠，不能核准':'連不到雲端，請稍後再試',()=>parentMain(tab))}
         };
         card.querySelector('[data-approve]').onclick=()=>decide('approve');card.querySelector('[data-confirm-reject]').onclick=()=>decide('reject');
       });
     }else if(tab==='rewards'){
-      const j=await parentCall('rewardList',{playerId:'p1'});if(!alive())return;
       list.innerHTML=(j.rewards||[]).map(r=>'<article class="card'+(r.enabled?'':' parent-off')+'"><h2>'+esc(r.name)+'</h2>'+rewardCoins(r)+'<span>'+(r.enabled?'啟用':'停用')+'</span><button class="iconbtn" data-edit-reward="'+esc(r.id)+'">修改</button></article>').join('')+'<button class="ghost" id="parent-add-reward">新增獎項</button><div id="parent-reward-form"></div>';
-      list.querySelectorAll('[data-edit-reward]').forEach(b=>b.onclick=()=>parentRewardForm(list.querySelector('#parent-reward-form'),j.rewards.find(r=>r.id===b.dataset.editReward),alive));
-      list.querySelector('#parent-add-reward').onclick=()=>parentRewardForm(list.querySelector('#parent-reward-form'),null,alive);
+      if(!stale)list.querySelectorAll('[data-edit-reward]').forEach(b=>b.onclick=()=>parentRewardForm(list.querySelector('#parent-reward-form'),j.rewards.find(r=>r.id===b.dataset.editReward),alive));
+      if(!stale)list.querySelector('#parent-add-reward').onclick=()=>parentRewardForm(list.querySelector('#parent-reward-form'),null,alive);
     }else if(tab==='players'){
-      const j=await parentCall('playerList',{withBalance:true});if(!alive())return;
-      PLAYERS=j.players||[];store.set('players-cache',PLAYERS.map(({balance,...p})=>p));
-      list.innerHTML=PLAYERS.slice().sort((a,b)=>(a.status==='停用')-(b.status==='停用')||a.order-b.order).map(p=>'<article class="card'+(p.status==='啟用'?'':' parent-off')+'" data-manage-player="'+esc(p.id)+'"><h2>'+esc(p.icon)+' '+esc(p.name)+'</h2>'+['available','held','total'].map((k,i)=>'<div>'+['可用','保留','累計'][i]+' '+rewardCoins({silver:p.balance.silver[k],gold:p.balance.gold[k]},true)+'</div>').join('')+'<span>'+esc(p.status)+'</span>'+(p.id==='p1'?'':p.status==='啟用'?'<button class="iconbtn" data-player-action="playerDisable">停用</button>':'<button class="iconbtn" data-player-action="playerRestore">還原</button><button class="iconbtn" data-player-action="playerPurge">永久刪除</button>')+'<div data-player-confirm></div></article>').join('')+'<aside class="card">'+['這裡存了什麼：暱稱、圖示、徽章數、兌換紀錄。','存在哪裡：這個家庭的 Google 試算表。','怎麼刪除：先停用這位玩家，再按「永久刪除」。','家長 PIN 只存雜湊，看不到原本的數字。','暱稱請用代號，不要填真名。'].map(s=>'<p>'+esc(s)+'</p>').join('')+'</aside>';
-      list.querySelectorAll('[data-player-action]').forEach(b=>b.onclick=()=>{
+      if(!stale){PLAYERS=j.players||[];store.set('players-cache',PLAYERS.map(({balance,...p})=>p))}
+      list.innerHTML=(j.players||[]).slice().sort((a,b)=>(a.status==='停用')-(b.status==='停用')||a.order-b.order).map(p=>'<article class="card'+(p.status==='啟用'?'':' parent-off')+'" data-manage-player="'+esc(p.id)+'"><h2>'+esc(p.icon)+' '+esc(p.name)+'</h2>'+['available','held','total'].map((k,i)=>'<div>'+['可用','保留','累計'][i]+' '+rewardCoins({silver:p.balance.silver[k],gold:p.balance.gold[k]},true)+'</div>').join('')+'<span>'+esc(p.status)+'</span>'+(p.id==='p1'?'':p.status==='啟用'?'<button class="iconbtn" data-player-action="playerDisable">停用</button>':'<button class="iconbtn" data-player-action="playerRestore">還原</button><button class="iconbtn" data-player-action="playerPurge">永久刪除</button>')+'<div data-player-confirm></div></article>').join('')+'<aside class="card">'+['這裡存了什麼：暱稱、圖示、徽章數、兌換紀錄。','存在哪裡：這個家庭的 Google 試算表。','怎麼刪除：先停用這位玩家，再按「永久刪除」。','家長 PIN 只存雜湊，看不到原本的數字。','暱稱請用代號，不要填真名。'].map(s=>'<p>'+esc(s)+'</p>').join('')+'</aside>';
+      if(!stale)list.querySelectorAll('[data-player-action]').forEach(b=>b.onclick=()=>{
         const card=b.closest('[data-manage-player]'),pid=card.dataset.managePlayer,p=PLAYERS.find(p=>p.id===pid),area=card.querySelector('[data-player-confirm]'),action=b.dataset.playerAction;
-        const run=async()=>{area.querySelectorAll('button,input').forEach(x=>x.disabled=true);b.disabled=true;try{await flushPlayerSaves();if(!alive())return;await parentCall(action,{playerId:pid});if(!alive())return;if(action==='playerPurge'){for(const k of Object.keys(localStorage))if(k.startsWith(pid+':'))localStorage.removeItem(k)}if(pid===ACTIVE_PLAYER&&action!=='playerRestore')fallbackPlayer();await parentMain(tab)}catch(e){if(alive())parentError(area,'連不到雲端，請稍後再試',()=>parentMain(tab))}};
+        const run=async()=>{area.querySelectorAll('button,input').forEach(x=>x.disabled=true);b.disabled=true;try{await flushPlayerSaves();if(!alive())return;await parentCall(action,{playerId:pid});parentCacheClear();if(!alive())return;if(action==='playerPurge'){for(const k of Object.keys(localStorage))if(k.startsWith(pid+':'))localStorage.removeItem(k)}if(pid===ACTIVE_PLAYER&&action!=='playerRestore')fallbackPlayer();await parentMain(tab)}catch(e){if(alive())parentError(area,'連不到雲端，請稍後再試',()=>parentMain(tab))}};
         if(action==='playerRestore'){area.innerHTML='<p>還原中……</p>';return run()}
         area.innerHTML='<p>'+esc(action==='playerPurge'?'這位玩家的徽章、兌換紀錄都會刪除，不能復原。':'他的待核准申請會自動取消')+'</p>'+(action==='playerPurge'?'<label>輸入暱稱確認<input autocomplete="off"></label>':'')+'<button class="iconbtn" '+(action==='playerPurge'?'disabled':'')+'>確定'+(action==='playerPurge'?'永久刪除':'停用')+'</button><button class="ghost" data-dismiss>取消</button>';
         const confirm=area.querySelector('button');area.querySelector('[data-dismiss]').onclick=()=>area.replaceChildren();
         if(action==='playerPurge')area.querySelector('input').oninput=e=>confirm.disabled=e.target.value!==p.name;confirm.onclick=run;
       });
     }else{
-      const j=await parentCall('parentLog');if(!alive())return;
       list.innerHTML=(j.entries||[]).map(r=>'<article class="card"><time>'+esc(new Date(r.at).toLocaleString('zh-TW'))+'</time><span>'+esc(r.playerName)+'</span><span>'+esc(r.type==='anomaly'?'異常':r.status)+'</span><span>'+esc(r.type==='anomaly'?r.color:r.name)+'</span><p>'+esc(r.reason||'')+'</p></article>').join('')||'<p>還沒有紀錄</p>';
     }
-  }catch(e){if(alive())parentError(list,'連不到雲端，請稍後再試',()=>parentMain(tab))}
+    root.querySelector('#parent-updating')?.remove();
+    if(stale){
+      list.querySelectorAll('button,input').forEach(b=>b.disabled=true);
+      root.querySelector('#parent-notice').insertAdjacentHTML('afterend','<p id="parent-updating" role="status">更新中…</p>');
+    }
+  }
+  const cache=parentCacheGet();
+  if(cache.pending&&(tab==='pending'||(['rewards','players'].includes(tab)&&cache[tab])))try{draw(cache.pending,{[tab]:cache[tab]},true)}catch(e){parentCacheClear();root.querySelector('#parent-updating')?.remove();root.querySelector('#parent-count').innerHTML='';list.innerHTML='<div class="reward-skeleton"></div>讀取中……'}
+  try{
+    const [pending,j]=await Promise.all([parentCall('redeemList'),tab==='pending'?null:tab==='rewards'?parentCall('rewardList',{playerId:'p1'}):tab==='players'?parentCall('playerList',{withBalance:true}):parentCall('parentLog')]);
+    if(!alive())return;
+    parentCacheSet({pending:{redeems:pending.redeems,pendingCount:pending.pendingCount},...(['rewards','players'].includes(tab)?{[tab]:j[tab]}:{})});
+    draw(pending,j,false);
+  }catch(e){if(alive()){root.querySelector('#parent-updating')?.remove();parentError(list,'連不到雲端，請稍後再試',()=>parentMain(tab))}}
 }
 function parentRewardForm(root,item,alive){
   const r={name:'',silver:0,gold:0,goldForSilver:true,weeklyLimit:0,enabled:true,...item};let saving=false;
@@ -4786,7 +4826,7 @@ function parentRewardForm(root,item,alive){
   for(const [id,k] of [['parent-substitute','goldForSilver'],['parent-enabled','enabled']])root.querySelector('#'+id).onclick=()=>{if(!saving){r[k]=!r[k];draw()}};
   const submit=async()=>{
     if(saving||save.disabled||!alive())return;saving=true;r.name=name.value.trim();draw();retry.hidden=true;
-    try{await parentCall('rewardSave',{reward:r});if(alive())await parentMain('rewards')}
+    try{await parentCall('rewardSave',{reward:r});parentCacheClear();if(alive())await parentMain('rewards')}
     catch(e){if(alive()){msg.textContent='連不到雲端，請稍後再試';retry.hidden=false}}
     finally{saving=false;if(alive())draw()}
   };
