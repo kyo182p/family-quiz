@@ -49,6 +49,7 @@ function measure() {
     ['badges', { playerId: 'p1', badges: {} }],
     ['redeemCancel', { playerId: 'p1', id: pendingIds[0] }],
     ['redeemDecide', { session, id: pendingIds[1], decision: 'reject' }],
+    ['rewardList(快取命中)', { playerId: 'p1' }],
   ];
   const baseline = env.snapshot();
   return requests.map(([action, extra]) => {
@@ -57,9 +58,10 @@ function measure() {
     let ok = true;
     for (let i = 0; i < 20; i++) {
       env.restore(baseline);
+      if (action === 'rewardList(快取命中)') env.doPost({code, action:'rewardList', ...extra});
       env.stats.reset();
       const start = process.hrtime.bigint();
-      const result = env.doPost({ code, action, ...extra });
+      const result = env.doPost({ code, action:action === 'rewardList(快取命中)' ? 'rewardList' : action, ...extra });
       times.push(Number(process.hrtime.bigint() - start) / 1e6);
       ok = ok && result.ok === true;
       reads = { ...env.stats.reads };

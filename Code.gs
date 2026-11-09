@@ -62,13 +62,37 @@ function doGet() {
 
 let TIMING = null;
 function doPost(e) {
-  TIMING = {start:Date.now(), opened:false, open:0, lock:0, read:0, reads:0, sync:0, write:0};
-  let req;
+  const previous = TIMING;
+  TIMING = {start:Date.now(), opened:false, open:0, lock:0, read:0, reads:0, sync:0, write:0, cache:0};
   try {
-    req = JSON.parse(e.postData.contents);
-  } catch (err) {
-    return out({ ok: false, code: 'bad_request', message: '請求格式錯誤' });
-  }
+    let req;
+    try { req = JSON.parse(e.postData.contents); }
+    catch (err) { return out({ ok: false, code: 'bad_request', message: '請求格式錯誤' }); }
+    const code = String(req.code || '').trim(), pid = req.playerId || 'p1';
+    const cache = CacheService.getScriptCache();
+    let key;
+    if (['rewardList','myRedeems'].indexOf(req.action) >= 0 &&
+        !Object.prototype.hasOwnProperty.call(req,'session') && /^p[a-z0-9]{1,12}$/.test(String(pid))) {
+      let generation = cache.get('rg:' + code);
+      if (!generation) { generation = Utilities.getUuid(); cache.put('rg:' + code,generation,21600); }
+      key = 'rc:' + code + ':' + generation + ':' + pid + ':' + req.action + ':' + (req.withRedeems === true ? 1 : 0);
+      const hit = cache.get(key);
+      if (hit) { TIMING.cache = 1; return out(JSON.parse(hit)); }
+    }
+    const result = doPostBody(req);
+    if (TIMING.family && ['pingLite','ping','rewardList','myRedeems','redeemList','parentLog','balance','playerList','parentStatus','listBanks','handoutList','handoutGet','readerList','libList','libGet','libHandouts','libHandoutGet','flags'].indexOf(req.action) < 0) {
+      cache.put('rg:' + TIMING.family,Utilities.getUuid(),21600);
+    }
+    if (key) {
+      const value = JSON.parse(result.getContent());
+      delete value.timing;
+      const json = JSON.stringify(value);
+      if (value.ok === true && json.length < 90000) cache.put(key,json,60);
+    }
+    return result;
+  } finally { TIMING = previous; }
+}
+function doPostBody(req) {
   if (req.action === 'pingLite') return out({ok:true});
   // 題庫書架：閱讀碼或邀請碼都可以使用（只能讀，不能寫、不能用 AI）
   // 定期掃題（管理者金鑰）
@@ -86,6 +110,7 @@ function doPost(e) {
   // 回報與回報狀態：閱讀碼或邀請碼都可以使用
   if (req.action === 'report' || req.action === 'flags') {
     const fam1 = findFamily(req.code);
+    if (fam1) TIMING.family = fam1.code;
     const reader1 = fam1 ? null : findReader(req.code);
     if (!fam1 && !reader1) return out({ ok: false, code: 'bad_code', message: '代碼不正確或已停用' });
     try {
@@ -113,6 +138,7 @@ function doPost(e) {
   // 徽章同步：送上這台裝置的徽章，伺服器合併後回傳完整的一份（邀請碼或閱讀碼都可以）
   if (req.action === 'badges') {
     const famB = findFamily(req.code);
+    if (famB) TIMING.family = famB.code;
     const readerB = famB ? null : findReader(req.code);
     if (!famB && !readerB) return out({ ok: false, code: 'bad_code', message: '代碼不正確或已停用' });
     try {
@@ -141,6 +167,7 @@ function doPost(e) {
 
   const fam = findFamily(req.code);
   if (!fam) return out({ ok: false, code: 'bad_code', message: '邀請碼不正確或已停用' });
+  TIMING.family = fam.code;
   try {
     if (['parentStatus','parentSetPin','parentLogin','parentLogout'].indexOf(req.action) >= 0) return out(parentAction(fam, req));
     if (['playerDisable','playerRestore','playerPurge'].indexOf(req.action) >= 0) return out(managePlayer(fam, req));
@@ -204,8 +231,7 @@ function out(obj) {
     const total = Date.now() - TIMING.start;
     const {open, lock, read, reads, sync, write} = TIMING;
     obj.timing = {open, lock, read, reads, sync, write,
-      compute:Math.max(0,total-open-lock-read-write), cache:0, total};
-    TIMING = null;
+      compute:Math.max(0,total-open-lock-read-write), cache:TIMING.cache || 0, total};
   }
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -224,7 +250,10 @@ function readAll(sh) {
   if (TIMING !== null) TIMING.reads++;
   return timed('read', () => sh.getDataRange().getValues());
 }
-function timedWrite(fn) { return timed('write', fn); }
+function timedWrite(fn) {
+  try { return timed('write', fn); }
+  finally { if (LOCK_READS !== null) LOCK_READS = {}; }
+}
 function keepWarm() { CacheService.getScriptCache().get('warm'); }
 function ensureKeepWarmTrigger() {
   if (!ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'keepWarm')) {
@@ -239,34 +268,34 @@ function setup() {
     let sh = ss.getSheetByName(name);
     if (!sh) sh = ss.insertSheet(name);
     if (sh.getLastRow() === 0) {
-      sh.appendRow(header);
+      timedWrite(() => sh.appendRow(header));
       sh.setFrozenRows(1);
       sh.getRange(1, 1, 1, header.length).setFontWeight('bold');
     }
     return sh;
   };
   const fam = ensure(SHEET_FAMILY, ['邀請碼', '家庭名稱', '每日 AI 上限', '啟用', '備註', '可發布']);
-  if (String(fam.getRange(1, 6).getValue()) === '') fam.getRange(1, 6).setValue('可發布').setFontWeight('bold');
+  if (String(fam.getRange(1, 6).getValue()) === '') timedWrite(() => fam.getRange(1, 6).setValue('可發布').setFontWeight('bold'));
   ensure(SHEET_READER, ['閱讀碼', '建立的邀請碼', '建立的家庭', '建立時間', '啟用', '給誰（備註）', '最後使用時間', '使用次數']);
   ensure(SHEET_PUBLIC, ['題庫ID', '邀請碼', '題庫名稱', '年級', '學期', '科目', '版本', '單元', '題數', '公開時間', '公開的家庭']);
   ensure(SHEET_BANK, ['邀請碼', '題庫ID', '題庫名稱', '更新時間', '題數', '題目雜湊', 'JSON 分段數', 'JSON1']);
   const qsh = ensure(SHEET_QUESTION, QUESTION_HEADER);
-  QUESTION_HEADER.forEach((h, i) => { if (String(qsh.getRange(1, i + 1).getValue()) === '') qsh.getRange(1, i + 1).setValue(h).setFontWeight('bold'); });
-  if (String(fam.getRange(1, 7).getValue()) === '') fam.getRange(1, 7).setValue('獎勵 AI 次數').setFontWeight('bold');
+  QUESTION_HEADER.forEach((h, i) => { if (String(qsh.getRange(1, i + 1).getValue()) === '') timedWrite(() => qsh.getRange(1, i + 1).setValue(h).setFontWeight('bold')); });
+  if (String(fam.getRange(1, 7).getValue()) === '') timedWrite(() => fam.getRange(1, 7).setValue('獎勵 AI 次數').setFontWeight('bold'));
   ensure(SHEET_REPORT, ['回報ID', '時間', '題庫ID', '題目ID', '題目快照', '回報者代碼', '身分', '原因', '說明', '狀態', 'AI 判讀意見', '判讀時間', '獎勵']);
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('PEPPER')) props.setProperty('PEPPER', parentRandom());
   if (!props.getProperty('ADMIN_TOKEN')) props.setProperty('ADMIN_TOKEN', Utilities.getUuid().replace(/-/g, ''));
   ensure(SHEET_HANDOUT, ['講義ID', '邀請碼', '題庫ID', '標題', '觀念', '建立時間', '狀態', '驗算意見', '驗算時間', 'JSON 分段數', 'JSON1']);
   const badge = ensure(SHEET_BADGE, ['代碼', '身分', '更新時間', '徽章 JSON', '玩家ID']);
-  if (String(badge.getRange(1,5).getValue()) === '') badge.getRange(1,5).setValue('玩家ID');
+  if (String(badge.getRange(1,5).getValue()) === '') timedWrite(() => badge.getRange(1,5).setValue('玩家ID'));
   ensure('玩家', PLAYER_HEADER);
   ensure('徽章入帳', LEDGER_HEADER);
   ensure('獎勵', REWARD_HEADER);
   ensure('兌換', REDEEM_HEADER);
   ensure('兌換紀錄', REDEEM_LOG_HEADER);
   ensure(SHEET_USAGE, ['時間', '邀請碼', '家庭', '模型', '照片數', '輸入 token', '輸出 token', '估計美元']);
-  if (fam.getLastRow() === 1) fam.appendRow(['TEST-0000', '測試家庭', 10, true, '測試用，可刪除', false]);
+  if (fam.getLastRow() === 1) timedWrite(() => fam.appendRow(['TEST-0000', '測試家庭', 10, true, '測試用，可刪除', false]));
   ensureKeepWarmTrigger();
 }
 
@@ -373,8 +402,8 @@ function logUsage(fam, model, nImages, usage) {
   const inT = Number(usage.input_tokens || 0), outT = Number(usage.output_tokens || 0);
   const p = PRICE[model] || [0, 0];
   const usd = (inT * p[0] + outT * p[1]) / 1e6;
-  book().getSheetByName(SHEET_USAGE)
-    .appendRow([new Date(), fam.code, fam.name, model, nImages, inT, outT, Math.round(usd * 10000) / 10000]);
+  timedWrite(() => book().getSheetByName(SHEET_USAGE)
+    .appendRow([new Date(), fam.code, fam.name, model, nImages, inT, outT, Math.round(usd * 10000) / 10000]));
 }
 
 /* ===== 題庫儲存 ===== */
@@ -454,8 +483,8 @@ function putBank(fam, bank, noLock) {
     if (rowIdx < 0) rowIdx = sh.getLastRow() + 1;
     // 清掉舊的多餘分段
     const lastCol = sh.getLastColumn();
-    if (lastCol > values.length) sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent();
-    sh.getRange(rowIdx, 1, 1, values.length).setValues([values.map(v => typeof v === 'string' ? safeCell(v) : v)]);
+    if (lastCol > values.length) timedWrite(() => sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent());
+    timedWrite(() => sh.getRange(rowIdx, 1, 1, values.length).setValues([values.map(v => typeof v === 'string' ? safeCell(v) : v)]));
     // 題目有變才重寫「題目」工作表（只改作答紀錄時不重寫）
     if (oldHash !== qHash) writeQuestionRows(fam, bank, title);
     updatePublicMeta(fam, bank, title);
@@ -472,7 +501,7 @@ function deleteBank(fam, id) {
     const sh = bankSheet();
     const rows = readAll(sh);
     for (let i = rows.length - 1; i >= 1; i--) {
-      if (String(rows[i][0]) === fam.code && String(rows[i][1]) === id) sh.deleteRow(i + 1);
+      if (String(rows[i][0]) === fam.code && String(rows[i][1]) === id) timedWrite(() => sh.deleteRow(i + 1));
     }
     removeQuestionRows(fam, id);
     removePublicRow(fam, id);
@@ -500,7 +529,7 @@ function writeQuestionRows(fam, bank, title) {
     const rg = qsh.getRange(qsh.getLastRow() + 1, 1, rows.length, rows[0].length);
     // 題目、選項、答案以純文字顯示，避免「0123」「3125」被試算表轉成數字
     qsh.getRange(rg.getRow(), 6, rows.length, 3).setNumberFormat('@');
-    rg.setValues(rows);
+    timedWrite(() => rg.setValues(rows));
   }
 }
 function removeQuestionRows(fam, id) {
@@ -509,9 +538,9 @@ function removeQuestionRows(fam, id) {
   const suffix = '｜' + id;
   const keep = data.filter((r, i) => i === 0 || !(String(r[0]) === fam.code && String(r[1]).slice(-suffix.length) === suffix));
   if (keep.length === data.length) return;
-  qsh.clearContents();
+  timedWrite(() => qsh.clearContents());
   const w = Math.max.apply(null, keep.map(r => r.length));
-  qsh.getRange(1, 1, keep.length, w).setValues(keep.map(r => r.concat(Array(w - r.length).fill(''))));
+  timedWrite(() => qsh.getRange(1, 1, keep.length, w).setValues(keep.map(r => r.concat(Array(w - r.length).fill('')))));
 }
 
 /* ===== 題庫書架（公開題庫） ===== */
@@ -559,8 +588,8 @@ function setPublish(fam, id, published) {
     if (!bank) return { ok: false, code: 'not_found', message: '找不到題庫' };
     const title = String(bank.title || [bank.grade, bank.subject, bank.unit].filter(Boolean).join(' ') || '未命名');
     removePublicRow(fam, id);
-    publicSheet().appendRow([id, fam.code, title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
-      bank.unit || '', (bank.questions || []).length, new Date(), fam.name].map(v => typeof v === 'string' ? safeCell(v) : v));
+    timedWrite(() => publicSheet().appendRow([id, fam.code, title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
+      bank.unit || '', (bank.questions || []).length, new Date(), fam.name].map(v => typeof v === 'string' ? safeCell(v) : v)));
     clearLibCache();
     return { ok: true };
   } finally {
@@ -572,8 +601,8 @@ function updatePublicMeta(fam, bank, title) {
   const rows = readAll(sh);
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(bank.id) && String(rows[i][1]) === fam.code) {
-      sh.getRange(i + 1, 3, 1, 7).setValues([[title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
-        bank.unit || '', (bank.questions || []).length].map(v => typeof v === 'string' ? safeCell(v) : v)]);
+      timedWrite(() => sh.getRange(i + 1, 3, 1, 7).setValues([[title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
+        bank.unit || '', (bank.questions || []).length].map(v => typeof v === 'string' ? safeCell(v) : v)]));
       clearLibCache();
       return;
     }
@@ -583,7 +612,7 @@ function removePublicRow(fam, id) {
   const sh = publicSheet();
   const rows = readAll(sh);
   for (let i = rows.length - 1; i >= 1; i--) {
-    if (String(rows[i][0]) === id && String(rows[i][1]) === fam.code) sh.deleteRow(i + 1);
+    if (String(rows[i][0]) === id && String(rows[i][1]) === fam.code) timedWrite(() => sh.deleteRow(i + 1));
   }
   clearLibCache();
 }
@@ -607,7 +636,7 @@ function findReader(code) {
 function touchReader(reader) {
   const sh = readerSheet();
   const n = Number(sh.getRange(reader.row, 8).getValue()) || 0;
-  sh.getRange(reader.row, 7, 1, 2).setValues([[new Date(), n + 1]]);
+  timedWrite(() => sh.getRange(reader.row, 7, 1, 2).setValues([[new Date(), n + 1]]));
 }
 function readerList(fam) {
   const rows = readAll(readerSheet());
@@ -633,7 +662,7 @@ function readerCreate(fam, note) {
       code = 'R-';
       for (let i = 0; i < 6; i++) code += ABC[Math.floor(Math.random() * ABC.length)];
     } while (findReaderAny(code));
-    readerSheet().appendRow([code, fam.code, fam.name, new Date(), true, note.slice(0, 40), '', 0]);
+    timedWrite(() => readerSheet().appendRow([code, fam.code, fam.name, new Date(), true, note.slice(0, 40), '', 0]));
     return { ok: true, reader: code };
   } finally {
     lock.releaseLock();
@@ -647,7 +676,7 @@ function readerDisable(fam, code) {
   const rows = readAll(sh);
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === code && String(rows[i][1]) === fam.code) {
-      sh.getRange(i + 1, 5).setValue(false);
+      timedWrite(() => sh.getRange(i + 1, 5).setValue(false));
       return { ok: true };
     }
   }
@@ -657,7 +686,7 @@ function readerDisable(fam, code) {
 /* ===== 獎勵次數 ===== */
 function familySheet() { return book().getSheetByName(SHEET_FAMILY); }
 function currentBonus(fam) { return Number(familySheet().getRange(fam.row, 7).getValue()) || 0; }
-function setBonus(fam, n) { familySheet().getRange(fam.row, 7).setValue(Math.max(0, n)); }
+function setBonus(fam, n) { timedWrite(() => familySheet().getRange(fam.row, 7).setValue(Math.max(0, n))); }
 
 /* ===== 判讀結果合併 ===== */
 function qSig(q) { return JSON.stringify([q.t, q.q, q.o || [], q.a, q.why || '', q.tpl || null]); }   // 換數字題改了題型也算修改
@@ -728,8 +757,8 @@ function reportQuestion(who, req) {
       if (!q) return { ok: false, code: 'not_found', message: '找不到這題' };
       snap = JSON.stringify({ q: q.q.q, o: q.q.o, a: q.q.a, why: q.q.why });
     }
-    sh.appendRow(['R' + Date.now().toString(36) + Math.floor(Math.random() * 1e4), new Date(), bankId, qId, snap, who.code, who.role,
-      reason, String(req.note || '').slice(0, 200), '待複審', '', '', '']);
+    timedWrite(() => sh.appendRow(['R' + Date.now().toString(36) + Math.floor(Math.random() * 1e4), new Date(), bankId, qId, snap, who.code, who.role,
+      reason, String(req.note || '').slice(0, 200), '待複審', '', '', '']));
     return { ok: true };
   } finally {
     lock.releaseLock();
@@ -745,7 +774,7 @@ function closeReports(bankId, qIds) {
   const rows = readAll(sh);
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][2]) === bankId && set[String(rows[i][3])] && OPEN_STATUS[String(rows[i][9])]) {
-      sh.getRange(i + 1, 10).setValue(String(rows[i][9]) === '成立' ? '已修正' : '題目已修改');
+      timedWrite(() => sh.getRange(i + 1, 10).setValue(String(rows[i][9]) === '成立' ? '已修正' : '題目已修改'));
     }
   }
 }
@@ -809,8 +838,8 @@ function hoWrite(rowIdx, meta, h) {
   const values = [meta.id, meta.owner, meta.bankId, meta.title, meta.concepts, meta.createdAt ? new Date(meta.createdAt) : new Date(),
     meta.status, meta.note || '', meta.verifiedAt ? new Date(meta.verifiedAt) : '', parts.length].concat(parts);
   const lastCol = sh.getLastColumn();
-  if (lastCol > values.length) sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent();
-  sh.getRange(rowIdx, 1, 1, values.length).setValues([values]);
+  if (lastCol > values.length) timedWrite(() => sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent());
+  timedWrite(() => sh.getRange(rowIdx, 1, 1, values.length).setValues([values]));
   return { ok: true };
 }
 function handoutSave(fam, h) {
@@ -835,7 +864,7 @@ function handoutDelete(fam, id) {
   lock.waitLock(20000);
   try {
     const x = hoRows().filter(r => r.meta.id === id && r.meta.owner === fam.code)[0];
-    if (x) handoutSheet().deleteRow(x.meta.row);
+    if (x) timedWrite(() => handoutSheet().deleteRow(x.meta.row));
     return { ok: true };
   } finally {
     lock.releaseLock();
@@ -969,7 +998,7 @@ function adminVerdict(req) {
           }
           setCheck(String(r[2]), String(r[3]), 'issue', v.note, v.fix);
         }
-        sh.getRange(i + 1, 10, 1, 4).setValues([[ok ? '成立' : '不成立', String(v.note || '').slice(0, 300), new Date(), reward]]);
+        timedWrite(() => sh.getRange(i + 1, 10, 1, 4).setValues([[ok ? '成立' : '不成立', String(v.note || '').slice(0, 300), new Date(), reward]]));
         result.reportsDone++;
       }
     });
@@ -1027,7 +1056,7 @@ function badgeSync(code, role, incoming, pid) {
     pid = pid || 'p1';
     const inc = incoming && typeof incoming === 'object' ? incoming : {};
     if (role === '家庭') { const err = checkPlayer(code, pid); if (err) return err; }
-    const sh = badgeSheet(), rows = readAll(sh);
+    const sh = badgeSheet(), rows = sheetRows(SHEET_BADGE);
     let row = 0, stored = {};
     for (let i=1; i<rows.length; i++) {
       if (String(rows[i][0]) === code && (role !== '家庭' || String(rows[i][4] || 'p1') === pid)) {
@@ -1142,7 +1171,7 @@ function managePlayer(fam, req) {
     const pid = req.playerId;
     if (typeof pid !== 'string' || !/^p[a-z0-9]{1,12}$/.test(pid) || (pid === 'p1' && req.action !== 'playerRestore')) return {ok:false, code:'bad_request'};
     const sh = book().getSheetByName('玩家');
-    const rows = sh ? readAll(sh) : [];
+    const rows = sheetRows('玩家') || [];
     const row = rows.findIndex((r,i) => i > 0 && String(r[0]) === fam.code && String(r[1]) === pid);
     if (row < 1) return {ok:false, code:'bad_player'};
     if (req.action === 'playerPurge') {
@@ -1156,7 +1185,7 @@ function managePlayer(fam, req) {
       const remove = (name, matches) => {
         const sheet = book().getSheetByName(name);
         if (!sheet) return;
-        const data = readAll(sheet);
+        const data = sheetRows(name);
         for (let i=data.length-1; i>0; i--) if (String(data[i][0]) === fam.code && matches(data[i])) timedWrite(() => sheet.deleteRow(i+1));
       };
       remove('徽章', r => String(r[1]) === '家庭' && String(r[4] || 'p1') === pid);
@@ -1177,17 +1206,19 @@ function safeCell(s) { s = String(s == null ? '' : s); return s === '' ? '' : "'
 function withLock(fn) {
   const lock = LockService.getScriptLock();
   try { timed('lock', () => lock.waitLock(10000)); } catch(e) { return {ok:false, code:'busy', message:'系統忙碌，請再試一次'}; }
-  const memo = READ_MEMO; READ_MEMO = null;
+  const memo = READ_MEMO, lockReads = LOCK_READS; READ_MEMO = null; LOCK_READS = {};
   try {
     try { return fn(); } finally { try { timedWrite(() => SpreadsheetApp.flush()); } finally { lock.releaseLock(); } }
-  } finally { READ_MEMO = memo; }
+  } finally { READ_MEMO = memo; LOCK_READS = lockReads; }
 }
 let READ_MEMO = null;
+let LOCK_READS = null;
 function sheetRows(name) {
-  if (READ_MEMO !== null && Object.prototype.hasOwnProperty.call(READ_MEMO,name)) return READ_MEMO[name];
+  const memo = READ_MEMO !== null ? READ_MEMO : LOCK_READS;
+  if (memo !== null && Object.prototype.hasOwnProperty.call(memo,name)) return memo[name];
   const sh = book().getSheetByName(name);
   const rows = sh ? readAll(sh) : null;
-  if (READ_MEMO !== null) READ_MEMO[name] = rows;
+  if (memo !== null) memo[name] = rows;
   return rows;
 }
 function readOnlyRun(needsWrite, fn) {
@@ -1231,7 +1262,7 @@ function playerSave(code, req) {
   if (!name || Array.from(name).length > 12 || PLAYER_ICONS.indexOf(icon) < 0 || (req.playerId && !/^p[a-z0-9]{1,12}$/.test(String(req.playerId)))) return {ok:false, code:'bad_request'};
   return withLock(() => {
     ensureP1(code);
-    const sh = rewardSheet('玩家',PLAYER_HEADER), rows = readAll(sh);
+    const sh = rewardSheet('玩家',PLAYER_HEADER), rows = sheetRows('玩家');
     let pid = req.playerId, row = 0;
     if (pid) {
       row = rows.findIndex((r,i) => i > 0 && String(r[0]) === code && String(r[1]) === pid) + 1;
@@ -1257,7 +1288,7 @@ function syncLedgerBody(code, pid, incoming) {
   const props = PropertiesService.getScriptProperties(), initKey = 'ledgerinit:' + code + ':' + pid;
   const initial = !props.getProperty(initKey);
   if (!initial && Object.keys(incoming || {}).length === 0) return;
-  const sh = rewardSheet('徽章入帳',LEDGER_HEADER), rows = readAll(sh).slice(1);
+  const sh = rewardSheet('徽章入帳',LEDGER_HEADER), rows = sheetRows('徽章入帳').slice(1);
   const now = new Date();
   const day = d => Utilities.formatDate(new Date(d),TIMEZONE,'yyyy-MM-dd');
   const seen = new Set(rows.filter(r => String(r[0]) === code && String(r[1]) === pid).map(r => JSON.stringify([String(r[2]),Number(r[3])])));
@@ -1278,7 +1309,8 @@ function syncLedgerBody(code, pid, incoming) {
   };
   if (initial) {
     listBanks({code}).forEach(b => add(String(b.id),pid === 'p1' ? b.badge : (b.players || {})[pid] && b.players[pid].badge,'補入'));
-    readAll(badgeSheet()).slice(1).filter(r => String(r[0]) === code && String(r[4] || 'p1') === pid).forEach(r => {
+    badgeSheet();
+    sheetRows(SHEET_BADGE).slice(1).filter(r => String(r[0]) === code && String(r[4] || 'p1') === pid).forEach(r => {
       let badges = {}; try { badges = JSON.parse(String(r[3] || '{}')) || {}; } catch(e) {}
       Object.keys(badges).forEach(k => add(k,badges[k],'補入'));
     });
@@ -1324,9 +1356,9 @@ function readRedeems(code) {
 }
 // requestId globally unique; callers must not expose foreign records.
 function findRedeemRequest(requestId) {
-  const sh = book().getSheetByName('兌換');
-  if (!sh) return null;
-  const r = readAll(sh).slice(1).find(r => String(r[1]) === requestId);
+  const rows = sheetRows('兌換');
+  if (!rows) return null;
+  const r = rows.slice(1).find(r => String(r[1]) === requestId);
   return r ? {family:String(r[2]),playerId:String(r[3]),id:String(r[0])} : null;
 }
 function publicReward(r) { const {row,family,...value} = r; return value; }
