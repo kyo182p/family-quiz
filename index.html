@@ -1057,23 +1057,28 @@ function bankBadgeRec(b,create){
 }
 function badgeStore(ctx,meta){
   const b=ctx&&ctx.bank;
-  if(ownBank(b))return {r:bankBadgeRec(b,true),save:done=>{if(BADGES[b.id]){delete BADGES[b.id];store.set('badges',BADGES)}
+  if(ownBank(b))return {r:bankBadgeRec(b,true),save:done=>{if(BADGES[b.id]){delete BADGES[b.id];store.set('badges',BADGES);badgeDirtyMark()}
     if(done){clearTimeout(recTimers[b.id]);bsSave(b)}else scheduleSave(b)}};   // 得到徽章時馬上存到雲端
   const key=ctx.pkey||ctx.key,r=BADGES[key]||(BADGES[key]={cells:[],ok:[0,0,0],earned:[]});
-  r.meta=meta;return {r,save:done=>{store.set('badges',BADGES);badgeSyncSoon(done?0:5000)}};
+  r.meta=meta;return {r,save:done=>{store.set('badges',BADGES);badgeDirtyMark();badgeSyncSoon(done?0:5000)}};
 }
 // 書架題庫和植物小學堂的徽章：存在這台裝置，再用邀請碼或閱讀碼同步到雲端，換裝置也在
 let badgeSyncTimer=null,badgeSyncing=null;
+function badgeDirtyMark(){if(!READER.code)try{localStorage.setItem(ACTIVE_PLAYER+':badges-dirty',String(Date.now()))}catch(e){}}
+function badgesDirty(){if(READER.code)return false;try{return localStorage.getItem(ACTIVE_PLAYER+':badges-dirty')!=='0'}catch(e){return true}}
 function badgeSyncSoon(ms){clearTimeout(badgeSyncTimer);badgeSyncTimer=setTimeout(badgeSync,ms)}
-function badgeSync(){
+function badgeSync(quiet=false){
   if(!CONFIG.API_URL||!libCode())return Promise.resolve(false);
   if(badgeSyncing)return badgeSyncing;
   const own=new Set(BANKS.filter(ownBank).map(b=>b.id));
   const send={};Object.entries(BADGES).forEach(([k,r])=>{if(r&&!own.has(k))send[k]=r});
-  badgeSyncing=libApi('badges',{badges:send,...(READER.code?{}:{playerId:ACTIVE_PLAYER})}).then(j=>{
+  const sentAt=Date.now(),dirtyKey=READER.code?null:ACTIVE_PLAYER+':badges-dirty';
+  badgeSyncing=libApi('badges',{badges:send,...(READER.code?{}:{playerId:ACTIVE_PLAYER})},quiet).then(j=>{
     const got=j.badges||{};
     Object.entries(got).forEach(([k,r])=>{if(!own.has(k))BADGES[k]=r});   // 送出後這台裝置才有的新紀錄保留下一輪再送
-    store.set('badges',BADGES);return true;
+    store.set('badges',BADGES);
+    if(dirtyKey)try{const dirty=localStorage.getItem(dirtyKey);if(dirty===null||Number(dirty)<=sentAt)localStorage.setItem(dirtyKey,'0')}catch(e){}
+    return true;
   }).catch(()=>false).finally(()=>{badgeSyncing=null});
   return badgeSyncing;
 }
@@ -3526,13 +3531,13 @@ let LIBERR='';
 const LIBBANKS={};         // 已下載的公開題庫
 let libFilter={g:'',s:'',p:''};
 
-async function libApi(action,data){
+async function libApi(action,data,quiet=false){
   if(!CONFIG.API_URL)throw {code:'not_configured'};
   let res;
   try{res=await fetch(CONFIG.API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,code:libCode(),...(data||{})}),redirect:'follow'})}
   catch(e){throw {code:'network'}}
   const j=await res.json().catch(()=>({ok:false,code:'server_error'}));
-  if(!j.ok){if(['saveBank','badges'].includes(action)&&['player_disabled','bad_player'].includes(j.code))fallbackPlayer();throw {...j,code:j.code||'server_error',message:j.message||''};}
+  if(!j.ok){if(!quiet&&['saveBank','badges'].includes(action)&&['player_disabled','bad_player'].includes(j.code))fallbackPlayer();throw {...j,code:j.code||'server_error',message:j.message||''};}
   return j;
 }
 const libLocalKey=id=>'lib-rec:'+id;
@@ -3582,6 +3587,7 @@ async function libHome(){
   app.querySelectorAll('[data-lib]').forEach(b=>b.onclick=()=>b.dataset.lib==='__plant'?home():openLib(b.dataset.lib));
   if($('rcgo'))$('rcgo').onclick=()=>verifyReader($('rc').value.trim(),$('rcmsg'));
   window.scrollTo(0,0);
+  rewardPrefetch();
 }
 async function verifyReader(code,msgEl){
   if(!code){msgEl.textContent='請輸入閱讀碼';return}
@@ -4574,7 +4580,21 @@ function rewardRequestId(){
 }
 function rewardCacheKey(){return ACTIVE_PLAYER+':reward-cache:'+FAMILY.code}
 function rewardCacheGet(){try{return JSON.parse(localStorage.getItem(rewardCacheKey()))}catch(e){return null}}
-function rewardCacheSet(v){try{const {balance,rewards,redeems}=v;localStorage.setItem(rewardCacheKey(),JSON.stringify({balance,rewards,redeems}))}catch(e){}}
+function rewardCacheSet(v){try{const {balance,rewards,redeems,at}=v;localStorage.setItem(rewardCacheKey(),JSON.stringify({balance,rewards,redeems,at}))}catch(e){}}
+let rewardWriteGen=0,rewardPrefetching=null;
+function rewardPrefetch(){
+  if(!CONFIG.API_URL||!FAMILY.code||READER.code||parentHere())return;
+  if(rewardPrefetching)return rewardPrefetching;
+  const cache=rewardCacheGet();if(cache?.at&&Date.now()-cache.at<30000)return;
+  const gen=rewardWriteGen;
+  rewardPrefetching=(async()=>{
+    if(badgesDirty())await badgeSync(true);
+    const j=await rewardCall('rewardList',{withRedeems:true});
+    if(gen!==rewardWriteGen)return null;
+    rewardCacheSet({...j,at:Date.now()});return j;
+  })().catch(error=>({error})).finally(()=>{rewardPrefetching=null});
+  return rewardPrefetching;
+}
 async function rewardPage(tab='rewards',notice=''){
   if(!FAMILY.code||READER.code)return libHome();
   app.innerHTML=rewardMedals+'<section class="reward-page" id="reward-page"></section>';
@@ -4601,16 +4621,21 @@ async function rewardPage(tab='rewards',notice=''){
       find('reward-notice').insertAdjacentHTML('afterend','<p id="reward-updating" role="status">更新中…</p>');
     }
   }
-  const cache=rewardCacheGet();if(cache)try{draw(cache,true)}catch(e){try{localStorage.removeItem(rewardCacheKey())}catch(_){}find('reward-updating')?.remove();find('reward-wallet').innerHTML='<div class="reward-skeleton"></div><div class="reward-skeleton"></div>';find('reward-list').innerHTML='<div class="reward-skeleton"></div><span>正在跟雲端對銀、金徽章數……</span>'}
+  const prefetch=rewardPrefetching,gen=rewardWriteGen,cache=rewardCacheGet();let freshCache=false;
+  if(cache)try{const fresh=!!cache.at&&Date.now()-cache.at<60000;draw(cache,!fresh);freshCache=fresh}catch(e){try{localStorage.removeItem(rewardCacheKey())}catch(_){}find('reward-updating')?.remove();find('reward-wallet').innerHTML='<div class="reward-skeleton"></div><div class="reward-skeleton"></div>';find('reward-list').innerHTML='<div class="reward-skeleton"></div><span>正在跟雲端對銀、金徽章數……</span>'}
   try{
-    await flushPlayerSaves();try{await badgeSync()}catch(e){}
+    await flushPlayerSaves();if(badgesDirty())await badgeSync();
     if(!alive())return;
-    const j=await rewardCall('rewardList',{withRedeems:true});if(!alive())return;
-    rewardCacheSet(j);draw(j,false);
+    let j=prefetch?await prefetch:null;
+    if(j?.error)throw j.error;
+    if(!j||gen!==rewardWriteGen)j=await rewardCall('rewardList',{withRedeems:true});
+    if(!alive())return;
+    rewardCacheSet({...j,at:Date.now()});draw(j,false);
   }catch(e){
     if(!alive())return;
     if(['player_disabled','bad_player'].includes(e.code))fallbackPlayer();
     find('reward-updating')?.remove();
+    if(freshCache){find('reward-notice').textContent='連不到雲端，數字可能不是最新的';return}
     find('reward-wallet').innerHTML='';find('reward-list').innerHTML='<p>連不到雲端，現在不能申請</p><button class="ghost" id="reward-retry">再試一次</button>';
     find('reward-retry').onclick=()=>rewardPage(tab,notice);
   }
@@ -4625,6 +4650,7 @@ async function rewardPage(tab='rewards',notice=''){
     send.onclick=async()=>{
       if(sending)return;sending=true;send.disabled=true;closeButton.disabled=true;send.textContent='送出中……';error.textContent='';
       try{
+        rewardWriteGen++;
         const j=await rewardCall(cancel?'redeemCancel':'redeemRequest',cancel?{id:item.id}:{rewardId:item.id,requestId});
         if(!alive())return;
         try{localStorage.removeItem(rewardCacheKey())}catch(e){}
@@ -4650,6 +4676,7 @@ const parentHere=()=>location.hash==='#parent';
 function parentActivity(){clearTimeout(parentTimer);if(parentHere())parentTimer=setTimeout(parentLock,PARENT_IDLE_MS)}
 function parentLock(){
   const session=PARENT_SESSION;PARENT_SESSION=null;parentEpoch++;clearTimeout(parentTimer);
+  parentCacheClear();
   document.getElementById('parent-page')?.replaceChildren();
   if(session)api('parentLogout',{session}).catch(()=>{});
   if(parentHere())parentPage();

@@ -16,7 +16,7 @@ test.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
 const plain=v=>JSON.parse(JSON.stringify(v));
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function settle(){for(let i=0;i<6;i++)await tick()}
-async function open(t,{storage={},query='',frame=false}={}){
+async function open(t,{storage={},query='',frame=false,fetchDelay=0}={}){
   const errors=[],navigation=[],requests=[],fetchUrls=[];
   const vc=new VirtualConsole();
   vc.on('jsdomError',e=>{if(e.message.includes('navigation'))navigation.push(e);else errors.push(e)});
@@ -24,7 +24,7 @@ async function open(t,{storage={},query='',frame=false}={}){
     if(frame)Object.defineProperty(w,'self',{value:{}});
     w.scrollTo=()=>{};w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
     w.speechSynthesis={cancel(){},getVoices(){return []},speak(){},addEventListener(){}};
-    Object.defineProperty(w,'fetch',{configurable:true,set(fn){Object.defineProperty(w,'fetch',{configurable:true,writable:true,value:async(url,options)=>{fetchUrls.push(String(url));if(String(url)==='mock://gas')requests.push(JSON.parse(options.body));return fn(url,options)}})}});
+    Object.defineProperty(w,'fetch',{configurable:true,set(fn){Object.defineProperty(w,'fetch',{configurable:true,writable:true,value:async(url,options)=>{fetchUrls.push(String(url));if(String(url)==='mock://gas')requests.push(JSON.parse(options.body));if(fetchDelay)await new Promise(r=>w.setTimeout(r,fetchDelay));return fn(url,options)}})}});
     for(const [k,v] of Object.entries(storage))w.localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));
   }});
   t.after(()=>{dom.window.close();assert.deepEqual(errors,[])});await settle();
@@ -147,7 +147,7 @@ test('T005 scopeKey: all four scoped families, p1 legacy, clearProgress targets 
 });
 
 test('T005 A4: successful list prunes missing pid keys only; failure prunes nothing',async t=>{
-  const base={player:'"p2"','pdead:badges':'{}','pdead:lib-rec:x':'{}','p2:badges':'{}',badges:'{}','progress-demo':'{}'};
+  const base={player:'"p2"','p2:badges-dirty':'0','pdead:badges':'{}','pdead:lib-rec:x':'{}','p2:badges':'{}',badges:'{}','progress-demo':'{}'};
   const a=await open(t,{storage:base});assert.equal(a.w.localStorage.getItem('pdead:badges'),null);assert.equal(a.w.localStorage.getItem('pdead:lib-rec:x'),null);
   for(const k of ['p2:badges','badges','progress-demo'])assert.equal(a.w.localStorage.getItem(k),'{}');
   const b=await open(t,{storage:base,query:'?mock=offline'});for(const [k,v] of Object.entries(base))assert.equal(b.w.localStorage.getItem(k),v);
@@ -803,9 +803,10 @@ test('T007 routing race: late homepage cannot replace PIN; old no_session cannot
 function t020DelayFetch(w){const f=w.fetch;w.fetch=async(u,o)=>{await new Promise(r=>w.setTimeout(r,2000));return f(u,o)}}
 const t020Wait=()=>new Promise(r=>setTimeout(r,300));
 function t020Disabled(w,selector){const buttons=[...w.document.querySelectorAll(selector)];assert.ok(buttons.length);for(const b of buttons){assert.equal(b.disabled,true);assert.equal(b.onclick,null)}}
+function t025OldCache(w){const cache=w.rewardCacheGet();delete cache.at;w.rewardCacheSet(cache)}
 
 test('T020 R3 rewards: cached wallet immediately, disabled until fresh and no credentials',async t=>{
-  const {w}=await open(t);await w.rewardPage();
+  const {w}=await open(t);await w.rewardPage();t025OldCache(w);
   const raw=w.localStorage.getItem('p1:reward-cache:TEST-0000');assert.ok(raw);assert.doesNotMatch(raw,/session|pin|requestId/i);
   assert.deepEqual(Object.keys(JSON.parse(raw)).sort(),['balance','redeems','rewards']);
   const wallet=w.document.querySelector('#reward-wallet').textContent;
@@ -818,6 +819,7 @@ test('T020 R3 rewards: cached wallet immediately, disabled until fresh and no cr
 
 test('T020 R3 mine: cached pending request cannot cancel until fresh',async t=>{
   const {w}=await open(t);await w.api('redeemRequest',{rewardId:'mock-s',requestId:w.rewardRequestId()});await w.rewardPage('mine');
+  t025OldCache(w);
   t020DelayFetch(w);const p=w.rewardPage('mine');await t020Wait();
   assert.ok(text(w).includes('等家長核准'));assert.equal(w.document.querySelector('#reward-updating').textContent,'更新中…');t020Disabled(w,'[data-cancel]');
   await p;assert.equal(w.document.querySelector('#reward-updating'),null);assert.equal(w.document.querySelector('[data-cancel]').disabled,false);
@@ -839,13 +841,13 @@ test('T020 R4 apply and cancel invalidate before redraw, next cache has fresh ba
 });
 
 test('T020 offline discards displayed cached numbers and updating status',async t=>{
-  const {w}=await open(t);await w.rewardPage();w.fetch=async()=>{throw Error('offline')};await w.rewardPage();
+  const {w}=await open(t);await w.rewardPage();t025OldCache(w);w.fetch=async()=>{throw Error('offline')};await w.rewardPage();
   assert.ok(text(w).includes('連不到雲端，現在不能申請'));assert.equal(w.document.querySelector('#reward-wallet').textContent,'');assert.equal(w.document.querySelector('#reward-updating'),null);assert.ok(w.document.querySelector('#reward-retry'));
 });
 
 test('T020 caches isolate player and family; corrupt JSON and storage failures are harmless',async t=>{
   const a=await open(t);await a.w.rewardPage();const raw=a.w.localStorage.getItem(a.w.rewardCacheKey());
-  const {w}=await open(t,{storage:{player:'"p2"','p1:reward-cache:TEST-0000':raw}});t020DelayFetch(w);const p=w.rewardPage();
+  const {w}=await open(t,{storage:{player:'"p2"','p1:reward-cache:TEST-0000':raw}});w.localStorage.removeItem(w.rewardCacheKey());t020DelayFetch(w);const p=w.rewardPage();
   assert.equal(w.rewardCacheKey(),'p2:reward-cache:TEST-0000');assert.equal(w.document.querySelector('#reward-updating'),null);assert.equal(w.document.querySelectorAll('.reward-skeleton').length,3);await p;
   w.eval("FAMILY.code='OTHER-0000'");assert.equal(w.rewardCacheKey(),'p2:reward-cache:OTHER-0000');assert.equal(w.rewardCacheGet(),null);
   w.localStorage.setItem(w.rewardCacheKey(),'{bad');assert.equal(w.rewardCacheGet(),null);
@@ -886,6 +888,7 @@ test('T020 malformed child cache falls back to skeleton',async t=>{
   }
   await t.test('slow refresh keeps skeleton',async t=>{
     const {w}=await open(t,{storage:{'p1:reward-cache:TEST-0000':'{"x":1}'}});
+    w.localStorage.setItem(w.rewardCacheKey(),'{"x":1}');
     t020DelayFetch(w);const p=w.rewardPage();
     // Attach rejection handling immediately so the pre-fix failure is reported as an assertion.
     const outcome=p.then(()=>null,e=>e);
@@ -967,4 +970,127 @@ test('T022 reward notice is hidden only when empty',async t=>{
   assert.equal(w.getComputedStyle(w.document.getElementById('reward-notice')).display,'none');
   await w.rewardPage('rewards','已送出，等家長核准');
   assert.notEqual(w.getComputedStyle(w.document.getElementById('reward-notice')).display,'none');
+});
+
+test('T025 R4: two-second backend prefetch renders usable rewards within 300ms',async t=>{
+  const {w}=await open(t,{fetchDelay:2000});
+  // Boot calls libHome; wait for its prefetch without starting another homepage load.
+  const deadline=Date.now()+15000;
+  while(!w.eval('rewardPrefetching')){
+    assert.ok(Date.now()<deadline,'homepage starts prefetch');
+    await new Promise(r=>setTimeout(r,20));
+  }
+  await w.eval('rewardPrefetching');
+  const cache=w.rewardCacheGet();assert.ok(cache.at);assert.ok(cache.balance.silver.available>0);
+  const start=Date.now(),page=w.rewardPage();
+  assert.equal(Number(w.document.querySelector('.reward-silver strong').textContent),cache.balance.silver.available);
+  assert.equal(w.document.querySelector('[data-apply="mock-s"]').disabled,false);
+  assert.equal(w.document.getElementById('reward-updating'),null);
+  assert.ok(Date.now()-start<300,'cached wallet and enabled buttons render within 300ms');
+  await t020Wait();assert.equal(w.document.querySelector('[data-apply="mock-s"]').disabled,false);
+  await page;
+});
+
+test('T025 prefetch: guards, shared promise and thirty-second throttle',async t=>{
+  const {w,requests}=await open(t);const fetch=w.fetch;let release;
+  w.localStorage.removeItem(w.rewardCacheKey());
+  const gate=new Promise(r=>release=r);
+  w.fetch=async(u,o)=>{if(JSON.parse(o.body).action==='rewardList')await gate;return fetch(u,o)};
+  const start=requests.length,prefetch=w.rewardPrefetch();
+  assert.equal(w.rewardPrefetch(),prefetch);
+  const page=w.rewardPage();await settle();release();await Promise.all([prefetch,page]);
+  assert.equal(requests.slice(start).filter(r=>r.action==='rewardList').length,1);
+  assert.equal(w.rewardPrefetch(),undefined);assert.ok(w.rewardCacheGet().at);
+  const cache=w.rewardCacheGet();w.rewardCacheSet({...cache,at:Date.now()-31000});
+  await w.rewardPrefetch();assert.equal(requests.slice(start).filter(r=>r.action==='rewardList').length,2);
+  w.localStorage.removeItem(w.rewardCacheKey());const count=requests.length;
+  for(const setup of ["READER.code='reader'","READER.code='';FAMILY.code=''","FAMILY.code='TEST-0000';CONFIG.API_URL=''","CONFIG.API_URL='mock://gas';history.replaceState(null,'','#parent')"]){
+    w.eval(setup);assert.equal(w.rewardPrefetch(),undefined);
+  }
+  assert.equal(requests.length,count);
+});
+
+test('T025 prefetch failure stays silent and never falls back a disabled player',async t=>{
+  for(const code of ['offline','player_disabled','bad_player']){
+    const {w,navigation}=await open(t,{storage:{player:'"p2"'}});
+    w.localStorage.removeItem(w.rewardCacheKey());w.localStorage.removeItem('p2:badges-dirty');
+    const before=w.document.getElementById('app').textContent,players=w.eval('JSON.stringify(PLAYERS)'),family=w.eval('JSON.stringify(FAMILY)');
+    w.fetch=async()=>{if(code==='offline')throw Error(code);return {json:async()=>({ok:false,code})}};
+    await w.libHome();await w.eval('rewardPrefetching');
+    assert.equal(w.document.getElementById('app').textContent,before);
+    assert.equal(w.rewardCacheGet(),null);assert.equal(w.localStorage.getItem('p2:badges-dirty'),null);
+    assert.equal(w.eval('JSON.stringify(PLAYERS)'),players);assert.equal(w.eval('JSON.stringify(FAMILY)'),family);
+    assert.equal(w.localStorage.getItem('player'),'"p2"');assert.equal(w.localStorage.getItem('player-notice'),null);assert.equal(navigation.length,0);
+  }
+});
+
+test('T025 dirty flags: missing, clean, local saves, failed sync and changes during sync',async t=>{
+  const {w,requests}=await open(t);const key='p1:badges-dirty';
+  w.localStorage.removeItem(key);assert.equal(w.badgesDirty(),true);
+  let start=requests.length;await w.rewardPage();
+  assert.deepEqual(requests.slice(start).map(r=>r.action),['badges','rewardList']);assert.equal(w.localStorage.getItem(key),'0');
+  start=requests.length;await w.rewardPage();assert.deepEqual(requests.slice(start).map(r=>r.action),['rewardList']);
+  w.eval("badgeStore({key:'__plant'},PLANT_BADGE).save(false);clearTimeout(badgeSyncTimer)");
+  assert.equal(w.badgesDirty(),true);assert.ok(Number(w.localStorage.getItem(key))>0);
+  start=requests.length;await w.rewardPage();assert.deepEqual(requests.slice(start).map(r=>r.action),['badges','rewardList']);
+  w.testOwn=bank();w.eval("BADGES[testOwn.id]={earned:[]};badgeStore({bank:testOwn},{}).save(false);clearTimeout(recTimers[testOwn.id]);delete recTimers[testOwn.id]");
+  assert.equal(w.badgesDirty(),true);assert.equal(w.eval('BADGES[testOwn.id]'),undefined);
+  const fetch=w.fetch;let release;const gate=new Promise(r=>release=r);
+  w.fetch=async(u,o)=>{if(JSON.parse(o.body).action==='badges')await gate;return fetch(u,o)};
+  const syncing=w.badgeSync(),newer=String(w.Date.now()+1000);w.localStorage.setItem(key,newer);
+  release();assert.equal(await syncing,true);assert.equal(w.localStorage.getItem(key),newer);assert.equal(w.badgesDirty(),true);
+  w.fetch=async()=>{throw Error('offline')};assert.equal(await w.badgeSync(),false);assert.equal(w.localStorage.getItem(key),newer);
+});
+
+test('T025 reader sync and saves never access the family dirty flag',async t=>{
+  const {w}=await open(t);w.eval("READER={code:'reader'}");
+  const proto=w.Storage.prototype,get=proto.getItem,set=proto.setItem;
+  proto.getItem=function(k){assert.ok(!k.endsWith(':badges-dirty'));return get.call(this,k)};
+  proto.setItem=function(k,v){assert.ok(!k.endsWith(':badges-dirty'));return set.call(this,k,v)};
+  try{
+    assert.equal(w.badgesDirty(),false);
+    w.eval("badgeStore({key:'__plant'},PLANT_BADGE).save(false);clearTimeout(badgeSyncTimer)");
+    w.fetch=async()=>({json:async()=>({ok:true,badges:{}})});assert.equal(await w.badgeSync(),true);
+  }finally{proto.getItem=get;proto.setItem=set}
+});
+
+test('T025 prefetch race: applying prevents a delayed old response from restoring cache',async t=>{
+  const {w,requests}=await open(t);await w.rewardPage();
+  w.rewardCacheSet({...w.rewardCacheGet(),at:Date.now()-31000});
+  const fetch=w.fetch;let releaseOld,releaseFresh,count=0;
+  const oldGate=new Promise(r=>releaseOld=r),freshGate=new Promise(r=>releaseFresh=r);
+  w.fetch=async(u,o)=>{
+    if(JSON.parse(o.body).action!=='rewardList')return fetch(u,o);
+    if(++count===1){const result=await fetch(u,o);await oldGate;return result}
+    await freshGate;return fetch(u,o);
+  };
+  const prefetch=w.rewardPrefetch();await settle();const gen=w.eval('rewardWriteGen');
+  clickApply(w,'mock-s');const sending=sendSheet(w);await settle();
+  assert.ok(requests.some(r=>r.action==='redeemRequest'));assert.equal(w.eval('rewardWriteGen'),gen+1);
+  assert.equal(w.rewardCacheGet(),null);
+  releaseOld();assert.equal(await prefetch,null);await settle();assert.equal(w.rewardCacheGet(),null);
+  releaseFresh();await sending;assert.ok(w.rewardCacheGet().balance.silver.held>0);
+  w.fetch=fetch;await w.rewardPage('mine');w.document.querySelector('[data-cancel]').click();await sendSheet(w);
+  assert.equal(w.eval('rewardWriteGen'),gen+2);assert.equal(w.rewardCacheGet().balance.silver.held,0);
+});
+
+test('T025 cache freshness: expired cache stays disabled; fresh offline wallet stays usable',async t=>{
+  const {w}=await open(t);await w.rewardPage();const cache=w.rewardCacheGet(),fetch=w.fetch;
+  w.rewardCacheSet({...cache,at:Date.now()-61000});let release;const gate=new Promise(r=>release=r);
+  w.fetch=async(u,o)=>{await gate;return fetch(u,o)};
+  const page=w.rewardPage();assert.equal(w.document.getElementById('reward-updating').textContent,'更新中…');t020Disabled(w,'[data-apply]');
+  release();await page;const wallet=w.document.getElementById('reward-wallet').textContent;
+  w.fetch=async()=>{throw Error('offline')};await w.rewardPage();
+  assert.equal(w.document.getElementById('reward-wallet').textContent,wallet);
+  assert.equal(w.document.getElementById('reward-notice').textContent,'連不到雲端，數字可能不是最新的');
+  assert.equal(w.document.querySelector('[data-apply="mock-s"]').disabled,false);assert.equal(w.document.getElementById('reward-updating'),null);
+  w.rewardCacheSet({...cache,session:'secret',pin:'1234',requestId:'secret',at:123});
+  assert.deepEqual(Object.keys(w.rewardCacheGet()).sort(),['at','balance','redeems','rewards']);
+  assert.doesNotMatch(w.localStorage.getItem(w.rewardCacheKey()),/session|pin|requestId|secret/);
+});
+
+test('T025 parentLock removes the parent cache',async t=>{
+  const {w}=await parentUI(t);await w.parentMain('rewards');
+  const key=w.parentCacheKey();assert.ok(w.localStorage.getItem(key));w.parentLock();
+  assert.equal(w.localStorage.getItem(key),null);await settle();assert.equal(w.localStorage.getItem(key),null);
 });
