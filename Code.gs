@@ -60,13 +60,40 @@ function doGet() {
   return out({ ok: true, service: 'family-quiz' });
 }
 
+let TIMING = null;
 function doPost(e) {
-  let req;
+  const previous = TIMING;
+  TIMING = {start:Date.now(), opened:false, open:0, lock:0, read:0, reads:0, sync:0, write:0, cache:0};
   try {
-    req = JSON.parse(e.postData.contents);
-  } catch (err) {
-    return out({ ok: false, code: 'bad_request', message: '請求格式錯誤' });
-  }
+    let req;
+    try { req = JSON.parse(e.postData.contents); }
+    catch (err) { return out({ ok: false, code: 'bad_request', message: '請求格式錯誤' }); }
+    const code = String(req.code || '').trim(), pid = req.playerId || 'p1';
+    const cache = CacheService.getScriptCache();
+    let key;
+    if (['rewardList','myRedeems'].indexOf(req.action) >= 0 &&
+        !Object.prototype.hasOwnProperty.call(req,'session') && /^p[a-z0-9]{1,12}$/.test(String(pid))) {
+      let generation = cache.get('rg:' + code);
+      if (!generation) { generation = Utilities.getUuid(); cache.put('rg:' + code,generation,21600); }
+      key = 'rc:' + code + ':' + generation + ':' + pid + ':' + req.action + ':' + (req.withRedeems === true ? 1 : 0);
+      const hit = cache.get(key);
+      if (hit) { TIMING.cache = 1; return out(JSON.parse(hit)); }
+    }
+    const result = doPostBody(req);
+    if (TIMING.family && ['pingLite','ping','rewardList','myRedeems','redeemList','parentLog','balance','playerList','parentStatus','listBanks','handoutList','handoutGet','readerList','libList','libGet','libHandouts','libHandoutGet','flags'].indexOf(req.action) < 0) {
+      cache.put('rg:' + TIMING.family,Utilities.getUuid(),21600);
+    }
+    if (key) {
+      const value = JSON.parse(result.getContent());
+      delete value.timing;
+      const json = JSON.stringify(value);
+      if (value.ok === true && json.length < 90000) cache.put(key,json,60);
+    }
+    return result;
+  } finally { TIMING = previous; }
+}
+function doPostBody(req) {
+  if (req.action === 'pingLite') return out({ok:true});
   // 題庫書架：閱讀碼或邀請碼都可以使用（只能讀，不能寫、不能用 AI）
   // 定期掃題（管理者金鑰）
   if (['adminPending', 'adminVerdict', 'adminIssueSetupCode', 'adminResetPin'].indexOf(req.action) >= 0) {
@@ -83,6 +110,7 @@ function doPost(e) {
   // 回報與回報狀態：閱讀碼或邀請碼都可以使用
   if (req.action === 'report' || req.action === 'flags') {
     const fam1 = findFamily(req.code);
+    if (fam1) TIMING.family = fam1.code;
     const reader1 = fam1 ? null : findReader(req.code);
     if (!fam1 && !reader1) return out({ ok: false, code: 'bad_code', message: '代碼不正確或已停用' });
     try {
@@ -110,6 +138,7 @@ function doPost(e) {
   // 徽章同步：送上這台裝置的徽章，伺服器合併後回傳完整的一份（邀請碼或閱讀碼都可以）
   if (req.action === 'badges') {
     const famB = findFamily(req.code);
+    if (famB) TIMING.family = famB.code;
     const readerB = famB ? null : findReader(req.code);
     if (!famB && !readerB) return out({ ok: false, code: 'bad_code', message: '代碼不正確或已停用' });
     try {
@@ -138,6 +167,7 @@ function doPost(e) {
 
   const fam = findFamily(req.code);
   if (!fam) return out({ ok: false, code: 'bad_code', message: '邀請碼不正確或已停用' });
+  TIMING.family = fam.code;
   try {
     if (['parentStatus','parentSetPin','parentLogin','parentLogout'].indexOf(req.action) >= 0) return out(parentAction(fam, req));
     if (['playerDisable','playerRestore','playerPurge'].indexOf(req.action) >= 0) return out(managePlayer(fam, req));
@@ -197,53 +227,85 @@ function doPost(e) {
 }
 
 function out(obj) {
+  if (TIMING !== null) {
+    const total = Date.now() - TIMING.start;
+    const {open, lock, read, reads, sync, write} = TIMING;
+    obj.timing = {open, lock, read, reads, sync, write,
+      compute:Math.max(0,total-open-lock-read-write), cache:TIMING.cache || 0, total};
+  }
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function timed(key, fn) {
+  const timing = TIMING, start = Date.now();
+  try { return fn(); }
+  finally { if (timing !== null) timing[key] += Date.now() - start; }
+}
+function book() {
+  if (TIMING === null || TIMING.opened) return SpreadsheetApp.getActive();
+  TIMING.opened = true;
+  return timed('open', () => SpreadsheetApp.getActive());
+}
+function readAll(sh) {
+  if (TIMING !== null) TIMING.reads++;
+  return timed('read', () => sh.getDataRange().getValues());
+}
+function timedWrite(fn) {
+  try { return timed('write', fn); }
+  finally { if (LOCK_READS !== null) LOCK_READS = {}; }
+}
+function keepWarm() { CacheService.getScriptCache().get('warm'); }
+function ensureKeepWarmTrigger() {
+  if (!ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'keepWarm')) {
+    ScriptApp.newTrigger('keepWarm').timeBased().everyMinutes(10).create();
+  }
 }
 
 /* ===== 初始化 ===== */
 function setup() {
-  const ss = SpreadsheetApp.getActive();
+  const ss = book();
   const ensure = (name, header) => {
     let sh = ss.getSheetByName(name);
     if (!sh) sh = ss.insertSheet(name);
     if (sh.getLastRow() === 0) {
-      sh.appendRow(header);
+      timedWrite(() => sh.appendRow(header));
       sh.setFrozenRows(1);
       sh.getRange(1, 1, 1, header.length).setFontWeight('bold');
     }
     return sh;
   };
   const fam = ensure(SHEET_FAMILY, ['邀請碼', '家庭名稱', '每日 AI 上限', '啟用', '備註', '可發布']);
-  if (String(fam.getRange(1, 6).getValue()) === '') fam.getRange(1, 6).setValue('可發布').setFontWeight('bold');
+  if (String(fam.getRange(1, 6).getValue()) === '') timedWrite(() => fam.getRange(1, 6).setValue('可發布').setFontWeight('bold'));
   ensure(SHEET_READER, ['閱讀碼', '建立的邀請碼', '建立的家庭', '建立時間', '啟用', '給誰（備註）', '最後使用時間', '使用次數']);
   ensure(SHEET_PUBLIC, ['題庫ID', '邀請碼', '題庫名稱', '年級', '學期', '科目', '版本', '單元', '題數', '公開時間', '公開的家庭']);
   ensure(SHEET_BANK, ['邀請碼', '題庫ID', '題庫名稱', '更新時間', '題數', '題目雜湊', 'JSON 分段數', 'JSON1']);
   const qsh = ensure(SHEET_QUESTION, QUESTION_HEADER);
-  QUESTION_HEADER.forEach((h, i) => { if (String(qsh.getRange(1, i + 1).getValue()) === '') qsh.getRange(1, i + 1).setValue(h).setFontWeight('bold'); });
-  if (String(fam.getRange(1, 7).getValue()) === '') fam.getRange(1, 7).setValue('獎勵 AI 次數').setFontWeight('bold');
+  QUESTION_HEADER.forEach((h, i) => { if (String(qsh.getRange(1, i + 1).getValue()) === '') timedWrite(() => qsh.getRange(1, i + 1).setValue(h).setFontWeight('bold')); });
+  if (String(fam.getRange(1, 7).getValue()) === '') timedWrite(() => fam.getRange(1, 7).setValue('獎勵 AI 次數').setFontWeight('bold'));
   ensure(SHEET_REPORT, ['回報ID', '時間', '題庫ID', '題目ID', '題目快照', '回報者代碼', '身分', '原因', '說明', '狀態', 'AI 判讀意見', '判讀時間', '獎勵']);
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('PEPPER')) props.setProperty('PEPPER', parentRandom());
   if (!props.getProperty('ADMIN_TOKEN')) props.setProperty('ADMIN_TOKEN', Utilities.getUuid().replace(/-/g, ''));
   ensure(SHEET_HANDOUT, ['講義ID', '邀請碼', '題庫ID', '標題', '觀念', '建立時間', '狀態', '驗算意見', '驗算時間', 'JSON 分段數', 'JSON1']);
   const badge = ensure(SHEET_BADGE, ['代碼', '身分', '更新時間', '徽章 JSON', '玩家ID']);
-  if (String(badge.getRange(1,5).getValue()) === '') badge.getRange(1,5).setValue('玩家ID');
+  if (String(badge.getRange(1,5).getValue()) === '') timedWrite(() => badge.getRange(1,5).setValue('玩家ID'));
   ensure('玩家', PLAYER_HEADER);
   ensure('徽章入帳', LEDGER_HEADER);
   ensure('獎勵', REWARD_HEADER);
   ensure('兌換', REDEEM_HEADER);
   ensure('兌換紀錄', REDEEM_LOG_HEADER);
   ensure(SHEET_USAGE, ['時間', '邀請碼', '家庭', '模型', '照片數', '輸入 token', '輸出 token', '估計美元']);
-  if (fam.getLastRow() === 1) fam.appendRow(['TEST-0000', '測試家庭', 10, true, '測試用，可刪除', false]);
+  if (fam.getLastRow() === 1) timedWrite(() => fam.appendRow(['TEST-0000', '測試家庭', 10, true, '測試用，可刪除', false]));
+  ensureKeepWarmTrigger();
 }
 
 /* ===== 家庭與次數 ===== */
 function findFamily(code) {
   code = String(code || '').trim();
   if (!code) return null;
-  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_FAMILY);
+  const sh = book().getSheetByName(SHEET_FAMILY);
   if (!sh) return null;
-  const rows = sh.getDataRange().getValues();
+  const rows = readAll(sh);
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
     if (String(r[0]).trim() === code && isTrue(r[3])) {
@@ -340,15 +402,15 @@ function logUsage(fam, model, nImages, usage) {
   const inT = Number(usage.input_tokens || 0), outT = Number(usage.output_tokens || 0);
   const p = PRICE[model] || [0, 0];
   const usd = (inT * p[0] + outT * p[1]) / 1e6;
-  SpreadsheetApp.getActive().getSheetByName(SHEET_USAGE)
-    .appendRow([new Date(), fam.code, fam.name, model, nImages, inT, outT, Math.round(usd * 10000) / 10000]);
+  timedWrite(() => book().getSheetByName(SHEET_USAGE)
+    .appendRow([new Date(), fam.code, fam.name, model, nImages, inT, outT, Math.round(usd * 10000) / 10000]));
 }
 
 /* ===== 題庫儲存 ===== */
-function bankSheet() { return SpreadsheetApp.getActive().getSheetByName(SHEET_BANK); }
+function bankSheet() { return book().getSheetByName(SHEET_BANK); }
 
 function listBanks(fam) {
-  const rows = bankSheet().getDataRange().getValues();
+  const rows = readAll(bankSheet());
   const banks = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
@@ -412,7 +474,7 @@ function putBank(fam, bank, noLock) {
   if (lock) lock.waitLock(20000);
   try {
     const sh = bankSheet();
-    const rows = sh.getDataRange().getValues();
+    const rows = readAll(sh);
     let rowIdx = -1, oldHash = '';
     for (let i = 1; i < rows.length; i++) {
       if (String(rows[i][0]) === fam.code && String(rows[i][1]) === String(bank.id)) { rowIdx = i + 1; oldHash = String(rows[i][5]); break; }
@@ -421,8 +483,8 @@ function putBank(fam, bank, noLock) {
     if (rowIdx < 0) rowIdx = sh.getLastRow() + 1;
     // 清掉舊的多餘分段
     const lastCol = sh.getLastColumn();
-    if (lastCol > values.length) sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent();
-    sh.getRange(rowIdx, 1, 1, values.length).setValues([values.map(v => typeof v === 'string' ? safeCell(v) : v)]);
+    if (lastCol > values.length) timedWrite(() => sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent());
+    timedWrite(() => sh.getRange(rowIdx, 1, 1, values.length).setValues([values.map(v => typeof v === 'string' ? safeCell(v) : v)]));
     // 題目有變才重寫「題目」工作表（只改作答紀錄時不重寫）
     if (oldHash !== qHash) writeQuestionRows(fam, bank, title);
     updatePublicMeta(fam, bank, title);
@@ -437,9 +499,9 @@ function deleteBank(fam, id) {
   lock.waitLock(20000);
   try {
     const sh = bankSheet();
-    const rows = sh.getDataRange().getValues();
+    const rows = readAll(sh);
     for (let i = rows.length - 1; i >= 1; i--) {
-      if (String(rows[i][0]) === fam.code && String(rows[i][1]) === id) sh.deleteRow(i + 1);
+      if (String(rows[i][0]) === fam.code && String(rows[i][1]) === id) timedWrite(() => sh.deleteRow(i + 1));
     }
     removeQuestionRows(fam, id);
     removePublicRow(fam, id);
@@ -451,7 +513,7 @@ function deleteBank(fam, id) {
 /* 「題目」工作表：每題一列，方便用試算表查看（以題庫 JSON 為準，這裡的修改不會回寫） */
 function writeQuestionRows(fam, bank, title) {
   removeQuestionRows(fam, String(bank.id));
-  const qsh = SpreadsheetApp.getActive().getSheetByName(SHEET_QUESTION);
+  const qsh = book().getSheetByName(SHEET_QUESTION);
   const con = {};
   (bank.concepts || []).forEach(c => { con[c.id] = c.text; });
   const LV = { 1: '基礎', 2: '標準', 3: '挑戰' };
@@ -467,28 +529,28 @@ function writeQuestionRows(fam, bank, title) {
     const rg = qsh.getRange(qsh.getLastRow() + 1, 1, rows.length, rows[0].length);
     // 題目、選項、答案以純文字顯示，避免「0123」「3125」被試算表轉成數字
     qsh.getRange(rg.getRow(), 6, rows.length, 3).setNumberFormat('@');
-    rg.setValues(rows);
+    timedWrite(() => rg.setValues(rows));
   }
 }
 function removeQuestionRows(fam, id) {
-  const qsh = SpreadsheetApp.getActive().getSheetByName(SHEET_QUESTION);
-  const data = qsh.getDataRange().getValues();
+  const qsh = book().getSheetByName(SHEET_QUESTION);
+  const data = readAll(qsh);
   const suffix = '｜' + id;
   const keep = data.filter((r, i) => i === 0 || !(String(r[0]) === fam.code && String(r[1]).slice(-suffix.length) === suffix));
   if (keep.length === data.length) return;
-  qsh.clearContents();
+  timedWrite(() => qsh.clearContents());
   const w = Math.max.apply(null, keep.map(r => r.length));
-  qsh.getRange(1, 1, keep.length, w).setValues(keep.map(r => r.concat(Array(w - r.length).fill(''))));
+  timedWrite(() => qsh.getRange(1, 1, keep.length, w).setValues(keep.map(r => r.concat(Array(w - r.length).fill('')))));
 }
 
 /* ===== 題庫書架（公開題庫） ===== */
-function publicSheet() { return SpreadsheetApp.getActive().getSheetByName(SHEET_PUBLIC); }
+function publicSheet() { return book().getSheetByName(SHEET_PUBLIC); }
 
 function libList() {
   const cache = CacheService.getScriptCache();
   const hit = cache.get('libList');
   if (hit) return JSON.parse(hit);
-  const rows = publicSheet().getDataRange().getValues();
+  const rows = readAll(publicSheet());
   const list = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
@@ -502,7 +564,7 @@ function libList() {
 function clearLibCache() { CacheService.getScriptCache().remove('libList'); }
 
 function libGet(id) {
-  const rows = publicSheet().getDataRange().getValues();
+  const rows = readAll(publicSheet());
   let owner = '';
   for (let i = 1; i < rows.length; i++) if (String(rows[i][0]) === id) { owner = String(rows[i][1]); break; }
   if (!owner) return null;
@@ -526,8 +588,8 @@ function setPublish(fam, id, published) {
     if (!bank) return { ok: false, code: 'not_found', message: '找不到題庫' };
     const title = String(bank.title || [bank.grade, bank.subject, bank.unit].filter(Boolean).join(' ') || '未命名');
     removePublicRow(fam, id);
-    publicSheet().appendRow([id, fam.code, title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
-      bank.unit || '', (bank.questions || []).length, new Date(), fam.name].map(v => typeof v === 'string' ? safeCell(v) : v));
+    timedWrite(() => publicSheet().appendRow([id, fam.code, title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
+      bank.unit || '', (bank.questions || []).length, new Date(), fam.name].map(v => typeof v === 'string' ? safeCell(v) : v)));
     clearLibCache();
     return { ok: true };
   } finally {
@@ -536,11 +598,11 @@ function setPublish(fam, id, published) {
 }
 function updatePublicMeta(fam, bank, title) {
   const sh = publicSheet();
-  const rows = sh.getDataRange().getValues();
+  const rows = readAll(sh);
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(bank.id) && String(rows[i][1]) === fam.code) {
-      sh.getRange(i + 1, 3, 1, 7).setValues([[title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
-        bank.unit || '', (bank.questions || []).length].map(v => typeof v === 'string' ? safeCell(v) : v)]);
+      timedWrite(() => sh.getRange(i + 1, 3, 1, 7).setValues([[title, bank.grade || '', bank.term || '', bank.subject || '', bank.publisher || '',
+        bank.unit || '', (bank.questions || []).length].map(v => typeof v === 'string' ? safeCell(v) : v)]));
       clearLibCache();
       return;
     }
@@ -548,20 +610,20 @@ function updatePublicMeta(fam, bank, title) {
 }
 function removePublicRow(fam, id) {
   const sh = publicSheet();
-  const rows = sh.getDataRange().getValues();
+  const rows = readAll(sh);
   for (let i = rows.length - 1; i >= 1; i--) {
-    if (String(rows[i][0]) === id && String(rows[i][1]) === fam.code) sh.deleteRow(i + 1);
+    if (String(rows[i][0]) === id && String(rows[i][1]) === fam.code) timedWrite(() => sh.deleteRow(i + 1));
   }
   clearLibCache();
 }
 
 /* ===== 親友閱讀碼 ===== */
-function readerSheet() { return SpreadsheetApp.getActive().getSheetByName(SHEET_READER); }
+function readerSheet() { return book().getSheetByName(SHEET_READER); }
 
 function findReader(code) {
   code = String(code || '').trim().toUpperCase();
   if (!code) return null;
-  const rows = readerSheet().getDataRange().getValues();
+  const rows = readAll(readerSheet());
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]).toUpperCase() === code && isTrue(rows[i][4])) {
       // 建立閱讀碼的家庭被停用時，閱讀碼也一併失效
@@ -574,10 +636,10 @@ function findReader(code) {
 function touchReader(reader) {
   const sh = readerSheet();
   const n = Number(sh.getRange(reader.row, 8).getValue()) || 0;
-  sh.getRange(reader.row, 7, 1, 2).setValues([[new Date(), n + 1]]);
+  timedWrite(() => sh.getRange(reader.row, 7, 1, 2).setValues([[new Date(), n + 1]]));
 }
 function readerList(fam) {
-  const rows = readerSheet().getDataRange().getValues();
+  const rows = readAll(readerSheet());
   const fmt = d => d instanceof Date ? Utilities.formatDate(d, TIMEZONE, 'yyyy/MM/dd HH:mm') : String(d || '');
   const list = [];
   for (let i = 1; i < rows.length; i++) {
@@ -600,21 +662,21 @@ function readerCreate(fam, note) {
       code = 'R-';
       for (let i = 0; i < 6; i++) code += ABC[Math.floor(Math.random() * ABC.length)];
     } while (findReaderAny(code));
-    readerSheet().appendRow([code, fam.code, fam.name, new Date(), true, note.slice(0, 40), '', 0]);
+    timedWrite(() => readerSheet().appendRow([code, fam.code, fam.name, new Date(), true, note.slice(0, 40), '', 0]));
     return { ok: true, reader: code };
   } finally {
     lock.releaseLock();
   }
 }
 function findReaderAny(code) {
-  return readerSheet().getDataRange().getValues().some((r, i) => i > 0 && String(r[0]) === code);
+  return readAll(readerSheet()).some((r, i) => i > 0 && String(r[0]) === code);
 }
 function readerDisable(fam, code) {
   const sh = readerSheet();
-  const rows = sh.getDataRange().getValues();
+  const rows = readAll(sh);
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === code && String(rows[i][1]) === fam.code) {
-      sh.getRange(i + 1, 5).setValue(false);
+      timedWrite(() => sh.getRange(i + 1, 5).setValue(false));
       return { ok: true };
     }
   }
@@ -622,9 +684,9 @@ function readerDisable(fam, code) {
 }
 
 /* ===== 獎勵次數 ===== */
-function familySheet() { return SpreadsheetApp.getActive().getSheetByName(SHEET_FAMILY); }
+function familySheet() { return book().getSheetByName(SHEET_FAMILY); }
 function currentBonus(fam) { return Number(familySheet().getRange(fam.row, 7).getValue()) || 0; }
-function setBonus(fam, n) { familySheet().getRange(fam.row, 7).setValue(Math.max(0, n)); }
+function setBonus(fam, n) { timedWrite(() => familySheet().getRange(fam.row, 7).setValue(Math.max(0, n))); }
 
 /* ===== 判讀結果合併 ===== */
 function qSig(q) { return JSON.stringify([q.t, q.q, q.o || [], q.a, q.why || '', q.tpl || null]); }   // 換數字題改了題型也算修改
@@ -651,7 +713,7 @@ function mergeChecks(old, bank) {
 }
 
 /* ===== 回報 ===== */
-function reportSheet() { return SpreadsheetApp.getActive().getSheetByName(SHEET_REPORT); }
+function reportSheet() { return book().getSheetByName(SHEET_REPORT); }
 const OPEN_STATUS = { '待複審': 1, '成立': 1 };
 
 function flagsFor(ids) {
@@ -659,7 +721,7 @@ function flagsFor(ids) {
   ids.forEach(id => { want[id] = {}; });
   const sh = reportSheet();
   if (sh) {
-    const rows = sh.getDataRange().getValues();
+    const rows = readAll(sh);
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i], b = String(r[2]), st = String(r[9]);
       if (!want[b] || !OPEN_STATUS[st]) continue;
@@ -678,7 +740,7 @@ function reportQuestion(who, req) {
   lock.waitLock(10000);
   try {
     const sh = reportSheet();
-    const rows = sh.getDataRange().getValues();
+    const rows = readAll(sh);
     const today = Utilities.formatDate(new Date(), TIMEZONE, 'yyyyMMdd');
     let todayCount = 0;
     for (let i = 1; i < rows.length; i++) {
@@ -695,8 +757,8 @@ function reportQuestion(who, req) {
       if (!q) return { ok: false, code: 'not_found', message: '找不到這題' };
       snap = JSON.stringify({ q: q.q.q, o: q.q.o, a: q.q.a, why: q.q.why });
     }
-    sh.appendRow(['R' + Date.now().toString(36) + Math.floor(Math.random() * 1e4), new Date(), bankId, qId, snap, who.code, who.role,
-      reason, String(req.note || '').slice(0, 200), '待複審', '', '', '']);
+    timedWrite(() => sh.appendRow(['R' + Date.now().toString(36) + Math.floor(Math.random() * 1e4), new Date(), bankId, qId, snap, who.code, who.role,
+      reason, String(req.note || '').slice(0, 200), '待複審', '', '', '']));
     return { ok: true };
   } finally {
     lock.releaseLock();
@@ -709,17 +771,17 @@ function closeReports(bankId, qIds) {
   if (!sh) return;
   const set = {};
   qIds.forEach(id => { set[id] = 1; });
-  const rows = sh.getDataRange().getValues();
+  const rows = readAll(sh);
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][2]) === bankId && set[String(rows[i][3])] && OPEN_STATUS[String(rows[i][9])]) {
-      sh.getRange(i + 1, 10).setValue(String(rows[i][9]) === '成立' ? '已修正' : '題目已修改');
+      timedWrite(() => sh.getRange(i + 1, 10).setValue(String(rows[i][9]) === '成立' ? '已修正' : '題目已修改'));
     }
   }
 }
 
 // 在所有家庭的題庫中找題目
 function findQuestion(bankId, qId) {
-  const rows = bankSheet().getDataRange().getValues();
+  const rows = readAll(bankSheet());
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][1]) !== bankId) continue;
     const n = Number(rows[i][6]) || 1;
@@ -734,7 +796,7 @@ function findQuestion(bankId, qId) {
 
 /* ===== 重點講義 =====
    一份講義一列；內容 JSON 分段放在 K 欄之後。狀態：待驗算 → 已驗算／已修正（由定期掃題寫回） */
-function handoutSheet() { return SpreadsheetApp.getActive().getSheetByName(SHEET_HANDOUT); }
+function handoutSheet() { return book().getSheetByName(SHEET_HANDOUT); }
 function hoMeta(r, i) {
   return { row: i + 1, id: String(r[0]), owner: String(r[1]), bankId: String(r[2]), title: String(r[3]), concepts: String(r[4]),
     createdAt: r[5] instanceof Date ? r[5].getTime() : Number(r[5]) || 0, status: String(r[6] || '待驗算'), note: String(r[7] || ''),
@@ -743,7 +805,7 @@ function hoMeta(r, i) {
 function hoRows() {
   const sh = handoutSheet();
   if (!sh) return [];
-  const rows = sh.getDataRange().getValues();
+  const rows = readAll(sh);
   const list = [];
   for (let i = 1; i < rows.length; i++) if (rows[i][0]) list.push({ meta: hoMeta(rows[i], i), raw: rows[i] });
   return list;
@@ -776,8 +838,8 @@ function hoWrite(rowIdx, meta, h) {
   const values = [meta.id, meta.owner, meta.bankId, meta.title, meta.concepts, meta.createdAt ? new Date(meta.createdAt) : new Date(),
     meta.status, meta.note || '', meta.verifiedAt ? new Date(meta.verifiedAt) : '', parts.length].concat(parts);
   const lastCol = sh.getLastColumn();
-  if (lastCol > values.length) sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent();
-  sh.getRange(rowIdx, 1, 1, values.length).setValues([values]);
+  if (lastCol > values.length) timedWrite(() => sh.getRange(rowIdx, values.length + 1, 1, lastCol - values.length).clearContent());
+  timedWrite(() => sh.getRange(rowIdx, 1, 1, values.length).setValues([values]));
   return { ok: true };
 }
 function handoutSave(fam, h) {
@@ -802,14 +864,14 @@ function handoutDelete(fam, id) {
   lock.waitLock(20000);
   try {
     const x = hoRows().filter(r => r.meta.id === id && r.meta.owner === fam.code)[0];
-    if (x) handoutSheet().deleteRow(x.meta.row);
+    if (x) timedWrite(() => handoutSheet().deleteRow(x.meta.row));
     return { ok: true };
   } finally {
     lock.releaseLock();
   }
 }
 function publicOwner(bankId) {
-  const rows = publicSheet().getDataRange().getValues();
+  const rows = readAll(publicSheet());
   for (let i = 1; i < rows.length; i++) if (String(rows[i][0]) === bankId) return String(rows[i][1]);
   return '';
 }
@@ -827,7 +889,7 @@ function libHandoutGet(id) {
 
 /* ===== 定期掃題（由排程工作呼叫） ===== */
 function allBanks() {
-  const rows = bankSheet().getDataRange().getValues();
+  const rows = readAll(bankSheet());
   const list = [];
   for (let i = 1; i < rows.length; i++) {
     const n = Number(rows[i][6]) || 1;
@@ -847,7 +909,7 @@ function adminPending(limit) {
     ...(q.tpl ? { tpl: q.tpl } : {}),
     ...(q.p ? { passage: ((x.bank.passages || []).filter(p => p.id === q.p)[0] || {}) } : {}) });   // 閱讀測驗：附上文章   // 換數字題：q / o / a 只是一組範例，排程要檢查模板
   const reports = [];
-  const rows = reportSheet().getDataRange().getValues();
+  const rows = readAll(reportSheet());
   for (let i = 1; i < rows.length && reports.length < limit; i++) {
     const r = rows[i];
     if (String(r[9]) !== '待複審') continue;
@@ -916,7 +978,7 @@ function adminVerdict(req) {
     });
 
     const sh = reportSheet();
-    const rows = sh.getDataRange().getValues();
+    const rows = readAll(sh);
     const rewarded = {};
     rows.forEach((r, i) => { if (i && String(r[12]).indexOf('+') === 0) rewarded[String(r[2]) + '|' + String(r[3])] = 1; });
     reps.forEach(v => {
@@ -936,7 +998,7 @@ function adminVerdict(req) {
           }
           setCheck(String(r[2]), String(r[3]), 'issue', v.note, v.fix);
         }
-        sh.getRange(i + 1, 10, 1, 4).setValues([[ok ? '成立' : '不成立', String(v.note || '').slice(0, 300), new Date(), reward]]);
+        timedWrite(() => sh.getRange(i + 1, 10, 1, 4).setValues([[ok ? '成立' : '不成立', String(v.note || '').slice(0, 300), new Date(), reward]]));
         result.reportsDone++;
       }
     });
@@ -964,11 +1026,11 @@ function adminVerdict(req) {
 
 /* ===== 徽章同步 ===== */
 function badgeSheet() {
-  const ss = SpreadsheetApp.getActive();
+  const ss = book();
   let sh = ss.getSheetByName(SHEET_BADGE);
   if (!sh) {   // 沒重新跑 setup 也能用
     sh = ss.insertSheet(SHEET_BADGE);
-    sh.appendRow(['代碼', '身分', '更新時間', '徽章 JSON']);
+    timedWrite(() => sh.appendRow(['代碼', '身分', '更新時間', '徽章 JSON']));
     sh.setFrozenRows(1);
   }
   return sh;
@@ -994,7 +1056,7 @@ function badgeSync(code, role, incoming, pid) {
     pid = pid || 'p1';
     const inc = incoming && typeof incoming === 'object' ? incoming : {};
     if (role === '家庭') { const err = checkPlayer(code, pid); if (err) return err; }
-    const sh = badgeSheet(), rows = sh.getDataRange().getValues();
+    const sh = badgeSheet(), rows = sheetRows(SHEET_BADGE);
     let row = 0, stored = {};
     for (let i=1; i<rows.length; i++) {
       if (String(rows[i][0]) === code && (role !== '家庭' || String(rows[i][4] || 'p1') === pid)) {
@@ -1013,7 +1075,7 @@ function badgeSync(code, role, incoming, pid) {
     if (json !== JSON.stringify(stored)) {
       const values = [safeCell(code),safeCell(role),new Date(),safeCell(json)];
       if (role === '家庭') values.push(safeCell(pid));
-      if (row) sh.getRange(row,1,1,values.length).setValues([values]); else sh.appendRow(values);
+      if (row) timedWrite(() => sh.getRange(row,1,1,values.length).setValues([values])); else timedWrite(() => sh.appendRow(values));
     }
     return {ok:true, badges:merged};
   });
@@ -1094,13 +1156,13 @@ function cancelPendingFor(code, pid) {
 }
 function purgeRedeemsFor(code, pid) {
   const rows = readRedeems(code).filter(r => r.playerId === pid), ids = new Set(rows.map(r => r.id));
-  const logs = SpreadsheetApp.getActive().getSheetByName('兌換紀錄');
+  const logs = book().getSheetByName('兌換紀錄');
   if (logs) {
-    const data = logs.getDataRange().getValues();
-    for (let i=data.length-1; i>0; i--) if (ids.has(String(data[i][1]))) logs.deleteRow(i+1);
+    const data = readAll(logs);
+    for (let i=data.length-1; i>0; i--) if (ids.has(String(data[i][1]))) timedWrite(() => logs.deleteRow(i+1));
   }
-  const sh = SpreadsheetApp.getActive().getSheetByName('兌換');
-  rows.reverse().forEach(r => sh.deleteRow(r.row));
+  const sh = book().getSheetByName('兌換');
+  rows.reverse().forEach(r => timedWrite(() => sh.deleteRow(r.row)));
 }
 function managePlayer(fam, req) {
   return withLock(() => {
@@ -1108,8 +1170,8 @@ function managePlayer(fam, req) {
     if (err) return err;
     const pid = req.playerId;
     if (typeof pid !== 'string' || !/^p[a-z0-9]{1,12}$/.test(pid) || (pid === 'p1' && req.action !== 'playerRestore')) return {ok:false, code:'bad_request'};
-    const sh = SpreadsheetApp.getActive().getSheetByName('玩家');
-    const rows = sh ? sh.getDataRange().getValues() : [];
+    const sh = book().getSheetByName('玩家');
+    const rows = sheetRows('玩家') || [];
     const row = rows.findIndex((r,i) => i > 0 && String(r[0]) === fam.code && String(r[1]) === pid);
     if (row < 1) return {ok:false, code:'bad_player'};
     if (req.action === 'playerPurge') {
@@ -1121,20 +1183,20 @@ function managePlayer(fam, req) {
         }
       });
       const remove = (name, matches) => {
-        const sheet = SpreadsheetApp.getActive().getSheetByName(name);
+        const sheet = book().getSheetByName(name);
         if (!sheet) return;
-        const data = sheet.getDataRange().getValues();
-        for (let i=data.length-1; i>0; i--) if (String(data[i][0]) === fam.code && matches(data[i])) sheet.deleteRow(i+1);
+        const data = sheetRows(name);
+        for (let i=data.length-1; i>0; i--) if (String(data[i][0]) === fam.code && matches(data[i])) timedWrite(() => sheet.deleteRow(i+1));
       };
       remove('徽章', r => String(r[1]) === '家庭' && String(r[4] || 'p1') === pid);
       remove('徽章入帳', r => String(r[1]) === pid);
       purgeRedeemsFor(fam.code, pid);
       PropertiesService.getScriptProperties().deleteProperty('ledgerinit:' + fam.code + ':' + pid);
-      sh.deleteRow(row+1);
+      timedWrite(() => sh.deleteRow(row+1));
     } else {
       const disabled = req.action === 'playerDisable';
-      sh.getRange(row+1,6).setValue(safeCell(disabled ? '停用' : '啟用'));
-      sh.getRange(row+1,8,1,2).setValues([[new Date(),disabled ? new Date() : '']]);
+      timedWrite(() => sh.getRange(row+1,6).setValue(safeCell(disabled ? '停用' : '啟用')));
+      timedWrite(() => sh.getRange(row+1,8,1,2).setValues([[new Date(),disabled ? new Date() : '']]));
       if (disabled) cancelPendingFor(fam.code, pid);
     }
     return {ok:true};
@@ -1143,18 +1205,20 @@ function managePlayer(fam, req) {
 function safeCell(s) { s = String(s == null ? '' : s); return s === '' ? '' : "'" + s; }
 function withLock(fn) {
   const lock = LockService.getScriptLock();
-  try { lock.waitLock(10000); } catch(e) { return {ok:false, code:'busy', message:'系統忙碌，請再試一次'}; }
-  const memo = READ_MEMO; READ_MEMO = null;
+  try { timed('lock', () => lock.waitLock(10000)); } catch(e) { return {ok:false, code:'busy', message:'系統忙碌，請再試一次'}; }
+  const memo = READ_MEMO, lockReads = LOCK_READS; READ_MEMO = null; LOCK_READS = {};
   try {
-    try { return fn(); } finally { try { SpreadsheetApp.flush(); } finally { lock.releaseLock(); } }
-  } finally { READ_MEMO = memo; }
+    try { return fn(); } finally { try { timedWrite(() => SpreadsheetApp.flush()); } finally { lock.releaseLock(); } }
+  } finally { READ_MEMO = memo; LOCK_READS = lockReads; }
 }
 let READ_MEMO = null;
+let LOCK_READS = null;
 function sheetRows(name) {
-  if (READ_MEMO !== null && Object.prototype.hasOwnProperty.call(READ_MEMO,name)) return READ_MEMO[name];
-  const sh = SpreadsheetApp.getActive().getSheetByName(name);
-  const rows = sh ? sh.getDataRange().getValues() : null;
-  if (READ_MEMO !== null) READ_MEMO[name] = rows;
+  const memo = READ_MEMO !== null ? READ_MEMO : LOCK_READS;
+  if (memo !== null && Object.prototype.hasOwnProperty.call(memo,name)) return memo[name];
+  const sh = book().getSheetByName(name);
+  const rows = sh ? readAll(sh) : null;
+  if (memo !== null) memo[name] = rows;
   return rows;
 }
 function readOnlyRun(needsWrite, fn) {
@@ -1168,9 +1232,9 @@ function ledgerUninitialized(code, pid) {
   return !PropertiesService.getScriptProperties().getProperty('ledgerinit:' + code + ':' + pid);
 }
 function rewardSheet(name, header) {
-  const ss = SpreadsheetApp.getActive();
+  const ss = book();
   let sh = ss.getSheetByName(name);
-  if (!sh) { sh = ss.insertSheet(name); sh.appendRow(header); sh.setFrozenRows(1); }
+  if (!sh) { sh = ss.insertSheet(name); timedWrite(() => sh.appendRow(header)); sh.setFrozenRows(1); }
   return sh;
 }
 function readPlayers(code) {
@@ -1179,7 +1243,10 @@ function readPlayers(code) {
   return rows.slice(1).filter(r => String(r[0]) === code).map(r => ({id:String(r[1]),name:String(r[2]),icon:String(r[3]),order:Number(r[4])||0,status:String(r[5])}));
 }
 function ensureP1(code) {
-  if (!readPlayers(code).some(p => p.id === 'p1')) rewardSheet('玩家',PLAYER_HEADER).appendRow([safeCell(code),safeCell('p1'),safeCell('玩家 1'),safeCell('🌱'),0,safeCell('啟用'),new Date(),new Date(),'']);
+  if (!readPlayers(code).some(p => p.id === 'p1')) {
+    const sh = rewardSheet('玩家',PLAYER_HEADER);
+    timedWrite(() => sh.appendRow([safeCell(code),safeCell('p1'),safeCell('玩家 1'),safeCell('🌱'),0,safeCell('啟用'),new Date(),new Date(),'']));
+  }
 }
 function checkPlayer(code, pid) {
   pid = pid || 'p1';
@@ -1195,18 +1262,18 @@ function playerSave(code, req) {
   if (!name || Array.from(name).length > 12 || PLAYER_ICONS.indexOf(icon) < 0 || (req.playerId && !/^p[a-z0-9]{1,12}$/.test(String(req.playerId)))) return {ok:false, code:'bad_request'};
   return withLock(() => {
     ensureP1(code);
-    const sh = rewardSheet('玩家',PLAYER_HEADER), rows = sh.getDataRange().getValues();
+    const sh = rewardSheet('玩家',PLAYER_HEADER), rows = sheetRows('玩家');
     let pid = req.playerId, row = 0;
     if (pid) {
       row = rows.findIndex((r,i) => i > 0 && String(r[0]) === code && String(r[1]) === pid) + 1;
       if (!row) return {ok:false, code:'bad_player'};
-      sh.getRange(row,3,1,2).setValues([[safeCell(name),safeCell(icon)]]);
-      sh.getRange(row,8).setValue(new Date());
+      timedWrite(() => sh.getRange(row,3,1,2).setValues([[safeCell(name),safeCell(icon)]]));
+      timedWrite(() => sh.getRange(row,8).setValue(new Date()));
     } else {
       const players = readPlayers(code);
       if (players.length >= MAX_PLAYERS) return {ok:false, code:'player_limit'};
       do { pid = 'p' + Utilities.getUuid().replace(/-/g,'').slice(0,8).toLowerCase(); } while (rows.some(r => String(r[1]) === pid));
-      sh.appendRow([safeCell(code),safeCell(pid),safeCell(name),safeCell(icon),Math.max(...players.map(p => p.order))+1,safeCell('啟用'),new Date(),new Date(),'']);
+      timedWrite(() => sh.appendRow([safeCell(code),safeCell(pid),safeCell(name),safeCell(icon),Math.max(...players.map(p => p.order))+1,safeCell('啟用'),new Date(),new Date(),'']));
     }
     return {ok:true, player:readPlayers(code).find(p => p.id === pid)};
   });
@@ -1214,11 +1281,14 @@ function playerSave(code, req) {
 // Writes only under withLock, before either cloud snapshot is overwritten.
 // 只讀模式絕不寫入;補入帳只在鎖內(READ_MEMO 為 null)進行。
 function syncLedger(code, pid, incoming) {
+  return timed('sync', () => syncLedgerBody(code, pid, incoming));
+}
+function syncLedgerBody(code, pid, incoming) {
   if (READ_MEMO !== null) return;
   const props = PropertiesService.getScriptProperties(), initKey = 'ledgerinit:' + code + ':' + pid;
   const initial = !props.getProperty(initKey);
   if (!initial && Object.keys(incoming || {}).length === 0) return;
-  const sh = rewardSheet('徽章入帳',LEDGER_HEADER), rows = sh.getDataRange().getValues().slice(1);
+  const sh = rewardSheet('徽章入帳',LEDGER_HEADER), rows = sheetRows('徽章入帳').slice(1);
   const now = new Date();
   const day = d => Utilities.formatDate(new Date(d),TIMEZONE,'yyyy-MM-dd');
   const seen = new Set(rows.filter(r => String(r[0]) === code && String(r[1]) === pid).map(r => JSON.stringify([String(r[2]),Number(r[3])])));
@@ -1234,12 +1304,13 @@ function syncLedger(code, pid, incoming) {
       seen.add(unique);
       const anomaly = at > now.getTime()+300000 ? '時間異常' : source === '同步' && count >= DAILY_BADGE_CAP ? '超過每日上限' : '';
       if (!anomaly && source === '同步') count++;
-      sh.appendRow([safeCell(code),safeCell(pid),safeCell(key),at,safeCell(e.dark ? '金' : '銀'),now,safeCell(anomaly),1,safeCell(source)]);
+      timedWrite(() => sh.appendRow([safeCell(code),safeCell(pid),safeCell(key),at,safeCell(e.dark ? '金' : '銀'),now,safeCell(anomaly),1,safeCell(source)]));
     });
   };
   if (initial) {
     listBanks({code}).forEach(b => add(String(b.id),pid === 'p1' ? b.badge : (b.players || {})[pid] && b.players[pid].badge,'補入'));
-    badgeSheet().getDataRange().getValues().slice(1).filter(r => String(r[0]) === code && String(r[4] || 'p1') === pid).forEach(r => {
+    badgeSheet();
+    sheetRows(SHEET_BADGE).slice(1).filter(r => String(r[0]) === code && String(r[4] || 'p1') === pid).forEach(r => {
       let badges = {}; try { badges = JSON.parse(String(r[3] || '{}')) || {}; } catch(e) {}
       Object.keys(badges).forEach(k => add(k,badges[k],'補入'));
     });
@@ -1285,9 +1356,9 @@ function readRedeems(code) {
 }
 // requestId globally unique; callers must not expose foreign records.
 function findRedeemRequest(requestId) {
-  const sh = SpreadsheetApp.getActive().getSheetByName('兌換');
-  if (!sh) return null;
-  const r = sh.getDataRange().getValues().slice(1).find(r => String(r[1]) === requestId);
+  const rows = sheetRows('兌換');
+  if (!rows) return null;
+  const r = rows.slice(1).find(r => String(r[1]) === requestId);
   return r ? {family:String(r[2]),playerId:String(r[3]),id:String(r[0])} : null;
 }
 function publicReward(r) { const {row,family,...value} = r; return value; }
@@ -1310,10 +1381,12 @@ function rewardOffer(reward, bal, used) {
   return {weekUsed:used,weekLeft:reward.weeklyLimit ? Math.max(0,reward.weeklyLimit-used) : null,canRedeem:!code,reason,pay:{silver:paySilver,gold:reward.gold+(reward.goldForSilver ? gap : 0)},code};
 }
 function appendRedeemLog(id, oldStatus, status, actor) {
-  rewardSheet('兌換紀錄',REDEEM_LOG_HEADER).appendRow([new Date(),safeCell(id),safeCell(oldStatus),safeCell(status),safeCell(actor)]);
+  const sh = rewardSheet('兌換紀錄',REDEEM_LOG_HEADER);
+  timedWrite(() => sh.appendRow([new Date(),safeCell(id),safeCell(oldStatus),safeCell(status),safeCell(actor)]));
 }
 function changeRedeem(r, status, reason, actor) {
-  rewardSheet('兌換',REDEEM_HEADER).getRange(r.row,13,1,5).setValues([[safeCell(status),safeCell(reason),r.requestedAt,new Date(),r.version+1]]);
+  const sh = rewardSheet('兌換',REDEEM_HEADER);
+  timedWrite(() => sh.getRange(r.row,13,1,5).setValues([[safeCell(status),safeCell(reason),r.requestedAt,new Date(),r.version+1]]));
   appendRedeemLog(r.id,r.status,status,actor);
 }
 function rewardAction(fam, req) {
@@ -1329,7 +1402,7 @@ function rewardAction(fam, req) {
       if (r.id !== undefined && !old) return {ok:false,code:'not_found'};
       const id = old ? old.id : 'w'+Utilities.getUuid().replace(/-/g,'').slice(0,12);
       const values = [safeCell(id),safeCell(code),safeCell(name),r.silver,r.gold,r.goldForSilver === undefined ? true : isTrue(r.goldForSilver),r.weeklyLimit,r.enabled === undefined ? true : isTrue(r.enabled),new Date()];
-      if (old) sh.getRange(old.row,1,1,values.length).setValues([values]); else sh.appendRow(values);
+      if (old) timedWrite(() => sh.getRange(old.row,1,1,values.length).setValues([values])); else timedWrite(() => sh.appendRow(values));
       return {ok:true,reward:publicReward(readRewards(code).find(w => w.id === id))};
     }
     if (action === 'parentLog') {
@@ -1403,7 +1476,8 @@ function rewardAction(fam, req) {
     const offer = rewardOffer(reward,bal,weekUsed(code,pid,reward.id));
     if (!offer.canRedeem) return {ok:false,code:offer.code,reason:offer.reason};
     const id = 'r'+Utilities.getUuid().replace(/-/g,'').slice(0,12), now = new Date();
-    rewardSheet('兌換',REDEEM_HEADER).appendRow([safeCell(id),safeCell(req.requestId),safeCell(code),safeCell(pid),safeCell(reward.id),safeCell(reward.name),reward.silver,reward.gold,reward.goldForSilver,offer.pay.silver,offer.pay.gold,safeCell(weekKey(now.getTime())),safeCell('待核准'),'',now,'',1]);
+    const sh = rewardSheet('兌換',REDEEM_HEADER);
+    timedWrite(() => sh.appendRow([safeCell(id),safeCell(req.requestId),safeCell(code),safeCell(pid),safeCell(reward.id),safeCell(reward.name),reward.silver,reward.gold,reward.goldForSilver,offer.pay.silver,offer.pay.gold,safeCell(weekKey(now.getTime())),safeCell('待核准'),'',now,'',1]));
     appendRedeemLog(id,'','待核准','child');
     return {ok:true,redeem:publicRedeem(readRedeems(code).find(r => r.id === id)),balance:playerBalance(code,pid)};
   }

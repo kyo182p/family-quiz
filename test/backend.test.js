@@ -7,6 +7,144 @@ const { join } = require('node:path');
 const { createGasEnv } = require('./fake-gas');
 
 const code = 'TEST-0000';
+
+test('T024 lock memo differential: fixed two-player lifecycle matches uncached source after every action', () => {
+  const source = readFileSync(join(__dirname,'..','Code.gs'),'utf8');
+  assert.ok(source.includes('LOCK_READS = {}'));
+  const uncached = source.replaceAll('LOCK_READS = {}','LOCK_READS = null');
+  assert.notEqual(source,uncached);
+  function trace(text) {
+    const env = setup({source:text}); seedP2(env);
+    const session = parentSession(env), aliases = new Map(), results = [];
+    function normalize(value) {
+      if (typeof value === 'string') return aliases.get(value) || value;
+      if (Array.isArray(value)) return value.map(normalize);
+      if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([k]) => k !== 'timing').map(([k,v]) => [k,normalize(v)]));
+      return value;
+    }
+    function step(action,extra={}) {
+      const result = env.doPost({code,action,...extra});
+      if (result.reward) aliases.set(result.reward.id,'reward-'+aliases.size);
+      if (result.redeem && !aliases.has(result.redeem.id)) aliases.set(result.redeem.id,'redeem-'+aliases.size);
+      results.push(normalize(result)); return result;
+    }
+    for (const playerId of ['p1','p2']) step('badges',{playerId,badges:{fixture:{earned:Array.from({length:10},(_,i)=>({at:env.clock.now()-i,dark:i>=4}))}}});
+    const rewards = [
+      {silver:1,gold:0,weeklyLimit:1},
+      {silver:6,gold:0,goldForSilver:true},
+      {silver:99,gold:99},
+    ].map(changes => step('rewardSave',{session,reward:{name:'差異獎勵',silver:1,gold:0,goldForSilver:true,weeklyLimit:0,enabled:true,...changes}}).reward);
+    const request = (n,pid,key) => step('redeemRequest',{playerId:pid,rewardId:rewards[n].id,requestId:key});
+    const first = request(0,'p1','diff-first-01'); assert.equal(first.ok,true);
+    assert.equal(request(0,'p1','diff-quota-01').code,'quota');
+    assert.equal(request(2,'p1','diff-poor-001').code,'insufficient');
+    step('redeemCancel',{id:first.redeem.id});
+    const second = request(1,'p1','diff-second-01'); assert.equal(second.ok,true);
+    step('redeemDecide',{session,id:second.redeem.id,decision:'approve'});
+    const third = request(0,'p2','diff-third-01'); assert.equal(third.ok,true);
+    step('redeemDecide',{session,id:third.redeem.id,decision:'reject',reason:'稍後再換'});
+    request(1,'p2','diff-fourth-01');
+    step('playerDisable',{session,playerId:'p2'});
+    assert.equal(request(0,'p2','diff-disabled-01').code,'player_disabled');
+    step('playerRestore',{session,playerId:'p2'});
+    assert.equal(request(1,'p1','diff-second-01').duplicate,true);
+    for (const playerId of ['p1','p2']) step('balance',{playerId});
+    return results;
+  }
+  assert.deepEqual(trace(source),trace(uncached));
+});
+
+test('T024 write responses reread redemption and balance after request, cancel, approve and reject', () => {
+  const env = setup(), session = parentSession(env); fund(env);
+  const reward = saveReward(env,session);
+  for (const outcome of ['cancel','approve','reject']) {
+    const request = requestReward(env,reward.id);
+    assert.deepEqual(request.balance,balance(env));
+    assert.deepEqual(request.redeem,post(env,'myRedeems').redeems.find(r=>r.id===request.redeem.id));
+    const result = outcome === 'cancel' ? post(env,'redeemCancel',{id:request.redeem.id}) : decide(env,session,request.redeem.id,outcome);
+    assert.deepEqual(result.balance,balance(env));
+    assert.deepEqual(result.redeem,post(env,'myRedeems').redeems.find(r=>r.id===request.redeem.id));
+  }
+});
+
+test('T024 cache hit opens no sheets; session, player, withRedeems and TTL isolate entries', () => {
+  const env = setup(); seedP2(env); fund(env); fund(env,'p2');
+  const session = parentSession(env); saveReward(env,session);
+  const read = extra => env.doPost({code,action:'rewardList',...extra});
+  assert.equal(read().timing.cache,0);
+  env.stats.reset();
+  const hit = read(); assert.equal(hit.timing.cache,1);
+  assert.equal(env.stats.opens,0); assert.deepEqual(env.stats.reads,{}); assert.equal(hit.timing.reads,0);
+  assert.equal(read({playerId:'p2'}).timing.cache,0);
+  assert.equal(read({withRedeems:true}).timing.cache,0);
+  for (const credential of [session,null,'']) {
+    assert.equal(read({session:credential}).timing.cache,0);
+    assert.equal(read({session:credential}).timing.cache,0);
+  }
+  env.cache.remove('rg:'+code);
+  assert.equal(read({session}).timing.cache,0);
+  assert.equal(env.cache.get('rg:'+code),null);
+  assert.equal(read().timing.cache,0);
+  env.clock.advance(61000); assert.equal(read().timing.cache,0);
+  for (const action of ['rewardList','myRedeems']) {
+    assert.equal(env.doPost({code,action,playerId:'!'}).timing.cache,0);
+  }
+});
+
+test('T024 every reward mutation invalidates both child caches, including failed writes and parent decisions', () => {
+  const env = setup(); seedP2(env); const session = parentSession(env); fund(env); fund(env,'p2');
+  const reward = saveReward(env,session);
+  function warm(playerId='p1') {
+    for (const action of ['rewardList','myRedeems']) {
+      env.doPost({code,action,playerId});
+      assert.equal(env.doPost({code,action,playerId}).timing.cache,1);
+    }
+  }
+  function fresh(playerId='p1') {
+    const list = env.doPost({code,action:'rewardList',playerId,withRedeems:false});
+    const mine = env.doPost({code,action:'myRedeems',playerId});
+    assert.equal(list.timing.cache,0); assert.equal(mine.timing.cache,0);
+    const direct = balance(env,playerId);
+    if (direct.ok) assert.deepEqual(list.balance,direct);
+    else assert.equal(direct.code,'player_disabled');
+    return {list,mine};
+  }
+  warm(); const a = requestReward(env,reward.id); let data = fresh();
+  assert.equal(data.list.balance.silver.held,1); assert.equal(data.mine.redeems[0].id,a.redeem.id);
+  warm(); post(env,'redeemCancel',{id:a.redeem.id}); data=fresh();
+  assert.equal(data.mine.redeems[0].status,'取消'); assert.equal(data.list.balance.silver.held,0);
+  for (const decision of ['approve','reject']) {
+    const r=requestReward(env,reward.id); warm(); decide(env,session,r.redeem.id,decision); data=fresh();
+    assert.equal(data.mine.redeems[0].status,decision==='approve'?'核准':'拒絕');
+  }
+  warm(); saveReward(env,session,{...reward,name:'新名稱'}); data=fresh(); assert.equal(data.list.rewards[0].name,'新名稱');
+  warm(); const before=balance(env).silver.total;
+  post(env,'badges',{badges:{newbadge:earned(env.clock.now())}}); data=fresh(); assert.equal(data.list.balance.silver.total,before+1);
+  const pending=requestReward(env,reward.id,'p2'); warm('p2');
+  post(env,'playerDisable',{session,playerId:'p2'}); data=fresh('p2');
+  assert.equal(data.list.balance.silver.held,0); assert.equal(data.mine.redeems.find(r=>r.id===pending.redeem.id).status,'取消');
+  warm(); assert.equal(post(env,'rewardSave',{session,reward:{}}).ok,false); fresh();
+});
+
+test('T024 generation race stores only under old generation and nested doPost restores nine timing fields', () => {
+  const env=setup(),session=parentSession(env); fund(env); const reward=saveReward(env,session);
+  // Initialize a generation without populating the rewardList entry.
+  post(env,'myRedeems');
+  const oldGeneration=env.cache.get('rg:'+code);
+  let nested, injected=false;
+  env.onSheetOp(({sheet,op})=>{
+    if (!injected && sheet==='兌換' && op==='read') {
+      injected=true; nested=env.doPost({code,action:'redeemRequest',rewardId:reward.id,requestId:'cache-race-01'});
+    }
+  });
+  const outer=env.doPost({code,action:'rewardList'}); env.onSheetOp(null);
+  assert.equal(injected,true); assert.equal(nested.ok,true); assert.equal(nested.deferred,undefined);
+  assertTiming(outer); assertTiming(nested);
+  assert.notEqual(env.cache.get('rg:'+code),oldGeneration);
+  assert.ok(env.cache.get('rc:'+code+':'+oldGeneration+':p1:rewardList:0'));
+  const next=env.doPost({code,action:'rewardList'});
+  assert.equal(next.timing.cache,0); assert.deepEqual(next.balance,nested.balance); assert.equal(next.balance.silver.held,1);
+});
 const plain = value => JSON.parse(JSON.stringify(value));
 const earned = (...ats) => ({earned:ats.map(at => ({at,dark:false}))});
 function newPlayer(env) { return post(env,'playerSave',{name:'測試玩家',icon:'🦊'}).player.id; }
@@ -21,7 +159,68 @@ function setup(options) {
   env.run('setup');
   return env;
 }
-function post(env, action, extra = {}) { return env.doPost({ code, action, ...extra }); }
+function withoutTiming(value) { const {timing, ...result} = value; return result; }
+function post(env, action, extra = {}) { return withoutTiming(env.doPost({ code, action, ...extra })); }
+
+function assertTiming(result) {
+  assert.deepEqual(Object.keys(result.timing).sort(), ['open','lock','read','reads','sync','write','compute','cache','total'].sort());
+  for (const value of Object.values(result.timing)) {
+    assert.equal(typeof value, 'number');
+    assert.ok(Number.isFinite(value) && Number.isInteger(value) && value >= 0);
+  }
+  const t = result.timing;
+  assert.equal(t.compute, Math.max(0,t.total-t.open-t.lock-t.read-t.write));
+  assert.equal(t.cache, 0);
+}
+
+test('T023 responses carry exactly nine numeric timing fields including bad_code and malformed JSON', () => {
+  const env = setup(), session = parentSession(env);
+  fund(env);
+  const reward = saveReward(env,session);
+  for (const [action, extra] of [
+    ['rewardList', {}], ['myRedeems', {}],
+    ['redeemRequest', {rewardId:reward.id, requestId:'timing-request-01'}],
+    ['badges', {playerId:'p1', badges:{}}], ['pingLite', {}],
+    ['rewardList', {code:'INVALID'}],
+  ]) {
+    const result = env.doPost({code, action, ...extra});
+    assert.equal(result.ok, extra.code !== 'INVALID', action);
+    if (extra.code) assert.equal(result.code, 'bad_code');
+    assertTiming(result);
+  }
+  const malformed = JSON.parse(env.run('doPost', {postData:{contents:'{'}}).getContent());
+  assert.equal(malformed.code, 'bad_request');
+  assertTiming(malformed);
+});
+
+test('T023 pingLite never opens or reads sheets; rewardList timing counts actual reads per request', () => {
+  const env = setup();
+  post(env,'rewardList');
+  env.stats.reset();
+  const result = env.doPost({code, action:'rewardList', session:null});
+  assertTiming(result);
+  assert.equal(result.timing.reads, Object.values(env.stats.reads).reduce((a,b) => a+b,0));
+  assert.ok(result.timing.reads > 0);
+  env.stats.reset();
+  const ping = env.doPost({action:'pingLite'});
+  assertTiming(ping);
+  assert.equal(ping.ok, true);
+  assert.equal(env.stats.opens, 0);
+  assert.deepEqual(env.stats.reads, {});
+  assert.equal(ping.timing.reads, 0);
+  assert.equal(ping.timing.open, 0);
+  assert.equal(env.stats.locks, 0);
+});
+
+test('T023 setup creates one ten-minute keepWarm trigger and keepWarm never opens sheets', () => {
+  const env = setup();
+  env.run('setup');
+  assert.deepEqual(env.triggers.filter(t => t.handler === 'keepWarm'), [{handler:'keepWarm', minutes:10}]);
+  env.stats.reset();
+  env.run('keepWarm');
+  assert.equal(env.stats.opens, 0);
+  assert.deepEqual(env.stats.reads, {});
+});
 function bank(id = 'bank-test') {
   return { id, p1At: 0, title: '測試題庫', concepts: [{ id: 'c1', text: '加法' }], questions: [
     { id: 'q1', c: 'c1', t: 'mc', lv: 1, q: '一加一？', o: ['一', '二'], a: '二', why: '測試解說' },
@@ -279,7 +478,7 @@ test('T002 concurrency: lock covers player creation, bank merge and ledger dedup
   assert.equal(post(env,'saveBank',{bank:{...bank(),players:{p2:{updatedAt:1,badge:earned(100)}}}}).ok,true);
   assert.deepEqual(nested,{deferred:true});
   env.onSheetOp(null);
-  assert.equal(env.runDeferred()[0].ok,true);
+  assert.equal(env.runDeferred().map(withoutTiming)[0].ok,true);
   assert.equal(balance(env,'p2').silver.total,1);
   assert.equal(ledger(env).filter(r=>r[1]==='p2').length,1);
 });
@@ -471,15 +670,15 @@ for (const lockMode of ['real', 'none']) {
     if (lockMode === 'real') {
       assert.deepEqual(events, [{ deferred: true }, { deferred: true }]);
       assert.deepEqual(post(env, 'listBanks').banks.map(b => b.id), ['outer']);
-      assert.deepEqual(env.runDeferred(), [{ ok: true }, { ok: true }]);
+      assert.deepEqual(env.runDeferred().map(withoutTiming), [{ ok: true }, { ok: true }]);
       assert.deepEqual(post(env, 'listBanks').banks.map(b => b.id), ['outer', 'nested-one', 'nested-two']);
     } else {
       assert.deepEqual(events, [{ ok: true }, { ok: true }]);
-      assert.deepEqual(env.runDeferred(), []);
+      assert.deepEqual(env.runDeferred().map(withoutTiming), []);
       // With no lock, the nested first write and outer write chose the same row.
       assert.deepEqual(post(env, 'listBanks').banks.map(b => b.id), ['outer', 'nested-two']);
     }
-    assert.deepEqual(env.runDeferred(), []);
+    assert.deepEqual(env.runDeferred().map(withoutTiming), []);
   });
 }
 
@@ -518,7 +717,7 @@ test('source injection: tryLock busy result, property strings and all console le
 
 test('source injection: removing the lock exposes an interleaving that the real lock prevents', () => {
   const source = readFileSync(join(__dirname, '..', 'Code.gs'), 'utf8');
-  const mutated = source.replace('try { lock.waitLock(10000); }', 'try { /* deliberately removed for harness counterexample */ }');
+  const mutated = source.replace("try { timed('lock', () => lock.waitLock(10000)); }", 'try { /* deliberately removed for harness counterexample */ }');
   assert.notEqual(mutated, source);
   const env = setup({ source: mutated });
   let fired = false, nested;
@@ -744,7 +943,7 @@ test('T003 lock: parent/admin/player mutations return busy without changes; conc
   assert.equal(post(env,'playerDisable',{session,playerId:'p2'}).ok,true);
   env.onSheetOp(null);
   assert.equal(injected,true);
-  assert.deepEqual(env.runDeferred(),[{ok:false,code:'bad_pin',left:4}]);
+  assert.deepEqual(env.runDeferred().map(withoutTiming),[{ok:false,code:'bad_pin',left:4}]);
   const busy = setup({lockMode:'busy'});
   for(const action of ['parentStatus','parentLogin','parentSetPin','parentLogout','playerDisable','playerRestore','playerPurge','adminIssueSetupCode','adminResetPin']) {
     const before = snapshot(busy);
@@ -1114,7 +1313,7 @@ function randomizedRedeemInterleavings(lockMode, outer = 'redeemRequest') {
       const result = post(env,'rewardList',{playerId:choose(players)});
       assert.equal(result.ok,true);
     }
-    env.onSheetOp(null); env.runDeferred();
+    env.onSheetOp(null); env.runDeferred().map(withoutTiming);
     operation(Math.floor(random()*4));
     assertRedeemInvariants(env,players,rewards);
     env.clock.advance(1);
@@ -1139,7 +1338,7 @@ function overspendInterleaving(lockMode) {
     injected = true;
     requestReward(env,reward.id); requestReward(env,reward.id);
   });
-  requestReward(env,reward.id); env.onSheetOp(null); env.runDeferred();
+  requestReward(env,reward.id); env.onSheetOp(null); env.runDeferred().map(withoutTiming);
   assert.ok(injected);
   assertRedeemInvariants(env,['p1'],[reward]);
 }
@@ -1157,7 +1356,7 @@ function concurrentDecisions(lockMode, laterDecision) {
     injected = true; later = decide(env,secondSession,r.id,laterDecision);
   });
   assert.equal(decide(env,firstSession,r.id).ok,true);
-  env.onSheetOp(null); const deferred = env.runDeferred();
+  env.onSheetOp(null); const deferred = env.runDeferred().map(withoutTiming);
   assert.ok(injected);
   const decisions = redeemLogs(env).filter(l=>l[1]===r.id && ['核准','拒絕'].includes(l[3]));
   assert.equal(decisions.length,1,'D5 exactly one decision log');
@@ -1258,7 +1457,7 @@ test('T019 R1/R2: six read actions use no lock and read each sheet at most once'
     ['balance',{}],['playerList',{withBalance:true}],['parentLog',{session}],
   ]) t019Read(env,action,extra);
   const results = require('../tools/measure-reward').measure();
-  assert.equal(results.length,8);
+  assert.equal(results.length,13);
   for (const r of results.slice(0,6)) {
     assert.equal(r.ok,true); assert.equal(r.locks,0,r.action);
     assert.ok(Object.values(r.reads).every(n => n <= 1),JSON.stringify(r));
@@ -1316,7 +1515,7 @@ test('T019 exception cleanup: failed read does not leave memo data for writes or
     if (!thrown && sheet === '兌換' && op === 'read') { thrown = true; throw new Error('T019 read failure'); }
   });
   env.stats.reset();
-  const failure = post(env,'rewardList');
+  const failure = post(env,'rewardList',{session:null});
   env.onSheetOp(null);
   assert.equal(thrown,true); assert.equal(failure.code,'server_error'); assert.equal(env.stats.locks,0);
   const request = requestReward(env,reward.id);

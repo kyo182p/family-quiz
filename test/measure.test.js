@@ -41,20 +41,34 @@ test('T018 excludes getValue and reset clears reads and locks', () => {
   env.stats.reset();
   assert.deepEqual(env.stats.reads, {});
   assert.equal(env.stats.locks, 0);
+  assert.equal(env.stats.opens, 0);
   sheet.getRange(1, 1).getValue();
   assert.deepEqual(env.stats.reads, {});
 });
 
-test('T018 measure returns all eight successful actions', () => {
+test('T024 measure returns thirteen successful cases, reduced writes and zero-sheet cache hits', () => {
   const results = measure();
   assert.deepEqual(results.map(r => r.action), [
     'rewardList', 'myRedeems', 'redeemList', 'balance', 'playerList', 'parentLog', 'redeemRequest', 'redeemDecide',
+    'pingLite', 'badges', 'redeemCancel', 'redeemDecide', 'rewardList(快取命中)',
   ]);
   for (const result of results) {
     assert.equal(result.ok, true, result.action);
     assert.ok(Number.isFinite(result.medianMs) && result.medianMs >= 0);
     assert.equal(result.totalReads, Object.values(result.reads).reduce((a, b) => a + b, 0));
-    assert.ok(result.totalReads > 0);
+    if (result.action === 'pingLite' || result.action === 'rewardList(快取命中)') assert.equal(result.totalReads, 0);
+    else assert.ok(result.totalReads > 0);
     assert.ok(Number.isInteger(result.locks) && result.locks >= 0);
+    assert.ok(Number.isInteger(result.opens) && result.opens >= 0);
   }
+  assert.deepEqual(results.slice(0,8).map(r => r.totalReads), [5,3,4,4,4,5,7,5]);
+  // T024's <=6 request target conflicts with whole-memo invalidation and fresh
+  // post-write ledger/redemption reads; preserve all seven reads (see REPORT.md).
+  assert.ok(results.find(r => r.action === 'redeemRequest').totalReads <= 7);
+  for (const result of results.filter(r => ['redeemDecide','redeemCancel'].includes(r.action))) assert.ok(result.totalReads <= 5);
+  const hit = results.find(r => r.action === 'rewardList(快取命中)');
+  assert.equal(hit.opens, 0);
+  assert.deepEqual(hit.reads, {});
+  assert.deepEqual(results.filter(r => r.action === 'redeemDecide').map(r => r.decision), ['approve','reject']);
+  assert.equal(results.find(r => r.action === 'pingLite').opens, 0);
 });

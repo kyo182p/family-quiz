@@ -21,7 +21,8 @@ function createGasEnv(options = {}) {
   const stats = {
     reads: {},
     locks: 0,
-    reset() { this.reads = {}; this.locks = 0; },
+    opens: 0,
+    reset() { this.reads = {}; this.locks = 0; this.opens = 0; },
   };
   let hook, insideHook = false, currentRequest = null, lockOwner = null;
   const pending = [];
@@ -183,9 +184,22 @@ function createGasEnv(options = {}) {
     computeHmacSha256Signature: (value, key) => signed(hash().hmac(value, key)),
   };
   const consoleProxy = new Proxy({}, { get: (_, level) => (...args) => logs.push(`[${String(level)}] ` + args.map(a => a && typeof a.stack === 'string' ? a.stack : typeof a === 'string' ? a : JSON.stringify(a)).join(' ')) });
+  const triggers = [];
+  const ScriptApp = {
+    getProjectTriggers: () => triggers.map(t => ({getHandlerFunction: () => t.handler})),
+    newTrigger(handler) {
+      let minutes;
+      const builder = {
+        timeBased() { return builder; },
+        everyMinutes(n) { minutes = n; return builder; },
+        create() { const trigger = {handler, minutes}; triggers.push(trigger); return trigger; },
+      };
+      return builder;
+    },
+  };
   const globals = {
-    Date: ClockDate, console: consoleProxy, Utilities,
-    SpreadsheetApp: { getActive: () => spreadsheet, flush() {} },
+    Date: ClockDate, console: consoleProxy, Utilities, ScriptApp,
+    SpreadsheetApp: { getActive: () => { stats.opens++; return spreadsheet; }, flush() {} },
     PropertiesService: { getScriptProperties: () => props },
     CacheService: { getScriptCache: () => cache },
     ContentService: {
@@ -236,7 +250,7 @@ function createGasEnv(options = {}) {
     return JSON.parse(run('doPost', { postData: { contents } }).getContent());
   }
   return {
-    doPost, run, clock, sheets, props, cache, logs, formulaCells, stats,
+    doPost, run, clock, sheets, props, cache, logs, formulaCells, stats, triggers,
     snapshot() {
       const encode = v => v instanceof Date ? {__gasDate:v.getTime()} : Array.isArray(v) ? v.map(encode) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k,x])=>[k,encode(x)])) : v;
       return encode({sheets:[...sheets].map(([name,s])=>({name,data:s.data,formats:[...s.formats],frozenRows:s.frozenRows})),props:[...propertyData],cache:[...cacheData]});
