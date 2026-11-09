@@ -21,7 +21,68 @@ function setup(options) {
   env.run('setup');
   return env;
 }
-function post(env, action, extra = {}) { return env.doPost({ code, action, ...extra }); }
+function withoutTiming(value) { const {timing, ...result} = value; return result; }
+function post(env, action, extra = {}) { return withoutTiming(env.doPost({ code, action, ...extra })); }
+
+function assertTiming(result) {
+  assert.deepEqual(Object.keys(result.timing).sort(), ['open','lock','read','reads','sync','write','compute','cache','total'].sort());
+  for (const value of Object.values(result.timing)) {
+    assert.equal(typeof value, 'number');
+    assert.ok(Number.isFinite(value) && Number.isInteger(value) && value >= 0);
+  }
+  const t = result.timing;
+  assert.equal(t.compute, Math.max(0,t.total-t.open-t.lock-t.read-t.write));
+  assert.equal(t.cache, 0);
+}
+
+test('T023 responses carry exactly nine numeric timing fields including bad_code and malformed JSON', () => {
+  const env = setup(), session = parentSession(env);
+  fund(env);
+  const reward = saveReward(env,session);
+  for (const [action, extra] of [
+    ['rewardList', {}], ['myRedeems', {}],
+    ['redeemRequest', {rewardId:reward.id, requestId:'timing-request-01'}],
+    ['badges', {playerId:'p1', badges:{}}], ['pingLite', {}],
+    ['rewardList', {code:'INVALID'}],
+  ]) {
+    const result = env.doPost({code, action, ...extra});
+    assert.equal(result.ok, extra.code !== 'INVALID', action);
+    if (extra.code) assert.equal(result.code, 'bad_code');
+    assertTiming(result);
+  }
+  const malformed = JSON.parse(env.run('doPost', {postData:{contents:'{'}}).getContent());
+  assert.equal(malformed.code, 'bad_request');
+  assertTiming(malformed);
+});
+
+test('T023 pingLite never opens or reads sheets; rewardList timing counts actual reads per request', () => {
+  const env = setup();
+  post(env,'rewardList');
+  env.stats.reset();
+  const result = env.doPost({code, action:'rewardList'});
+  assertTiming(result);
+  assert.equal(result.timing.reads, Object.values(env.stats.reads).reduce((a,b) => a+b,0));
+  assert.ok(result.timing.reads > 0);
+  env.stats.reset();
+  const ping = env.doPost({action:'pingLite'});
+  assertTiming(ping);
+  assert.equal(ping.ok, true);
+  assert.equal(env.stats.opens, 0);
+  assert.deepEqual(env.stats.reads, {});
+  assert.equal(ping.timing.reads, 0);
+  assert.equal(ping.timing.open, 0);
+  assert.equal(env.stats.locks, 0);
+});
+
+test('T023 setup creates one ten-minute keepWarm trigger and keepWarm never opens sheets', () => {
+  const env = setup();
+  env.run('setup');
+  assert.deepEqual(env.triggers.filter(t => t.handler === 'keepWarm'), [{handler:'keepWarm', minutes:10}]);
+  env.stats.reset();
+  env.run('keepWarm');
+  assert.equal(env.stats.opens, 0);
+  assert.deepEqual(env.stats.reads, {});
+});
 function bank(id = 'bank-test') {
   return { id, p1At: 0, title: '測試題庫', concepts: [{ id: 'c1', text: '加法' }], questions: [
     { id: 'q1', c: 'c1', t: 'mc', lv: 1, q: '一加一？', o: ['一', '二'], a: '二', why: '測試解說' },
@@ -279,7 +340,7 @@ test('T002 concurrency: lock covers player creation, bank merge and ledger dedup
   assert.equal(post(env,'saveBank',{bank:{...bank(),players:{p2:{updatedAt:1,badge:earned(100)}}}}).ok,true);
   assert.deepEqual(nested,{deferred:true});
   env.onSheetOp(null);
-  assert.equal(env.runDeferred()[0].ok,true);
+  assert.equal(env.runDeferred().map(withoutTiming)[0].ok,true);
   assert.equal(balance(env,'p2').silver.total,1);
   assert.equal(ledger(env).filter(r=>r[1]==='p2').length,1);
 });
@@ -471,15 +532,15 @@ for (const lockMode of ['real', 'none']) {
     if (lockMode === 'real') {
       assert.deepEqual(events, [{ deferred: true }, { deferred: true }]);
       assert.deepEqual(post(env, 'listBanks').banks.map(b => b.id), ['outer']);
-      assert.deepEqual(env.runDeferred(), [{ ok: true }, { ok: true }]);
+      assert.deepEqual(env.runDeferred().map(withoutTiming), [{ ok: true }, { ok: true }]);
       assert.deepEqual(post(env, 'listBanks').banks.map(b => b.id), ['outer', 'nested-one', 'nested-two']);
     } else {
       assert.deepEqual(events, [{ ok: true }, { ok: true }]);
-      assert.deepEqual(env.runDeferred(), []);
+      assert.deepEqual(env.runDeferred().map(withoutTiming), []);
       // With no lock, the nested first write and outer write chose the same row.
       assert.deepEqual(post(env, 'listBanks').banks.map(b => b.id), ['outer', 'nested-two']);
     }
-    assert.deepEqual(env.runDeferred(), []);
+    assert.deepEqual(env.runDeferred().map(withoutTiming), []);
   });
 }
 
@@ -518,7 +579,7 @@ test('source injection: tryLock busy result, property strings and all console le
 
 test('source injection: removing the lock exposes an interleaving that the real lock prevents', () => {
   const source = readFileSync(join(__dirname, '..', 'Code.gs'), 'utf8');
-  const mutated = source.replace('try { lock.waitLock(10000); }', 'try { /* deliberately removed for harness counterexample */ }');
+  const mutated = source.replace("try { timed('lock', () => lock.waitLock(10000)); }", 'try { /* deliberately removed for harness counterexample */ }');
   assert.notEqual(mutated, source);
   const env = setup({ source: mutated });
   let fired = false, nested;
@@ -744,7 +805,7 @@ test('T003 lock: parent/admin/player mutations return busy without changes; conc
   assert.equal(post(env,'playerDisable',{session,playerId:'p2'}).ok,true);
   env.onSheetOp(null);
   assert.equal(injected,true);
-  assert.deepEqual(env.runDeferred(),[{ok:false,code:'bad_pin',left:4}]);
+  assert.deepEqual(env.runDeferred().map(withoutTiming),[{ok:false,code:'bad_pin',left:4}]);
   const busy = setup({lockMode:'busy'});
   for(const action of ['parentStatus','parentLogin','parentSetPin','parentLogout','playerDisable','playerRestore','playerPurge','adminIssueSetupCode','adminResetPin']) {
     const before = snapshot(busy);
@@ -1114,7 +1175,7 @@ function randomizedRedeemInterleavings(lockMode, outer = 'redeemRequest') {
       const result = post(env,'rewardList',{playerId:choose(players)});
       assert.equal(result.ok,true);
     }
-    env.onSheetOp(null); env.runDeferred();
+    env.onSheetOp(null); env.runDeferred().map(withoutTiming);
     operation(Math.floor(random()*4));
     assertRedeemInvariants(env,players,rewards);
     env.clock.advance(1);
@@ -1139,7 +1200,7 @@ function overspendInterleaving(lockMode) {
     injected = true;
     requestReward(env,reward.id); requestReward(env,reward.id);
   });
-  requestReward(env,reward.id); env.onSheetOp(null); env.runDeferred();
+  requestReward(env,reward.id); env.onSheetOp(null); env.runDeferred().map(withoutTiming);
   assert.ok(injected);
   assertRedeemInvariants(env,['p1'],[reward]);
 }
@@ -1157,7 +1218,7 @@ function concurrentDecisions(lockMode, laterDecision) {
     injected = true; later = decide(env,secondSession,r.id,laterDecision);
   });
   assert.equal(decide(env,firstSession,r.id).ok,true);
-  env.onSheetOp(null); const deferred = env.runDeferred();
+  env.onSheetOp(null); const deferred = env.runDeferred().map(withoutTiming);
   assert.ok(injected);
   const decisions = redeemLogs(env).filter(l=>l[1]===r.id && ['核准','拒絕'].includes(l[3]));
   assert.equal(decisions.length,1,'D5 exactly one decision log');
@@ -1258,7 +1319,7 @@ test('T019 R1/R2: six read actions use no lock and read each sheet at most once'
     ['balance',{}],['playerList',{withBalance:true}],['parentLog',{session}],
   ]) t019Read(env,action,extra);
   const results = require('../tools/measure-reward').measure();
-  assert.equal(results.length,8);
+  assert.equal(results.length,12);
   for (const r of results.slice(0,6)) {
     assert.equal(r.ok,true); assert.equal(r.locks,0,r.action);
     assert.ok(Object.values(r.reads).every(n => n <= 1),JSON.stringify(r));

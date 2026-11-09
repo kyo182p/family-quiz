@@ -27,13 +27,13 @@ function measure() {
     session, reward: { name: `測試獎項${i + 1}`, silver: 1, gold: 1,
       goldForSilver: false, weeklyLimit: 0, enabled: true },
   }).reward);
-  let pendingId;
+  const pendingIds = [];
   for (const playerId of ['p1', 'p2']) {
     for (let i = 0; i < 2; i++) {
       const { redeem } = post('redeemRequest', {
         playerId, rewardId: rewards[i].id, requestId: `seed-${playerId}-${i}`,
       });
-      if (playerId === 'p1' && i === 0) pendingId = redeem.id;
+      if (playerId === 'p1') pendingIds.push(redeem.id);
     }
   }
   const requests = [
@@ -44,12 +44,16 @@ function measure() {
     ['playerList', { withBalance: true }],
     ['parentLog', { session }],
     ['redeemRequest', { playerId: 'p1', rewardId: rewards[2].id, requestId: 'measure-new-request' }],
-    ['redeemDecide', { session, id: pendingId, decision: 'approve' }],
+    ['redeemDecide', { session, id: pendingIds[0], decision: 'approve' }],
+    ['pingLite', {}],
+    ['badges', { playerId: 'p1', badges: {} }],
+    ['redeemCancel', { playerId: 'p1', id: pendingIds[0] }],
+    ['redeemDecide', { session, id: pendingIds[1], decision: 'reject' }],
   ];
   const baseline = env.snapshot();
   return requests.map(([action, extra]) => {
     const times = [];
-    let reads, locks;
+    let reads, locks, opens;
     let ok = true;
     for (let i = 0; i < 20; i++) {
       env.restore(baseline);
@@ -60,18 +64,19 @@ function measure() {
       ok = ok && result.ok === true;
       reads = { ...env.stats.reads };
       locks = env.stats.locks;
+      opens = env.stats.opens;
     }
     times.sort((a, b) => a - b);
-    return { action, ok, reads, locks, totalReads: Object.values(reads).reduce((a, b) => a + b, 0),
+    return { action, ...(extra.decision ? {decision:extra.decision} : {}), ok, reads, locks, opens, totalReads: Object.values(reads).reduce((a, b) => a + b, 0),
       medianMs: (times[9] + times[10]) / 2 };
   });
 }
 
 function markdown(results) {
   return [
-    '| 動作 | 鎖 | 讀表次數(各表) | 讀表總次數 | 耗時中位數 ms |',
-    '| --- | --- | --- | --- | --- |',
-    ...results.map(r => `| ${r.action} | ${r.locks} | ${Object.keys(r.reads).sort().map(name => `${name}×${r.reads[name]}`).join(', ')} | ${r.totalReads} | ${r.medianMs.toFixed(3)} |`),
+    '| 動作 | 鎖 | 開表次數 | 讀表次數(各表) | 讀表總次數 | 耗時中位數 ms |',
+    '| --- | --- | --- | --- | --- | --- |',
+    ...results.map(r => `| ${r.action}${r.decision ? ' ('+r.decision+')' : ''} | ${r.locks} | ${r.opens} | ${Object.keys(r.reads).sort().map(name => `${name}×${r.reads[name]}`).join(', ')} | ${r.totalReads} | ${r.medianMs.toFixed(3)} |`),
   ].join('\n');
 }
 
