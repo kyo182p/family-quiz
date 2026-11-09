@@ -4811,11 +4811,42 @@ function parentCacheClear(){try{localStorage.removeItem(parentCacheKey())}catch(
 async function parentMain(tab='pending',notice=''){
   if(!PARENT_SESSION||!parentHere())return;
   const epoch=++parentEpoch;parentActivity();const root=document.getElementById('parent-content');if(!root)return;
-  root.innerHTML='<nav class="parent-tabs" aria-label="家長分頁">'+[['pending','待核准'],['rewards','獎項'],['players','玩家'],['log','紀錄']].map(([k,v])=>'<button data-parent-tab="'+k+'" aria-current="'+(tab===k?'page':'false')+'">'+v+(k==='pending'?'<span id="parent-count"></span>':'')+'</button>').join('')+'</nav><p id="parent-notice" role="status">'+esc(notice)+'</p><div class="parent-body" id="parent-list"><div class="reward-skeleton"></div>讀取中……</div>';
+  root.innerHTML='<nav class="parent-tabs" aria-label="家長分頁">'+[['pending','待核准'],['rewards','獎項'],['players','玩家'],['log','紀錄']].map(([k,v])=>'<button data-parent-tab="'+k+'" aria-current="'+(tab===k?'page':'false')+'">'+v+(k==='pending'?'<span id="parent-count"></span>':'')+'</button>').join('')+'</nav><button class="ghost" id="parent-diag">連線診斷</button><p id="parent-notice" role="status">'+esc(notice)+'</p><div class="parent-body" id="parent-list"><div class="reward-skeleton"></div>讀取中……</div>';
   const list=root.querySelector('#parent-list'),alive=()=>parentHere()&&!!PARENT_SESSION&&epoch===parentEpoch&&root.isConnected;
   root.querySelectorAll('[data-parent-tab]').forEach(b=>b.onclick=()=>parentMain(b.dataset.parentTab));
   if(notice){const retry=document.createElement('button');retry.className='ghost';retry.textContent='再試一次';retry.onclick=()=>parentMain(tab);root.querySelector('#parent-notice').append(retry)}
-  let deciding=false,writeGen=0;
+  let deciding=false,writeGen=0,diagnostic=false;
+  const diag=root.querySelector('#parent-diag');
+  diag.onclick=async()=>{
+    if(diag.disabled||!alive())return;
+    diagnostic=true;writeGen++;diag.disabled=true;diag.textContent='診斷中…';
+    root.querySelector('#parent-updating')?.remove();
+    list.innerHTML='<div id="parent-diag-panel"><table id="parent-diag-table"><thead><tr>'+['次','動作','往返(秒)','後端總計','開表','等鎖','讀表','讀表次數','快取'].map(s=>'<th>'+s+'</th>').join('')+'</tr></thead><tbody></tbody></table></div>';
+    const panel=list.querySelector('#parent-diag-panel'),body=panel.querySelector('tbody');
+    let n=0;
+    for(const [action,label,data] of [['pingLite','ping',{}],['rewardList','獎勵清單',{playerId:ACTIVE_PLAYER,withRedeems:true}],['myRedeems','我的申請',{playerId:ACTIVE_PLAYER}]]){
+      for(let i=0;i<3;i++){
+        if(!alive())return;
+        const start=performance.now();let result,error;
+        try{result=await api(action,data)}catch(e){error=e}
+        const elapsed=((performance.now()-start)/1000).toFixed(2);
+        if(!alive())return;
+        const timing=result?.timing;
+        const cells=error?'<td colspan="6">失敗：'+esc(error.code||'server_error')+'</td>':
+          ['total','open','lock','read','reads'].map(k=>'<td>'+(typeof timing?.[k]==='number'?Math.round(timing[k]):'—')+'</td>').join('')+'<td>'+(typeof timing?.cache==='number'?(timing.cache===1?'是':'否'):'—')+'</td>';
+        body.insertAdjacentHTML('beforeend','<tr><td>'+(++n)+'</td><td>'+label+'</td><td>'+elapsed+'</td>'+cells+'</tr>');
+      }
+    }
+    panel.insertAdjacentHTML('beforeend',[
+      '往返：手機從按下到收到回覆的秒數。',
+      '後端總計：Google 那邊真正花的毫秒數。',
+      '往返很大、後端總計很小：時間花在網路或 Google 喚醒程式（冷啟動）。',
+      '第一次很慢、後面變快：多半是冷啟動。',
+      '開表、讀表很大：試算表本身慢，請把這張表截圖回報。',
+      '快取「是」：這次沒有打開試算表。'
+    ].map(s=>'<p>'+s+'</p>').join(''));
+    diag.disabled=false;diag.textContent='連線診斷';
+  };
   function draw(pending,j,stale){
     root.querySelector('#parent-count').innerHTML=pending.pendingCount?'<span class="parent-count">'+esc(pending.pendingCount)+'</span>':'';
     if(tab==='pending'){
@@ -4843,7 +4874,7 @@ async function parentMain(tab='pending',notice=''){
             list.querySelectorAll('button').forEach(b=>b.disabled=false);
             root.querySelector('#parent-notice').textContent=decision==='approve'?'已核准':'已拒絕';
             parentCall('redeemList').then(j=>{
-              if(!alive()||tab!=='pending'||deciding||gen!==writeGen)return;
+              if(!alive()||diagnostic||tab!=='pending'||deciding||gen!==writeGen)return;
               parentCacheSet({pending:{redeems:j.redeems,pendingCount:j.pendingCount}});draw(j,null,false);
             }).catch(()=>{});
           }catch(e){
@@ -4883,10 +4914,10 @@ async function parentMain(tab='pending',notice=''){
   if(cache.pending&&(tab==='pending'||(['rewards','players'].includes(tab)&&cache[tab])))try{draw(cache.pending,{[tab]:cache[tab]},true)}catch(e){parentCacheClear();root.querySelector('#parent-updating')?.remove();root.querySelector('#parent-count').innerHTML='';list.innerHTML='<div class="reward-skeleton"></div>讀取中……'}
   try{
     const [pending,j]=await Promise.all([parentCall('redeemList'),tab==='pending'?null:tab==='rewards'?parentCall('rewardList',{playerId:'p1'}):tab==='players'?parentCall('playerList',{withBalance:true}):parentCall('parentLog')]);
-    if(!alive())return;
+    if(!alive()||diagnostic)return;
     parentCacheSet({pending:{redeems:pending.redeems,pendingCount:pending.pendingCount},...(['rewards','players'].includes(tab)?{[tab]:j[tab]}:{})});
     draw(pending,j,false);
-  }catch(e){if(alive()){root.querySelector('#parent-updating')?.remove();parentError(list,'連不到雲端，請稍後再試',()=>parentMain(tab))}}
+  }catch(e){if(alive()&&!diagnostic){root.querySelector('#parent-updating')?.remove();parentError(list,'連不到雲端，請稍後再試',()=>parentMain(tab))}}
 }
 function parentRewardForm(root,item,alive){
   const r={name:'',silver:0,gold:0,goldForSilver:true,weeklyLimit:0,enabled:true,...item};let saving=false;

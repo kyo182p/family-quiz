@@ -1220,3 +1220,114 @@ test('T026 parent background race: old list cannot restore decided cards or anot
   assert.equal(w.document.querySelector('[aria-current="page"]').dataset.parentTab,'log');
   assert.equal(w.document.querySelector('[data-request]'),null);assert.ok(ptext(w).includes('核准'));
 });
+
+const t027Notes=[
+  '往返：手機從按下到收到回覆的秒數。',
+  '後端總計：Google 那邊真正花的毫秒數。',
+  '往返很大、後端總計很小：時間花在網路或 Google 喚醒程式（冷啟動）。',
+  '第一次很慢、後面變快：多半是冷啟動。',
+  '開表、讀表很大：試算表本身慢，請把這張表截圖回報。',
+  '快取「是」：這次沒有打開試算表。'
+];
+function t027Fetch(w,override){
+  const seen=[];let active=0,maxActive=0;
+  w.fetch=async(u,o)=>{
+    const r=JSON.parse(o.body);seen.push(r);active++;maxActive=Math.max(maxActive,active);
+    try{
+      await tick();
+      return {json:async()=>override?.(r,seen.length)??{ok:true,timing:{total:12.7,open:3.2,lock:1.8,read:4.4,reads:2,cache:seen.length===5?1:0}}};
+    }finally{active--}
+  };
+  return {seen,maxActive:()=>maxActive};
+}
+
+test('T027 R5: parent diagnostics run nine sequential requests without credentials and render exact table and notes',async t=>{
+  const {w}=await parentUI(t),{seen,maxActive}=t027Fetch(w);
+  const button=w.document.querySelector('#parent-diag');
+  assert.equal(button.previousElementSibling.tagName,'NAV');
+  assert.equal(button.nextElementSibling.id,'parent-notice');
+  const running=button.onclick();
+  assert.equal(button.disabled,true);assert.equal(button.textContent,'診斷中…');
+  assert.equal(w.document.querySelector('#parent-diag-table tbody').children.length,0);
+  await button.onclick(); // Even direct duplicate handler calls cannot start a second run.
+  await tick();await tick();
+  assert.ok(w.document.querySelector('#parent-diag-table tbody').children.length>0);
+  await running;
+  const rows=[...w.document.querySelectorAll('#parent-diag-table tbody tr')];
+  assert.equal(rows.length,9);assert.equal(maxActive(),1);
+  assert.deepEqual([...w.document.querySelectorAll('#parent-diag-table th')].map(x=>x.textContent),['次','動作','往返(秒)','後端總計','開表','等鎖','讀表','讀表次數','快取']);
+  assert.deepEqual(rows.map(r=>r.children[0].textContent),Array.from({length:9},(_,i)=>String(i+1)));
+  assert.deepEqual(rows.map(r=>r.children[1].textContent),['ping','ping','ping','獎勵清單','獎勵清單','獎勵清單','我的申請','我的申請','我的申請']);
+  for(const row of rows){
+    assert.match(row.children[2].textContent,/^\d+\.\d{2}$/);
+    assert.deepEqual([...row.children].slice(3,8).map(c=>c.textContent),['13','3','2','4','2']);
+  }
+  assert.deepEqual(rows.map(r=>r.children[8].textContent),['否','否','否','否','是','否','否','否','否']);
+  assert.deepEqual(seen.map(r=>r.action),['pingLite','pingLite','pingLite','rewardList','rewardList','rewardList','myRedeems','myRedeems','myRedeems']);
+  for(const r of seen){
+    assert.equal(Object.hasOwn(r,'session'),false);assert.equal(Object.hasOwn(r,'pin'),false);
+    assert.deepEqual(Object.keys(r).sort(),(r.action==='pingLite'?['action','code']:r.action==='rewardList'?['action','code','playerId','withRedeems']:['action','code','playerId']).sort());
+    if(r.action!=='pingLite')assert.equal(r.playerId,w.eval('ACTIVE_PLAYER'));
+    if(r.action==='rewardList')assert.equal(r.withRedeems,true);
+  }
+  assert.deepEqual([...w.document.querySelectorAll('#parent-diag-panel > p')].map(p=>p.textContent),t027Notes);
+  assert.equal(button.disabled,false);assert.equal(button.textContent,'連線診斷');
+  await button.onclick();assert.equal(seen.length,18);assert.equal(w.document.querySelectorAll('#parent-diag-table tbody tr').length,9);
+});
+
+test('T027 diagnostics continue after server errors and escape error codes',async t=>{
+  for(const code of ['server_error','<img src=x onerror=alert(1)>']){
+    const {w}=await parentUI(t),{seen}=t027Fetch(w,(r,n)=>n===2?{ok:false,code}:undefined);
+    await w.document.querySelector('#parent-diag').onclick();
+    const rows=w.document.querySelectorAll('#parent-diag-table tbody tr');
+    assert.equal(rows.length,9);assert.equal(seen.length,9);
+    assert.match(rows[1].children[2].textContent,/^\d+\.\d{2}$/);
+    assert.equal(rows[1].children[3].colSpan,6);assert.equal(rows[1].children[3].textContent,'失敗：'+code);
+    assert.equal(rows[1].querySelector('img'),null);
+    assert.equal(w.document.querySelectorAll('#parent-diag-panel > p').length,6);
+    assert.equal(w.document.querySelector('#parent-diag').disabled,false);
+  }
+});
+
+test('T027 diagnostics show dashes for legacy responses without timing',async t=>{
+  const {w}=await parentUI(t);t027Fetch(w,r=>r.action==='rewardList'?{ok:true}:undefined);
+  await w.document.querySelector('#parent-diag').onclick();
+  const rows=[...w.document.querySelectorAll('#parent-diag-table tbody tr')];
+  assert.equal(rows.length,9);
+  for(const row of rows.slice(3,6))assert.deepEqual([...row.children].slice(3).map(c=>c.textContent),Array(6).fill('—'));
+});
+
+test('T027 diagnostics stop on parentLock or tab navigation without writing detached rows',async t=>{
+  for(const leave of ['lock','tab']){
+    const {w}=await parentUI(t),fetch=w.fetch,seen=[];let release;
+    const gate=new Promise(r=>release=r);
+    w.fetch=async(u,o)=>{
+      const r=JSON.parse(o.body);
+      if(r.action==='pingLite'){seen.push(r);await gate;return {json:async()=>({ok:true})}}
+      return fetch(u,o);
+    };
+    const running=w.document.querySelector('#parent-diag').onclick(),body=w.document.querySelector('#parent-diag-table tbody');
+    if(leave==='lock'){w.parentLock();await settle()}else await w.parentMain('players');
+    release();await running;await settle();
+    assert.equal(seen.length,1);assert.equal(body.children.length,0);
+    assert.equal(w.document.querySelector('#parent-diag-panel'),null);
+  }
+});
+
+test('T027 diagnostics survive an older parent list response or error',async t=>{
+  for(const fail of [false,true]){
+    const {w}=await parentUI(t),fetch=w.fetch;let release;
+    const gate=new Promise(r=>release=r);
+    w.fetch=async(u,o)=>{
+      if(JSON.parse(o.body).action==='redeemList'){await gate;if(fail)throw Error('offline')}
+      return fetch(u,o);
+    };
+    const loading=w.parentMain();
+    t027Fetch(w);
+    await w.document.querySelector('#parent-diag').onclick();
+    release();await loading;
+    assert.equal(w.document.querySelectorAll('#parent-diag-table tbody tr').length,9);
+    assert.deepEqual([...w.document.querySelectorAll('#parent-diag-panel > p')].map(p=>p.textContent),t027Notes);
+    assert.equal(w.document.querySelector('#parent-updating'),null);
+  }
+});
