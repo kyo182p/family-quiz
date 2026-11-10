@@ -463,6 +463,10 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .tag.retry,.pill.quick{background:var(--sun-soft);color:var(--sun-ink)}
 .w,.tick button,.sent,.consent input{min-height:44px}
 .w{min-width:32px;font-size:1.4rem}.sent{line-height:2.2}
+.w,.tick button,.sent{border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:2px 8px}
+.w{margin:2px 1px}.tick button{font-size:1.1rem;padding:6px 14px}
+.tick button[aria-pressed="true"]{background:var(--leaf-soft);border-color:var(--leaf-strong);box-shadow:inset 0 0 0 2px var(--leaf-strong)}
+.w:disabled,.tick button:disabled,.sent:disabled{cursor:default;color:var(--ink);opacity:.8}
 .tick{display:flex;gap:8px}.pill{display:inline-block;padding:4px 10px;border-radius:20px}
 .pill.learn{background:var(--leaf-soft);color:var(--leaf-ink)}.pill.wait{background:var(--sky-soft);color:var(--sky-ink)}
 .danger{background:var(--coral-soft);color:var(--coral-ink);min-height:44px}
