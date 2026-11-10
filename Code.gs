@@ -1630,6 +1630,7 @@ function diagAction(fam, req) {
               !q.every(n => Number.isInteger(n) && n >= 1 && n <= 40) || !Array.isArray(tags) || tags.length !== q.length ||
               !tags.every(t => t === 'unk' || DIAG_TAG_IDS.includes(t))) return {ok:false,code:'bad_request'};
           diagWrite('exams',diagRows('exams').length+1,[[now,Utilities.getUuid(),fk,req.subject,req.examDate,q.join(','),tags.join(',')]]);
+          profile.lastExam = {at:Date.parse(req.examDate+'T00:00:00+08:00')}; diagStoreProfile(fk,entry,now);
           return {ok:true};
         }
         case 'diag_report': {
@@ -1640,7 +1641,8 @@ function diagAction(fam, req) {
           const diags = diagRows('diags').slice(1).filter(r => r[2] === fk).reverse().sort((a,b) => b[0]-a[0]).slice(0,2)
             .map(r => ({ts:r[0],sid:r[1],n:r[4],ok:r[5],perTag:JSON.parse(r[6])}));
           const first = events.filter(e => e.retry === 0);
-          return {ok:true,perTag:classifyTag(events,DIAG_CFG,now),exams,diags,consent:profile.consent,total:{n:first.length,ok:first.reduce((s,e) => s+e.ok,0)}};
+          const timestamps = diagRows('events').slice(1).filter(r => r[2] === fk).map(r => r[0]);
+          return {ok:true,firstTs:timestamps.length ? timestamps.reduce((a,b) => Math.min(a,b)) : null,perTag:classifyTag(events,DIAG_CFG,now),exams,diags,consent:profile.consent,total:{n:first.length,ok:first.reduce((s,e) => s+e.ok,0)}};
         }
         default: return {ok:false,code:'bad_action'};
       }

@@ -478,6 +478,10 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 #diag-view .locked{position:relative}#diag-view .veil{position:absolute;inset:0;display:grid;place-items:center;background:var(--card);border:2px dashed var(--sun);border-radius:12px;padding:12px;text-align:center}
 #diag-view .sent{display:block;width:100%;text-align:left;white-space:normal;margin:4px 0}#diag-view .tick{flex-wrap:wrap;margin:4px 0}
 #diag-ratio{min-height:44px;width:100%}
+#exam-numbers{display:grid;grid-template-columns:repeat(auto-fit,minmax(44px,1fr));margin-bottom:16px}
+#diag-learn select,#diag-learn input{max-width:100%;min-height:44px;box-sizing:border-box}
+#diag-tags .qli{padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+#diag-tags .tags{display:flex;flex-wrap:wrap;gap:8px}
 .trow{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,2fr) auto;gap:8px;align-items:center;margin:12px 0;overflow-wrap:anywhere}
 .trow .b{position:relative;height:14px;background:var(--leaf-soft);border-radius:8px}.trow i{display:block;height:100%;background:var(--leaf-strong);border-radius:8px}
 .trow i.mid{background:var(--sun)}.trow i.low{background:var(--coral)}.trow s{position:absolute;top:-3px;height:20px;border-left:2px solid #000}
@@ -2222,6 +2226,7 @@ function mergeResult(bank,res,defaultSrc){
     const rr={...r,c:idMap[r&&r.c]||(r&&r.c),src:(r&&r.src)||defaultSrc,p:r&&r.p?pmap[r.p]||((bank.passages||[]).some(x=>x.id===r.p)?r.p:''):''};
     const n=normQ(rr,ids);
     if(!n||seen.has(n.q)){dropped++;return}
+    if(n.sk&&n.src==='AI'){n.sksrc='ai';if(n.skc===undefined)n.skc=0.8;}
     const nid=newId(bank,'q');seen.add(n.q); bank.questions.push({...n,id:nid}); newIds.push(nid); added++;
   });
   const sk=Array.isArray(res&&res.skipped)?res.skipped:[];
@@ -2291,6 +2296,7 @@ function genPrompt(bank,lv,count,only){
 - 是非題和選擇題都要有。${lvText}
 - 不要和「已經有的題目」重複，要換問法、換角度。
 - 錯誤選項必須根據清單明確是錯的，不能有兩個都說得通的選項。
+- 每題用 sk 標出讀題能力標籤（1～2 個，第一個是主標籤），代號只能用：neg 否定題、qnt 限定詞、cnt 多項數數／組合、ctx 情境轉概念、evi 閱讀找證據、shp 形近字、prf 校對錯字；都不符合就用 unk。多項數數題另外輸出 items:[{"t":"項目","yes":true}]。
 ${STYLE_RULES(bank)}
 
 ${JSON_RULES}
@@ -2302,7 +2308,7 @@ ${cons}
 ${exist||'（還沒有）'}
 
 只回傳 JSON 陣列，不要其他文字，格式：
-[{"c":"k1","t":"tf","q":"題目","a":"O","why":"解說","lv":2,"icon":"🌱"}]`;
+[{"c":"k1","t":"tf","q":"題目","a":"O","why":"解說","lv":2,"icon":"🌱","sk":["neg"]}]`;
 }
 
 /* --- AI 呼叫的共用提醒與錯誤處理 --- */
@@ -3239,6 +3245,8 @@ function addReading(bank,res,genre){
     const n=normQ({...r,c:cmap[rl],src:'AI',ansByAI:false,lv:rl===1?1:rl===2?2:3},ids);
     if(!n){bad.push('格式不對');return}
     const ev=String(r.ev||'').trim().slice(0,80);
+    if(n.sk){n.sksrc='ai';if(n.skc===undefined)n.skc=0.8;}
+    if(ev&&!n.sk)Object.assign(n,{sk:['evi'],sksrc:'rule',skc:1});
     const q={...n,id:newId(bank,'q'),p:pid,rl,icon:'📖',...(ev?{ev}:{})};
     if(!ev){bad.push('沒有附依據句');return}
     const why=readQCheck(q,text);
@@ -4047,18 +4055,90 @@ document.addEventListener('keydown',e=>{
   if(/^[1-4]$/.test(e.key)&&Number(e.key)<=diagOptions(diagRun.items[diagRun.index].q).length){e.preventDefault();diagSelect(Number(e.key)-1)}
   else if(e.key==='Enter'&&diagRun.last!==null&&!e.target.closest?.('button')){e.preventDefault();diagNext()}
 });
+const DIAG_PRIVACY="本站由站長（個人）經營，目的是幫孩子練習、找出讀題上的習慣。我們會記錄：孩子暱稱、每題對錯、作答秒數、有沒有改答案、題目的讀題能力標籤、學校考卷錯題的題號和科目。不收真實姓名、學校、分數和照片。資料存在站長的 Google 試算表，只有您和站長看得到。出題時只把讀題標籤、年級、科目送給 Anthropic 的 AI（在美國），不送暱稱。資料保存 12 個月後自動刪除。您可以隨時查看、更正、停止，或在家長頁刪除這位玩家的資料。";
+function diagDisclosure(id,title){return '<button class="ghost" id="'+id+'-open" aria-expanded="false">'+title+'</button><section id="'+id+'" hidden></section>'}
+function diagBindDisclosure(root,id,draw){
+  const button=root.querySelector('#'+id+'-open'),area=root.querySelector('#'+id);
+  let initialized=false;
+  button.onclick=()=>{area.hidden=!area.hidden;button.setAttribute('aria-expanded',String(!area.hidden));if(!initialized){initialized=true;draw(area)}};
+}
+const diagDate=ts=>new Date(ts+8*3600000).toISOString().slice(0,10);
+const diagOptionsHTML=(value,secondary=false)=>
+  (secondary?'<option value="">無</option>':'')+DIAG_TAGS.filter(t=>!secondary||t.id!=='unk').map(t=>'<option value="'+t.id+'"'+(t.id===value?' selected':'')+'>'+esc(t.name)+'</option>').join('');
+function viewExam(area,player,reload,valid){
+  const selected=new Map();
+  area.innerHTML='<article class="card form"><label>科目<select id="exam-subject">'+['國語','數學','自然','社會','英語','其他'].map(s=>'<option>'+s+'</option>').join('')+'</select></label><label>考試日期<input id="exam-date" type="date" value="'+diagDate(Date.now())+'"></label><p>錯的題號（點選）</p><div class="chips" id="exam-numbers">'+Array.from({length:40},(_,i)=>'<button class="chip" data-qno="'+(i+1)+'" aria-pressed="false">'+(i+1)+'</button>').join('')+'</div><div id="exam-tags"></div><button class="big" id="exam-save" disabled>存進'+esc(player.name)+'的紀錄</button><p>只存題號、科目、標籤和日期。不用拍考卷，也不打題目內容、分數或學校。</p><p role="status" id="exam-status"></p></article>';
+  const save=area.querySelector('#exam-save'),tags=area.querySelector('#exam-tags');
+  const draw=()=>{
+    save.disabled=!selected.size;
+    tags.innerHTML=[...selected.keys()].sort((a,b)=>a-b).map(n=>'<div><p>第 '+n+' 題是哪一種讀題問題？</p><div class="chips">'+DIAG_TAGS.map(t=>'<button class="chip" data-exam-no="'+n+'" data-exam-tag="'+t.id+'" aria-pressed="'+(selected.get(n)===t.id)+'">'+esc(t.id==='unk'?'不確定':t.name)+'</button>').join('')+'</div></div>').join('');
+    tags.querySelectorAll('button').forEach(b=>b.onclick=()=>{selected.set(+b.dataset.examNo,b.dataset.examTag);draw()});
+  };
+  area.querySelectorAll('[data-qno]').forEach(b=>b.onclick=()=>{const n=+b.dataset.qno;if(selected.has(n))selected.delete(n);else selected.set(n,'unk');b.setAttribute('aria-pressed',String(selected.has(n)));draw()});
+  save.onclick=async()=>{
+    const qnos=[...selected.keys()].sort((a,b)=>a-b),subject=area.querySelector('#exam-subject').value,examDate=area.querySelector('#exam-date').value;
+    area.querySelectorAll('button,input,select').forEach(b=>b.disabled=true);
+    try{await parentCall('diag_saveExam',{playerId:player.id,subject,examDate,qnos,tags:qnos.map(n=>selected.get(n))});if(valid())await reload('已存下 '+qnos.length+' 題。')}
+    catch(e){if(valid()){area.querySelector('#exam-status').textContent=e.message||'儲存失敗，請稍後再試。';area.querySelectorAll('button,input,select').forEach(b=>b.disabled=false)}}
+  };
+}
+function viewTags(area,alive){
+  const banks=[...new Map([...Object.values(localBanks()),...BANKS].filter(ownBank).map(b=>[b.id,b])).values()];
+  area.innerHTML='<label>家庭題庫<select id="tag-bank">'+banks.map(b=>'<option value="'+esc(b.id)+'">'+esc(b.title||bankInfo(b))+'</option>').join('')+'</select></label><div id="tag-body"></div>';
+  const select=area.querySelector('#tag-bank'),body=area.querySelector('#tag-body');let limit=50,tagging=false;
+  function draw(){
+    const bank=banks.find(b=>b.id===select.value);if(!bank){body.textContent='這台裝置還沒有家庭題庫。';return}
+    const qs=bank.questions,total=qs.length,done=qs.filter(q=>q.sk?.length).length;
+    body.innerHTML='<p>舊題補標：已標 '+done+' / '+total+' 題</p><progress aria-label="補標進度" max="'+(total||1)+'" value="'+done+'"></progress><button class="ghost" id="tag-batch">再補標 20 題（用站長配額）</button><p role="status" id="tag-status"></p>'+qs.slice(0,limit).map((q,i)=>'<div class="qli" data-tag-row="'+i+'"><p>'+esc(q.q)+'</p><div class="tags">'+(!q.sk?.length||primaryTag(q)==='unk'?'<span class="tag retry">未分類</span>':({'ai':'AI 標',parent:'家長改過',rule:'規則標'}[q.sksrc]?'<span class="tag">'+({'ai':'AI 標',parent:'家長改過',rule:'規則標'}[q.sksrc])+'</span>':''))+'<select aria-label="標籤">'+diagOptionsHTML(primaryTag(q))+'</select><select aria-label="第二標籤">'+diagOptionsHTML(q.sk?.[1]||'',true)+'</select></div></div>').join('')+(total>limit?'<button class="ghost" id="tag-more">再顯示 50 題</button>':'');
+    body.querySelectorAll('[data-tag-row]').forEach(row=>row.querySelectorAll('select').forEach(s=>s.onchange=async()=>{
+      const q=qs[+row.dataset.tagRow],values=[...row.querySelectorAll('select')].map(s=>s.value);q.sk=[values[0],...(values[1]&&values[1]!==values[0]?[values[1]]:[])];q.skc=1;q.sksrc='parent';await bsSave(bank);if(alive()&&area.isConnected)draw();
+    }));
+    const more=body.querySelector('#tag-more');if(more)more.onclick=()=>{limit+=50;draw()};
+    const batch=body.querySelector('#tag-batch'),candidates=qs.filter(q=>!q.sk?.length&&q.sksrc!=='parent').slice(0,20);batch.disabled=tagging||!candidates.length;
+    batch.onclick=async()=>{
+      if(tagging)return;tagging=true;batch.disabled=true;select.disabled=true;
+      try{
+        const j=await parentCall('diag_tagBatch',{grade:bank.grade||'',subject:bank.subject||'',items:candidates.map(q=>({id:q.id,q:q.q,o:q.t==='tf'?['對','錯']:q.o}))});
+        if(!alive()||!area.isConnected)return;
+        for(const t of j.tags||[]){const q=candidates.find(q=>q.id===t.id);if(q&&q.sksrc!=='parent'&&Array.isArray(t.sk)&&t.sk.length>=1&&t.sk.length<=2&&t.sk.every(x=>DIAG_TAGS.some(y=>y.id===x)))Object.assign(q,{sk:t.sk.slice(),skc:t.skc,sksrc:'ai'})}
+        await bsSave(bank);tagging=false;if(alive()&&area.isConnected)draw();
+      }catch(e){if(alive()&&area.isConnected){body.querySelector('#tag-status').textContent=e.message||'補標失敗，請稍後再試。';body.querySelector('#tag-batch').disabled=!qs.some(q=>!q.sk?.length&&q.sksrc!=='parent')}}
+      finally{tagging=false;select.disabled=false}
+    };
+  }
+  select.onchange=()=>{limit=50;draw()};draw();
+}
+async function viewPlayerData(area,player,report,valid,onDeleted){
+  area.textContent='讀取中……';
+  try{
+    const profile=(await api('diag_getProfile',{playerId:player.id})).profile;if(!valid()||!area.isConnected)return;
+    const helpers=DIAG_TAGS.filter(t=>profile.tags[t.id]?.w>0).map(t=>t.name+'（第 '+profile.tags[t.id].scf+' 階）'),review=profile.review||[];
+    const dates=[profile.consent?.at,report.firstTs].filter(t=>typeof t==='number'),first=dates.length?Math.min(...dates):null;
+    area.innerHTML='<article class="card"><p>'+esc(helpers.length?'讀題小幫手開著的題型：'+helpers.join('、'):'目前沒有開著的讀題小幫手。')+'</p><p>'+(review.length?'老朋友複習：'+review.length+' 題排隊中，最近一題 '+diagDate(Math.min(...review.map(r=>r.dueAt))).slice(5).replace('-','/')+'。':'老朋友複習：目前沒有。')+'</p>'+(first!==null?'<p>資料最早一筆 '+diagDate(first)+'，會在 '+diagDate(first+365*86400000)+' 自動刪除。</p>':'')+'</article><article class="card" style="border-color:var(--coral)"><h2>刪除'+esc(player.name)+'的檢定資料</h2><p>會刪掉作答紀錄、弱點檔案、檢定結果和段考補登。練習用的題庫和徽章不受影響。刪掉就找不回來。</p><button class="danger" id="diag-delete-open">刪除'+esc(player.name)+'的檢定資料</button><div id="diag-delete-form" hidden><label>輸入「'+esc(player.name)+'」確認<input id="diag-delete-name" autocomplete="off"></label><button class="danger" id="diag-delete-go" disabled>確定刪除</button><button class="ghost" id="diag-delete-cancel">取消</button></div><p role="status" id="diag-delete-status"></p></article>';
+    const form=area.querySelector('#diag-delete-form'),input=area.querySelector('input'),go=area.querySelector('#diag-delete-go'),open=area.querySelector('#diag-delete-open');
+    open.onclick=()=>{form.hidden=false;open.hidden=true;input.focus()};input.oninput=()=>{go.disabled=input.value!==player.name};
+    area.querySelector('#diag-delete-cancel').onclick=()=>{form.hidden=true;open.hidden=false;input.value='';go.disabled=true};
+    go.onclick=async()=>{
+      if(input.value!==player.name)return;
+      area.querySelectorAll('button,input').forEach(b=>b.disabled=true);
+      try{await parentCall('diag_deletePlayer',{playerId:player.id});diagForget(player.id);localStorage.removeItem('diag-ratio:'+player.id);if(valid())onDeleted()}
+      catch(e){if(valid()){area.querySelector('#diag-delete-status').textContent=e.message||'刪除失敗，請稍後再試。';area.querySelectorAll('button,input').forEach(b=>b.disabled=false);go.disabled=input.value!==player.name}}
+    };
+  }catch(e){if(valid())parentError(area,e.message||'連不到雲端，請稍後再試',()=>viewPlayerData(area,player,report,valid,onDeleted))}
+}
 async function viewDiagLearn(list,alive){
   try{
     const players=(await parentCall('playerList')).players;if(!alive())return;
-    list.innerHTML='<section id="diag-learn"><label>玩家<select id="diag-player">'+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><div id="diag-parent-body"></div></section>';
+    list.innerHTML='<section id="diag-learn"><label>玩家<select id="diag-player">'+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><div id="diag-parent-body"></div>'+diagDisclosure('diag-tags','題目與標籤')+'</section>';
+    diagBindDisclosure(list,'diag-tags',area=>viewTags(area,alive));
     const select=list.querySelector('select'),body=list.querySelector('#diag-parent-body');if(players.some(p=>p.id===ACTIVE_PLAYER))select.value=ACTIVE_PLAYER;
     let generation=0;
-    const draw=async()=>{
+    const draw=async(message='')=>{
       const gen=++generation,pid=select.value,player=players.find(p=>p.id===pid),valid=()=>alive()&&gen===generation;body.innerHTML='<p>讀取中……</p>';
       try{
         const report=await parentCall('diag_report',{playerId:pid});if(!valid())return;
         if(!report.consent){
-          body.innerHTML='<article class="card"><h2>開始學習檢定前，請先看這段</h2><div class="consent" tabindex="0">本站由站長（個人）經營，目的是幫孩子練習、找出讀題上的習慣。我們會記錄：孩子暱稱、每題對錯、作答秒數、有沒有改答案、題目的讀題能力標籤、學校考卷錯題的題號和科目。不收真實姓名、學校、分數和照片。資料存在站長的 Google 試算表，只有您和站長看得到。出題時只把讀題標籤、年級、科目送給 Anthropic 的 AI（在美國），不送暱稱。資料保存 12 個月後自動刪除。您可以隨時查看、更正、停止，或在家長頁刪除這位玩家的資料。</div><label class="diag-check"><input type="checkbox" id="diag-agree">我是家長，看過上面的說明，同意記錄。</label><button class="big" id="diag-consent" disabled>同意，開始檢定</button><button class="ghost" id="diag-decline">先不要，只練習</button><p>同意文字版本 v1 與時間會一起存下。不同意也能照常練習，只是沒有檢定和讀題小幫手。</p></article>';
+          body.innerHTML='<article class="card"><h2>開始學習檢定前，請先看這段</h2><div class="consent" tabindex="0">'+esc(DIAG_PRIVACY)+'</div><label class="diag-check"><input type="checkbox" id="diag-agree">我是家長，看過上面的說明，同意記錄。</label><button class="big" id="diag-consent" disabled>同意，開始檢定</button><button class="ghost" id="diag-decline">先不要，只練習</button><p>同意文字版本 v1 與時間會一起存下。不同意也能照常練習，只是沒有檢定和讀題小幫手。</p></article>';
           body.querySelector('#diag-agree').onchange=e=>{body.querySelector('#diag-consent').disabled=!e.target.checked};
           body.querySelector('#diag-decline').onclick=()=>{body.innerHTML=''};
           body.querySelector('#diag-consent').onclick=()=>consent(true);
@@ -4067,7 +4147,11 @@ async function viewDiagLearn(list,alive){
           body.insertAdjacentHTML('afterbegin','<label for="diag-ratio">讀題小幫手題目比例 <output id="diag-ratio-value">'+diagRatio(pid)+'%</output></label><input id="diag-ratio" type="range" min="20" max="50" step="5" value="'+diagRatio(pid)+'">');
           body.querySelector('#diag-ratio').oninput=e=>{localStorage.setItem('diag-ratio:'+pid,e.target.value);body.querySelector('#diag-ratio-value').textContent=e.target.value+'%'};
           body.querySelector('#diag-revoke').onclick=()=>consent(false);
+          body.insertAdjacentHTML('beforeend','<p role="status">'+esc(message)+'</p>'+diagDisclosure('diag-exam','段考補登'));
+          diagBindDisclosure(body,'diag-exam',area=>viewExam(area,player,draw,valid));
         }
+        body.insertAdjacentHTML('beforeend',diagDisclosure('diag-data','玩家資料'));
+        diagBindDisclosure(body,'diag-data',area=>viewPlayerData(area,player,report,valid,()=>{++generation;body.innerHTML='<p role="status">已刪除。</p>'}));
         async function consent(agree){
           body.querySelectorAll('button,input').forEach(b=>b.disabled=true);
           try{const j=await parentCall('diag_consent',{playerId:pid,agree});if(!agree)diagForget(pid);diagWrite('diag-profile:'+pid,j.profile);if(valid())await draw()}
@@ -4075,17 +4159,17 @@ async function viewDiagLearn(list,alive){
         }
       }catch(e){if(valid())parentError(body,e.code==='diag_off'?'尚未開啟學習檢定':'連不到雲端，請稍後再試',draw)}
     };
-    select.onchange=draw;await draw();
+    select.onchange=()=>draw();await draw();
   }catch(e){if(alive())parentError(list,'連不到雲端，請稍後再試',()=>viewDiagLearn(list,alive))}
 }
 function diagReportHTML(report,name){
-  const [latest,previous]=report.diags;if(!latest)return '<p>'+esc(name)+'還沒做過學習檢定。</p>';
+  const [latest,previous]=report.diags;if(!latest)return '<p>'+esc(name)+'還沒做過學習檢定。</p>'+DIAG_TAGS.filter(t=>report.exams[t.id]&&t.id!=='unk').map(t=>'<article class="card"><h2>'+esc(t.name)+'</h2><p>段考補登：錯 '+report.exams[t.id]+' 題。</p></article>').join('');
   const date=new Date(latest.ts),label=t=>DIAG_TAGS.find(x=>x.id===t).name;
   return '<article class="card"><h2>'+String(date.getMonth()+1).padStart(2,'0')+'/'+String(date.getDate()).padStart(2,'0')+' 學習檢定：'+latest.n+' 題對 '+latest.ok+' 題</h2>'+DIAG_TAG_IDS.map(t=>{
     const c=latest.perTag[t]||{n:0,ok:0},rate=c.n?c.ok/c.n:0,p=previous?.perTag[t];
     return '<div class="trow"><span>'+esc(label(t))+'</span><span class="b"><i class="'+(rate<.5?'low':rate<.7?'mid':'')+'" style="width:'+rate*100+'%"></i>'+(p?.n?'<s aria-label="上次 '+p.ok+'/'+p.n+'" style="left:'+p.ok/p.n*100+'%"></s>':'')+'</span><span class="v">'+c.ok+'/'+c.n+'</span></div>';
-  }).join('')+'<p>圖例：長條＝這次正確率；黑線＝上次正確率；右側＝答對題數／作答題數。</p><p>題數少，前後差 ±1 題屬正常波動。</p></article>'+DIAG_TAG_IDS.filter(t=>report.perTag[t]?.n).map(t=>{
-    const c=report.perTag[t],v=c.verdict,kind=v==='slip'?'quick':v==='learn'?'learn':'wait',title=v==='slip'?'比較像一時沒看清楚':v==='learn'?'比較像還在學':'還看不出來';
+  }).join('')+'<p>圖例：長條＝這次正確率；黑線＝上次正確率；右側＝答對題數／作答題數。</p><p>題數少，前後差 ±1 題屬正常波動。</p></article>'+DIAG_TAG_IDS.filter(t=>report.perTag[t]?.n||report.exams[t]).map(t=>{
+    const c=report.perTag[t]||{n:0,wrong:0,fixes:0},v=c.verdict,kind=v==='slip'?'quick':v==='learn'?'learn':'wait',title=v==='slip'?'比較像一時沒看清楚':v==='learn'?'比較像還在學':'還看不出來';
     const text=v==='slip'?label(t)+'：檢定加練習共 '+c.n+' 題錯 '+c.wrong+' 題，看起來比較像讀太快、一時沒看清楚題目。':v==='learn'?label(t)+'：檢定加練習共 '+c.n+' 題錯 '+c.wrong+' 題，這類題目還需要多練習。':label(t)+'：目前做了 '+c.n+' 題、錯 '+c.wrong+' 題，題數還太少，先不下結論。';
     return '<article class="card"><span class="pill '+kind+'">'+title+'</span><p>'+esc(text)+'</p>'+(c.fixes>0?'<p>有 '+c.fixes+' 次改答案改對了，值得稱讚。</p>':'')+(report.exams[t]?'<p>段考補登：錯 '+report.exams[t]+' 題。</p>':'')+'</article>';
   }).join('')+'<article class="card diag-talk"><h2>怎麼跟孩子說</h2><p>'+(Object.values(report.perTag).some(c=>c.verdict==='slip')?'「你這題再看一次就對了，好厲害。下次看到題目先找找關鍵字。」也可以請孩子說說當時怎麼想的。':'「這些題目我們一起再多練幾次。」也可以請孩子說說當時怎麼想的。')+'</p></article>';
@@ -4143,6 +4227,7 @@ async function libHome(){
       <span class="bk-title">${esc(b.title||bankInfo(b))}${b.builtin?' <span class="tag">內建</span>':''}</span>
       <span class="bk-meta">${[gradeTag(b),b.subject,b.publisher,b.unit].filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')}</span>
       <span class="bk-meta">${b.count||0} 題</span></button>`).join('')||'<p class="lead">沒有符合的題庫。</p>'}</div>`;
+  app.insertAdjacentHTML('beforeend','<details id="diag-privacy"><summary>隱私說明</summary><p>'+esc(DIAG_PRIVACY)+'</p></details>');
   const $=id=>document.getElementById(id);
   if($('rewards-home'))$('rewards-home').onclick=()=>rewardPage();
   $('mine').onclick=()=>betaHome();
