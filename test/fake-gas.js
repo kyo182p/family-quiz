@@ -116,16 +116,29 @@ function createGasEnv(options = {}) {
       this.formats = formats;
       return this;
     }
+    deleteRows(start, n) {
+      if (!Number.isInteger(n) || n < 1) throw new Error("Invalid row count");
+      for (let i = 0; i < n; i++) this.deleteRow(start);
+      return this;
+    }
     setFrozenRows(rows) { this.frozenRows = rows; return this; }
     clearContents() { this.getDataRange().clearContent(); return this; }
   }
-  const spreadsheet = {
-    getSheetByName: name => sheets.get(name) || null,
-    insertSheet(name) {
-      if (sheets.has(name)) throw new Error('Duplicate sheet');
-      const sheet = new Sheet(name); sheets.set(name, sheet); return sheet;
-    },
-  };
+  function makeSpreadsheet(sheetMap) {
+    return {
+      getSheetByName: name => sheetMap.get(name) || null,
+      insertSheet(name) {
+        if (sheetMap.has(name)) throw new Error('Duplicate sheet');
+        const sheet = new Sheet(name); sheetMap.set(name, sheet); return sheet;
+      },
+    };
+  }
+  const spreadsheet = makeSpreadsheet(sheets), books = new Map();
+  function openById(id) {
+    stats.opens++;
+    if (!books.has(id)) { const map = new Map(); books.set(id, {sheets:map, book:makeSpreadsheet(map)}); }
+    return books.get(id).book;
+  }
   const propertyData = new Map();
   const props = {
     getProperty: key => propertyData.get(String(key)) ?? null,
@@ -188,18 +201,26 @@ function createGasEnv(options = {}) {
   const ScriptApp = {
     getProjectTriggers: () => triggers.map(t => ({getHandlerFunction: () => t.handler})),
     newTrigger(handler) {
-      let minutes;
+      let minutes, days, hour;
       const builder = {
         timeBased() { return builder; },
         everyMinutes(n) { minutes = n; return builder; },
-        create() { const trigger = {handler, minutes}; triggers.push(trigger); return trigger; },
+        everyDays(n) { days = n; return builder; },
+        atHour(n) { hour = n; return builder; },
+        create() {
+          const trigger = {handler, minutes};
+          if (days !== undefined) trigger.days = days;
+          if (hour !== undefined) trigger.hour = hour;
+          triggers.push(trigger); return trigger;
+        },
       };
       return builder;
     },
   };
   const globals = {
     Date: ClockDate, console: consoleProxy, Utilities, ScriptApp,
-    SpreadsheetApp: { getActive: () => { stats.opens++; return spreadsheet; }, flush() {} },
+    UrlFetchApp: { fetch: options.fetch || (() => { throw new Error('No fetch adapter'); }) },
+    SpreadsheetApp: { openById, getActive: () => { stats.opens++; return spreadsheet; }, flush() {} },
     PropertiesService: { getScriptProperties: () => props },
     CacheService: { getScriptCache: () => cache },
     ContentService: {
@@ -250,15 +271,16 @@ function createGasEnv(options = {}) {
     return JSON.parse(run('doPost', { postData: { contents } }).getContent());
   }
   return {
-    doPost, run, clock, sheets, props, cache, logs, formulaCells, stats, triggers,
+    doPost, run, clock, sheets, books, props, cache, logs, formulaCells, stats, triggers,
     snapshot() {
       const encode = v => v instanceof Date ? {__gasDate:v.getTime()} : Array.isArray(v) ? v.map(encode) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k,x])=>[k,encode(x)])) : v;
-      return encode({sheets:[...sheets].map(([name,s])=>({name,data:s.data,formats:[...s.formats],frozenRows:s.frozenRows})),props:[...propertyData],cache:[...cacheData]});
+      return encode({sheets:[...sheets].map(([name,s])=>({name,data:s.data,formats:[...s.formats],frozenRows:s.frozenRows})),books:[...books].map(([id,b])=>({id,sheets:[...b.sheets].map(([name,s])=>({name,data:s.data,formats:[...s.formats],frozenRows:s.frozenRows}))})),props:[...propertyData],cache:[...cacheData]});
     },
     restore(data) {
       const decode = v => v && typeof v === 'object' && '__gasDate' in v ? new Date(v.__gasDate) : Array.isArray(v) ? v.map(decode) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k,x])=>[k,decode(x)])) : v;
-      const saved=decode(data); sheets.clear(); propertyData.clear(); cacheData.clear();
+      const saved=decode(data); sheets.clear(); books.clear(); propertyData.clear(); cacheData.clear();
       for(const s of saved.sheets){const sh=spreadsheet.insertSheet(s.name);sh.data=s.data;sh.formats=new Map(s.formats);sh.frozenRows=s.frozenRows;}
+      for(const b of saved.books || []) { const ss=openById(b.id); for(const s of b.sheets){const sh=ss.insertSheet(s.name);sh.data=s.data;sh.formats=new Map(s.formats);sh.frozenRows=s.frozenRows;} }
       for(const [k,v] of saved.props)propertyData.set(k,v);
       for(const [k,v] of saved.cache)cacheData.set(k,v);
     },
