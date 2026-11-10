@@ -1912,6 +1912,236 @@ function toast(msg){
 }
 
 /* --- 題目驗證 --- */
+// ==DIAG-SHARED-BEGIN==
+// diagEvent: {ts,eid,qid,bank,tags:'neg,qnt',ok:0|1,sec,len,chg:'0'|'RW'|'WR'|'WW',scf:0|1|2,scok:''|0|1,mode:'diag'|'prac'|'rev',sid,retry:0|1,intr:0|1}
+// len = 題幹+選項總字數; scok = 鷹架步驟是否做對，沒套鷹架為 ''。
+const DIAG_CFG={spcDefault:0.35,spcMinN:8,base:3,fast:0.6,slow:1.5,interrupt:1.8,minN:4,minWrong:2,streakFade:5,fade:0.7,graduate:0.2,ratioMin:0.2,ratioMax:0.5,target:[0.65,0.75],ladder:[1,3,7,14,30],windowDays:21,recentN:10,reweakWrong:3,maxReview:3,formSize:20,perTagMin:2,retryGap:[3,5],retentionDays:365,retestDays:30,retestMinGap:14,examRetest:[3,7],consentVer:'diag-consent-v1'};
+const DIAG_TAGS=[
+  {id:'neg',name:'否定題',scf:'neg'},{id:'qnt',name:'限定詞',scf:'neg'},
+  {id:'cnt',name:'多項數數／組合',scf:'count'},{id:'ctx',name:'情境轉概念',scf:''},
+  {id:'evi',name:'閱讀找證據／推論',scf:'evidence'},{id:'shp',name:'形近字與字形細節',scf:''},
+  {id:'prf',name:'校對錯字',scf:''},{id:'unk',name:'未分類',scf:''}
+];
+const DIAG_TAG_IDS=DIAG_TAGS.slice(0,7).map(t=>t.id);
+function primaryTag(q){return q.sk&&q.sk[0]||'unk';}
+function ruleTags(text){
+  function find(words){
+    for(const word of words){const at=text.indexOf(word);if(at>=0)return {at,word};}
+    return null;
+  }
+  return {neg:find(['不屬於','不正確','不可能','不符合','不是','不會','不能','錯誤','沒有']),qnt:find(['所有','有些','一定','至少','只有','都'])};
+}
+function speedOf(events,cfg){
+  const values=events.filter(e=>e.ok===1&&e.intr===0&&e.len>0).map(e=>e.sec/e.len).sort((a,b)=>a-b);
+  const m=Math.floor(values.length/2);
+  const spc=values.length>=cfg.spcMinN?(values.length%2?values[m]:(values[m-1]+values[m])/2):cfg.spcDefault;
+  return {spc,rel:e=>e.sec/(cfg.base+e.len*spc)};
+}
+function diagEventTag(e){return (e.tags||'').split(',')[0]||'unk';}
+function classifyTag(events,cfg,now){
+  const recent=events.filter(e=>now-e.ts<=cfg.windowDays*86400000);
+  const speed=speedOf(recent,cfg);
+  const clean=recent.filter(e=>e.intr!==1&&speed.rel(e)<=cfg.interrupt).slice().sort((a,b)=>a.ts-b.ts);
+  const result={};
+  for(const tag of DIAG_TAG_IDS){
+    const all=clean.filter(e=>diagEventTag(e)===tag);
+    if(!all.length)continue;
+    const first=all.filter(e=>e.retry===0);
+    const n=first.length,ok=first.reduce((s,e)=>s+e.ok,0);
+    const out={tag,n,ok,wrong:n-ok,fixes:all.filter(e=>e.chg==='WR').length,slip:0,learn:0,verdict:'unclear'};
+    for(let i=0;i<first.length;i++){
+      const e=first[i];if(e.ok!==0)continue;
+      const retries=all.filter(r=>r.retry===1&&r.sid===e.sid&&r.qid===e.qid&&r.ts>=e.ts);
+      if(speed.rel(e)<cfg.fast)out.slip++;
+      if(retries.some(r=>r.ok===1))out.slip++;
+      const before=first.slice(0,i).filter(r=>r.sid===e.sid);
+      if(before.length>=2&&before[before.length-1].ok===1&&before[before.length-2].ok===1)out.slip++;
+      if(speed.rel(e)>cfg.slow)out.learn++;
+      if(retries.some(r=>r.ok===0))out.learn++;
+      if(e.chg==='RW'||e.chg==='WW')out.learn++;
+    }
+    if(n&&ok/n<0.5)out.learn++;
+    if(n>=cfg.minN&&out.wrong>=cfg.minWrong){
+      if(out.slip>=3&&out.learn<=1)out.verdict='slip';
+      else if(out.learn>=3&&out.slip<=1)out.verdict='learn';
+    }
+    result[tag]=out;
+  }
+  return result;
+}
+function emptyProfile(){return {ver:1,tags:{},spc:null,review:[],consent:null,lastDiag:null};}
+function scheduleReview(review,e,cfg,now){
+  const next=review.map(r=>({...r,qidSeen:r.qidSeen.slice()}));
+  const tag=diagEventTag(e);
+  if(!DIAG_TAG_IDS.includes(tag)||e.retry===1)return next;
+  const i=next.findIndex(r=>r.tag===tag),r=next[i];
+  if(e.mode==='rev'){
+    if(!r)return next;
+    if(e.ok===1&&r.step===cfg.ladder.length-1){next.splice(i,1);return next;}
+    r.step=e.ok===1?r.step+1:Math.max(0,r.step-1);
+    r.dueAt=now+cfg.ladder[r.step]*86400000;
+    if(!r.qidSeen.includes(e.qid))r.qidSeen.push(e.qid);
+  }else if(e.ok===0&&e.retry===0){
+    if(!r)next.push({tag,qidSeen:[e.qid],step:0,dueAt:now+cfg.ladder[0]*86400000});
+    else if(!r.qidSeen.includes(e.qid))r.qidSeen.push(e.qid);
+  }
+  return next;
+}
+function dueReviews(review,now,cfg){return review.filter(r=>r.dueAt<=now).sort((a,b)=>a.dueAt-b.dueAt).slice(0,cfg.maxReview);}
+function applyEvents(profile,events,cfg,now){
+  const out=JSON.parse(JSON.stringify(profile));
+  const first=events.filter(e=>e.retry!==1);
+  for(const e of first.slice().sort((a,b)=>a.ts-b.ts)){
+    const tag=diagEventTag(e);
+    const t=out.tags[tag]||(out.tags[tag]={n:0,ok:0,streak:0,w:0,scf:0,run:0,recent:[]});
+    t.n++;t.ok+=e.ok;
+    if(tag==='unk')continue;
+    t.recent=t.recent.concat(e.ok).slice(-cfg.recentN);
+    if(e.ok===1&&e.scok!==0){
+      t.streak++;t.run++;
+      if(t.w>0&&t.streak>=cfg.streakFade)t.w*=cfg.fade;
+      if(t.w<cfg.graduate){t.w=0;t.scf=0;}
+      if(t.w>0&&t.run>=5){t.scf=Math.max(0,t.scf-1);t.run=0;}
+    }else{
+      t.streak=0;t.run=0;
+      if(e.ok===0){
+        if(t.w>0)t.scf=Math.min(2,t.scf+1);
+        else if(t.recent.filter(v=>v===0).length>=cfg.reweakWrong){
+          t.w=1;t.scf=['neg','qnt','cnt','evi'].includes(tag)?2:0;
+        }
+      }
+    }
+    out.review=scheduleReview(out.review,e,cfg,now);
+  }
+  out.spc=first.filter(e=>e.ok===1&&e.intr===0&&e.len>0).length>=cfg.spcMinN?speedOf(first,cfg).spc:null;
+  return out;
+}
+function pickWeak(profile,cfg){
+  const tags=DIAG_TAG_IDS.filter(tag=>profile.tags[tag]&&profile.tags[tag].w>0).map(tag=>({tag,w:profile.tags[tag].w})).sort((a,b)=>b.w-a.w);
+  const sum=tags.reduce((s,t)=>s+t.w,0);
+  return {tags,ratio:sum?Math.max(cfg.ratioMin,Math.min(cfg.ratioMax,0.5*Math.min(1,sum/2))):0};
+}
+function diagShuffle(items,rng){
+  const out=items.slice();
+  for(let i=out.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));const x=out[i];out[i]=out[j];out[j]=x;}
+  return out;
+}
+function diagArrange(items,rng,round){
+  const left=diagShuffle(items,rng),out=[];
+  let run=0;
+  while(left.length){
+    const prev=out.length?out[out.length-1].tag:'unk';
+    const normals=left.filter(x=>x.kind==='normal').length;
+    let choices=left.map((x,i)=>({x,i})).filter(({x})=>{
+      if(!round)return true;
+      if(out.length===0&&normals>=2)return x.kind==='normal';
+      if(left.length===1&&normals)return x.kind==='normal';
+      if(x.kind==='normal'&&normals===1&&left.length>1&&out.some(y=>y.kind==='normal'))return false;
+      if(x.kind==='normal'&&normals>1&&left.length-normals>2*(normals-1))return false;
+      return x.kind==='normal'||run<2;
+    });
+    // With too few normal questions a perfect arrangement may be impossible.
+    if(!choices.length)choices=left.map((x,i)=>({x,i}));
+    // Prefer the most numerous remaining tag, avoiding the previous one.
+    const counts={};for(const x of left)counts[x.tag]=(counts[x.tag]||0)+1;
+    choices.sort((a,b)=>Number(b.x.tag!==prev||prev==='unk')-Number(a.x.tag!==prev||prev==='unk')||counts[b.x.tag]-counts[a.x.tag]);
+    const x=left.splice(choices[0].i,1)[0];out.push(x);
+    run=x.kind==='normal'?0:run+1;
+  }
+  return out;
+}
+function composeRound(opts){
+  const {profile,cfg,n,rng}=opts,weak=pickWeak(profile,cfg),quota=Math.round(weak.ratio*n);
+  const used=new Set(),selected=[];
+  function add(q,kind,tag){if(!q||used.has(q.id))return false;used.add(q.id);selected.push({q,kind,tag});return true;}
+  for(const old of opts.old||[]){
+    if(selected.length>=Math.min(quota,cfg.maxReview))break;
+    add(old.q,'old',old.entry.tag);
+  }
+  const pools={};for(const t of weak.tags)pools[t.tag]=diagShuffle(opts.weakPool[t.tag]||[],rng);
+  const taken={};
+  while(selected.length<quota){
+    const available=weak.tags.filter(t=>pools[t.tag].some(q=>!used.has(q.id)));
+    if(!available.length)break;
+    available.sort((a,b)=>(taken[a.tag]||0)/a.w-(taken[b.tag]||0)/b.w);
+    const tag=available[0].tag,q=pools[tag].find(q=>!used.has(q.id));
+    if(add(q,'weak',tag))taken[tag]=(taken[tag]||0)+1;
+  }
+  const normal=diagShuffle(opts.normal,rng).filter(q=>!used.has(q.id));
+  while(selected.length<n&&normal.length){const q=normal.shift();add(q,'normal',primaryTag(q));}
+  function expected(){return selected.reduce((s,x)=>{const t=profile.tags[x.tag];return s+(x.kind==='normal'?0.85:t&&t.n?t.ok/t.n:0.5);},0)/selected.length;}
+  while(expected()<cfg.target[0]&&selected.filter(x=>x.kind!=='normal').length>1&&normal.length){
+    const i=selected.map(x=>x.kind).lastIndexOf('weak');
+    const at=i>=0?i:selected.map(x=>x.kind).lastIndexOf('old');
+    const q=normal.shift();selected[at]={q,kind:'normal',tag:primaryTag(q)};
+  }
+  return diagArrange(selected,rng,true);
+}
+function buildDiagForm(pool,cfg,rng){
+  const groups={},items=[],short=[],used=new Set();
+  for(const tag of DIAG_TAG_IDS){
+    groups[tag]=diagShuffle(pool.filter(x=>primaryTag(x.q)===tag),rng).sort((a,b)=>Number(b.src==='bank')-Number(a.src==='bank'));
+  }
+  function take(tag){
+    const q=groups[tag].find(x=>!used.has(x.q.id));if(!q)return false;
+    used.add(q.q.id);items.push(q);return true;
+  }
+  for(const tag of DIAG_TAG_IDS){
+    let count=0;while(count<cfg.perTagMin&&items.length<cfg.formSize&&take(tag))count++;
+    if(count<cfg.perTagMin)short.push(tag);
+  }
+  while(items.length<cfg.formSize){
+    let added=false;
+    const bankLeft=DIAG_TAG_IDS.some(tag=>groups[tag].some(x=>x.src==='bank'&&!used.has(x.q.id)));
+    for(const tag of DIAG_TAG_IDS){
+      if(items.length>=cfg.formSize)break;
+      if(bankLeft&&!groups[tag].some(x=>x.src==='bank'&&!used.has(x.q.id)))continue;
+      if(take(tag))added=true;
+    }
+    if(!added)break;
+  }
+  return {items:diagArrange(items.map(x=>({...x,tag:primaryTag(x.q)})),rng,false).map(({tag,...x})=>x),short};
+}
+// ==DIAG-SHARED-END==
+
+const DIAG_BANK=[
+  {id:'d-neg-1',c:'neg',t:'mc',q:'哪一項不是固體？',o:['木塊','石子','杯中的水'],a:'杯中的水',why:'水能流動，會隨容器改變形狀。',lv:2,src:'內建',sk:['neg'],skc:1,sksrc:'rule',subj:'自然'},
+  {id:'d-neg-2',c:'neg',t:'mc',q:'哪個算式的答案不是二十四？',o:['6×4','30－6','8＋8'],a:'8＋8',why:'八加八是十六，另外兩式都是二十四。',lv:2,src:'內建',sk:['neg'],skc:1,sksrc:'rule',subj:'數學'},
+  {id:'d-neg-3',c:'neg',t:'mc',q:'哪一項不符合愛惜公共設施的做法？',o:['輕放借來的球','在公園椅上刻字','用完水龍頭關緊'],a:'在公園椅上刻字',why:'刻字會破壞大家共用的設施。',lv:2,src:'內建',sk:['neg'],skc:1,sksrc:'rule',subj:'社會'},
+  {id:'d-neg-4',c:'neg',t:'mc',q:'關於影子，哪個說法不正確？',o:['擋住光可能有影子','光源移動影子可能改變','影子會自己發光'],a:'影子會自己發光',why:'影子是光被遮擋的區域，本身不發光。',lv:2,src:'內建',sk:['neg'],skc:1,sksrc:'rule',subj:'自然'},
+  {id:'d-neg-5',c:'neg',t:'mc',q:'袋裡只有紅球，哪件事不可能發生？',o:['摸出紅球','摸出藍球','放回摸出的紅球'],a:'摸出藍球',why:'袋中沒有藍球，不能從中摸出藍球。',lv:2,src:'內建',sk:['neg'],skc:1,sksrc:'rule',subj:'數學'},
+  {id:'d-qnt-1',c:'qnt',t:'mc',q:'所有邊都一樣長，且四個角都是直角的四邊形是什麼？',o:['正方形','長方形但非正方形','三角形'],a:'正方形',why:'正方形四邊等長，四角都是直角。',lv:2,src:'內建',sk:['qnt'],skc:1,sksrc:'rule',subj:'數學'},
+  {id:'d-qnt-2',c:'qnt',t:'mc',q:'盒裡有些種子發芽，有些還未發芽。哪句符合紀錄？',o:['全部發芽','部分發芽','全部未發芽'],a:'部分發芽',why:'有些表示其中一部分，並非全部。',lv:2,src:'內建',sk:['qnt'],skc:1,sksrc:'rule',subj:'自然'},
+  {id:'d-qnt-3',c:'qnt',t:'mc',q:'每盒裝四支筆，要裝完十支筆，至少需要幾盒？',o:['2','3','4'],a:'3',why:'兩盒只裝八支，三盒才能裝完十支。',lv:2,src:'內建',sk:['qnt'],skc:1,sksrc:'rule',subj:'數學'},
+  {id:'d-qnt-4',c:'qnt',t:'mc',q:'圖書角規定只有貼綠點的書能外借。哪本能借回家？',o:['貼綠點的故事書','貼紅點的圖鑑','沒貼點的字典'],a:'貼綠點的故事書',why:'只有貼綠點的書符合外借規則。',lv:2,src:'內建',sk:['qnt'],skc:1,sksrc:'rule',subj:'社會'},
+  {id:'d-qnt-5',c:'qnt',t:'mc',q:'一個整數乘以零，結果一定是多少？',o:['0','1','原來的整數'],a:'0',why:'任何整數乘以零都是零。',lv:2,src:'內建',sk:['qnt'],skc:1,sksrc:'rule',subj:'數學'},
+  {id:'d-cnt-1',c:'cnt',t:'mc',q:'下列數中，有幾個是偶數？',o:['1','2','3','4'],a:'2',why:'十二與十八是偶數，共兩個。',items:[{t:'12',yes:true},{t:'15',yes:false},{t:'18',yes:true},{t:'21',yes:false}],lv:2,src:'內建',sk:['cnt'],skc:1,sksrc:'rule',subj:'數學'},
+  {id:'d-cnt-2',c:'cnt',t:'mc',q:'下列物品中，有幾項能被磁鐵吸引？',o:['1','2','3'],a:'2',why:'鐵釘與鐵片能被磁鐵吸引，木筷不能。',items:[{t:'鐵釘',yes:true},{t:'木筷',yes:false},{t:'鐵片',yes:true}],lv:2,src:'內建',sk:['cnt'],skc:1,sksrc:'rule',subj:'自然'},
+  {id:'d-cnt-3',c:'cnt',t:'mc',q:'下列行為中，有幾項能節約用水？',o:['1','2','3','4'],a:'3',why:'關水、重複利用水與修漏水都能省水，共三項。',items:[{t:'刷牙時關水',yes:true},{t:'水龍頭一直開著',yes:false},{t:'用洗菜水澆花',yes:true},{t:'修好漏水處',yes:true}],lv:2,src:'內建',sk:['cnt'],skc:1,sksrc:'rule',subj:'社會'},
+  {id:'d-cnt-4',c:'cnt',t:'mc',q:'下列圖形中，有幾項有四條邊？',o:['1','2','3','4'],a:'3',why:'正方形、長方形與梯形各有四條邊。',items:[{t:'正方形',yes:true},{t:'三角形',yes:false},{t:'長方形',yes:true},{t:'圓形',yes:false},{t:'梯形',yes:true}],lv:2,src:'內建',sk:['cnt'],skc:1,sksrc:'rule',subj:'數學'},
+  {id:'d-cnt-5',c:'cnt',t:'mc',q:'下列物品中，有幾項是液體？',o:['1','2','3','4'],a:'2',why:'果汁和食用油是液體，共兩項。',items:[{t:'果汁',yes:true},{t:'石塊',yes:false},{t:'食用油',yes:true},{t:'空氣',yes:false}],lv:2,src:'內建',sk:['cnt'],skc:1,sksrc:'rule',subj:'自然'},
+  {id:'d-ctx-1',c:'ctx',t:'mc',q:'手作攤準備十八顆珠子，每串用六顆，可以做幾串？',o:['2','3','6'],a:'3',why:'十八除以六等於三，可以做三串。',lv:2,src:'內建',sk:['ctx'],skc:1,sksrc:'rule',subj:'數學'},
+  {id:'d-ctx-2',c:'ctx',t:'mc',q:'冰塊放在溫暖桌面後變成水，這個變化叫什麼？',o:['融化','結冰','燃燒'],a:'融化',why:'固態的冰變成液態水叫融化。',lv:2,src:'內建',sk:['ctx'],skc:1,sksrc:'rule',subj:'自然'},
+  {id:'d-ctx-3',c:'ctx',t:'mc',q:'路口行人燈轉綠，過馬路前應先做什麼？',o:['查看車輛並確認安全','閉眼跑過','站到車道等候'],a:'查看車輛並確認安全',why:'綠燈仍須觀察車輛，確認安全再通行。',lv:2,src:'內建',sk:['ctx'],skc:1,sksrc:'rule',subj:'社會'},
+  {id:'d-ctx-4',c:'ctx',t:'mc',q:'繩子長一公尺，剪去三十公分，還剩幾公分？',o:['30','70','97'],a:'70',why:'一公尺是一百公分，一百減三十等於七十。',lv:2,src:'內建',sk:['ctx'],skc:1,sksrc:'rule',subj:'數學'},
+  {id:'d-ctx-5',c:'ctx',t:'mc',q:'把鐵釘與木片混在盤裡，用什麼工具較容易取出鐵釘？',o:['磁鐵','紙扇','放大鏡'],a:'磁鐵',why:'磁鐵能吸引鐵釘，木片不會被吸起。',lv:2,src:'內建',sk:['ctx'],skc:1,sksrc:'rule',subj:'自然'},
+  {id:'d-evi-1',c:'evi',t:'mc',q:'哪一句能說明小狐狸為何要收衣服？',o:['屋外下起雨。','小狐狸在睡覺。','太陽很大。'],a:'屋外下起雨。',why:'下雨可能淋濕衣服，所以要收進屋內。',ptext:'屋外下起雨。小狐狸收好院子裡的衣服，再關上窗戶。',ev:'屋外下起雨。',lv:2,src:'內建',sk:['evi'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-evi-2',c:'evi',t:'mc',q:'哪一句能支持池面有東西需要清理？',o:['小熊看到落葉浮在水上。','池裡沒有落葉。','小熊去買魚。'],a:'小熊看到落葉浮在水上。',why:'水上有落葉，撈起落葉可以清理池面。',ptext:'小熊看到落葉浮在水上。牠拿來網子，把落葉撈起。',ev:'小熊看到落葉浮在水上。',lv:2,src:'內建',sk:['evi'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-evi-3',c:'evi',t:'mc',q:'哪一句能幫助算出原本有十二顆果實？',o:['松鼠把果實分成三堆，每堆四顆。','松鼠有三十顆果實。','松鼠把果實吃光了。'],a:'松鼠把果實分成三堆，每堆四顆。',why:'三堆，每堆四顆，合起來是十二顆。',ptext:'松鼠把果實分成三堆，每堆四顆。牠把其中一堆送給鄰居。',ev:'松鼠把果實分成三堆，每堆四顆。',lv:2,src:'內建',sk:['evi'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-evi-4',c:'evi',t:'mc',q:'哪一句最能支持小鹿剛運動過？',o:['小鹿跑了一圈，停在樹下喘氣。','小鹿一直坐著。','朋友在畫畫。'],a:'小鹿跑了一圈，停在樹下喘氣。',why:'跑步與喘氣是剛運動過的線索。',ptext:'小鹿跑了一圈，停在樹下喘氣。朋友遞給牠一杯水。',ev:'小鹿跑了一圈，停在樹下喘氣。',lv:2,src:'內建',sk:['evi'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-evi-5',c:'evi',t:'mc',q:'哪一句能支持刺蝟打算歸還繪本？',o:['牠說明天要送回圖書小屋。','刺蝟想把書丟掉。','繪本已經消失。'],a:'牠說明天要送回圖書小屋。',why:'送回借書的地方表示準備歸還。',ptext:'刺蝟把借來的繪本包好。牠說明天要送回圖書小屋。',ev:'牠說明天要送回圖書小屋。',lv:2,src:'內建',sk:['evi'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-shp-1',c:'shp',t:'mc',q:'「休」字左邊是什麼部件？',o:['人字旁','木字旁','水字旁'],a:'人字旁',why:'休由左邊的人字旁和右邊的木組成。',lv:2,src:'內建',sk:['shp'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-shp-2',c:'shp',t:'mc',q:'「晴」和「睛」的左邊部件有何不同？',o:['日與目','口與日','木與目'],a:'日與目',why:'晴左邊是日，睛左邊是目。',lv:2,src:'內建',sk:['shp'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-shp-3',c:'shp',t:'mc',q:'哪個字的下橫較長，表示尚未？',o:['未','末','本'],a:'未',why:'未的下橫較長；末的上橫較長。',lv:2,src:'內建',sk:['shp'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-shp-4',c:'shp',t:'mc',q:'「抱」與「泡」的右邊都有哪個部件？',o:['包','白','巴'],a:'包',why:'抱和泡右邊都是包，左邊的偏旁不同。',lv:2,src:'內建',sk:['shp'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-shp-5',c:'shp',t:'mc',q:'哪個字比「大」多一點，常用於表示程度很高？',o:['太','天','夫'],a:'太',why:'太比大多一點，可組成太熱、太高。',lv:2,src:'內建',sk:['shp'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-prf-1',c:'prf',t:'mc',q:'「我把書包放在椅子尚。」哪個字應改正？',o:['尚改成上','包改成抱','放改成方'],a:'尚改成上',why:'表示位置應用上，寫成椅子上。',lv:2,src:'內建',sk:['prf'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-prf-2',c:'prf',t:'mc',q:'「今天的天汽很晴朗。」哪個字應改正？',o:['汽改成氣','今改成金','晴改成睛'],a:'汽改成氣',why:'天氣的氣不是汽車的汽。',lv:2,src:'內建',sk:['prf'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-prf-3',c:'prf',t:'mc',q:'「弟弟認真寫功克。」哪個字應改正？',o:['克改成課','弟改成第','寫改成謝'],a:'克改成課',why:'作業稱為功課，應使用課字。',lv:2,src:'內建',sk:['prf'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-prf-4',c:'prf',t:'mc',q:'「花園裡的花開得很美力。」哪個字應改正？',o:['力改成麗','園改成圓','開改成關'],a:'力改成麗',why:'形容好看要寫美麗。',lv:2,src:'內建',sk:['prf'],skc:1,sksrc:'rule',subj:'國語'},
+  {id:'d-prf-5',c:'prf',t:'mc',q:'「大家一起保戶小樹。」哪個字應改正？',o:['戶改成護','家改成加','樹改成數'],a:'戶改成護',why:'照顧並避免受傷害，要寫保護。',lv:2,src:'內建',sk:['prf'],skc:1,sksrc:'rule',subj:'國語'}
+];
+
 function normQ(r,conceptIds){
   if(!r||typeof r!=='object')return null;
   const c=String(r.c||''); if(conceptIds&&!conceptIds.has(c))return null;
@@ -1924,6 +2154,10 @@ function normQ(r,conceptIds){
   const hint=typeof r.hint==='string'?r.hint.trim().slice(0,60):'';
   const base={c,q,why:why||'',lv,src,ansByAI:!!r.ansByAI,icon,...(detail?{detail}:{}),...(hint?{hint}:{}),...(r.vnote?{vnote:String(r.vnote).slice(0,200)}:{}),
     ...(r.p?{p:String(r.p).slice(0,24)}:{}),...([1,2,3,4].includes(+r.rl)?{rl:+r.rl}:{})};
+  if(Array.isArray(r.sk)&&r.sk.length>=1&&r.sk.length<=2&&r.sk.every(t=>DIAG_TAGS.some(x=>x.id===t)))base.sk=r.sk.slice();
+  if(typeof r.skc==='number'&&Number.isFinite(r.skc)&&r.skc>=0&&r.skc<=1)base.skc=r.skc;
+  if(['rule','ai','parent'].includes(r.sksrc))base.sksrc=r.sksrc;
+  if(Array.isArray(r.items)&&r.items.length>=2&&r.items.length<=6&&r.items.every(x=>x&&typeof x.t==='string'&&x.t.length<=40&&typeof x.yes==='boolean'))base.items=r.items.map(x=>({t:x.t,yes:x.yes}));
   if(r.t==='tf'){ if(r.a!=='O'&&r.a!=='X')return null; return {...base,t:'tf',a:r.a}; }
   if(r.t==='mc'){
     if(!Array.isArray(r.o))return null;
