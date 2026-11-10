@@ -28,6 +28,8 @@
     env.props.setProperty('pinsetup:TEST-0000',env.run('parentHash','MOCK2345'));
     localStorage.setItem('family',JSON.stringify({code:'TEST-0000',name:'示範家庭'}));
   }
+  env.props.setProperty('DIAG_SHEET_ID','mock-diag');
+  env.run('setupDiag');
   const persist=()=>localStorage.setItem('mock-gas-state',JSON.stringify(env.snapshot()));persist();
   const nativeFetch=window.fetch;
   window.fetch=async (url,options={})=>{
