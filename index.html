@@ -17,6 +17,7 @@ try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAt
   --card:#FFFFFF; --leaf:#3D8B4F; --leaf-soft:#D6EBCF; --sun:#F2B23A; --sun-soft:#FFF1CC;
   --coral:#E25D44; --coral-soft:#FBE0DA; --soil:#8B5E3C; --line:#C9DDBF;
   --leaf-strong:#2E7340; --on-leaf:#fff; --coral-strong:#B83D27; --on-coral:#fff;
+  --sky:#3A6EA5; --sky-soft:#DCE8F5; --sky-ink:#2A5786;
   --leaf-ink:#2E7340; --sun-ink:#8A5A00; --coral-ink:#A93522; --press:#1F5530;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
@@ -27,6 +28,7 @@ try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAt
     --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
     --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
     --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75; --on-coral:#2A0E08;
+  --sky:#7FB0E6; --sky-soft:#1F3349; --sky-ink:#A9CBF0;
   --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
   }
 }
@@ -35,6 +37,7 @@ try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAt
   --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
   --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
   --leaf-strong:#6CC17F; --on-leaf:#0F1F15; --coral-strong:#FF8A75; --on-coral:#2A0E08;
+  --sky:#7FB0E6; --sky-soft:#1F3349; --sky-ink:#A9CBF0;
   --leaf-ink:#8FD6A0; --sun-ink:#F5BE4E; --coral-ink:#FF8A75; --press:#3E8A50;
 }
 *,*::before,*::after{box-sizing:inherit}
@@ -223,6 +226,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
   --card:#2A3D34; --leaf:#9BE3A5; --leaf-soft:#2F4B3B; --sun:#F2D65F; --sun-soft:#45432A;
   --coral:#F3A7B6; --coral-soft:#4A3038; --soil:#7A5434; --line:#6F8277;
   --leaf-strong:#F2D65F; --on-leaf:#1E2B24; --coral-strong:#F3A7B6; --on-coral:#1E2B24;
+  --sky:#9FC7F0; --sky-soft:#2E4458; --sky-ink:#BFDAF5;
   --leaf-ink:#A8E6B1; --sun-ink:#F2D65F; --coral-ink:#F7B9C5; --press:#A8902F;
   --chalk-r:255px 15px 225px 15px/15px 225px 15px 255px;
   --chalk-r2:15px 225px 15px 255px/255px 15px 225px 15px;
@@ -441,7 +445,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .parent-page button[aria-pressed="true"]{background:var(--leaf-soft);border-color:var(--leaf-strong);color:var(--leaf-ink)}
 .parent-bar{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;background:var(--parent);color:#EAF4EC;padding:10px;border-radius:14px}
 .parent-bar strong{flex:1}.parent-bar button{background:transparent;color:inherit;border:1px solid #8EA697;border-radius:10px;padding:8px}
-.parent-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:var(--parent);padding:6px;border-radius:12px}
+.parent-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;background:var(--parent);padding:6px;border-radius:12px}
 .parent-tabs button{padding:4px 0;border:0;border-radius:8px;background:transparent;color:#EAF4EC}
 .parent-tabs [aria-current="page"]{background:var(--parent-soft);color:var(--ink)}
 .parent-count{background:var(--sun);color:#3a2700;border-radius:12px;padding:1px 5px}
@@ -454,6 +458,25 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .parent-off{border-style:dashed!important;color:var(--muted)}.parent-actions{display:flex;flex-wrap:wrap;gap:8px}
 .parent-step{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;text-align:center;gap:8px}
 .parent-step button{font-size:1.4rem}.parent-page h2{margin:8px 0}.parent-page [role="status"]{white-space:pre-line}
+/* 學習檢定 */
+.tag.ai{background:var(--sky-soft);color:var(--sky-ink)}
+.tag.retry,.pill.quick{background:var(--sun-soft);color:var(--sun-ink)}
+.w,.tick button,.sent,.consent input{min-height:44px}
+.w{min-width:32px;font-size:1.4rem}.sent{line-height:2.2}
+.tick{display:flex;gap:8px}.pill{display:inline-block;padding:4px 10px;border-radius:20px}
+.pill.learn{background:var(--leaf-soft);color:var(--leaf-ink)}.pill.wait{background:var(--sky-soft);color:var(--sky-ink)}
+.danger{background:var(--coral-soft);color:var(--coral-ink);min-height:44px}
+.consent{line-height:1.8;overflow-wrap:anywhere;max-height:20rem;overflow:auto;padding:12px;border:2px solid var(--sky);border-radius:12px}
+.diag-check{display:flex!important;align-items:center;gap:8px;min-height:44px}.diag-check input{min-height:44px;min-width:24px}
+.diag-talk{border:2px solid var(--sky)}
+.diag-prog{display:flex;gap:8px;align-items:center}.diag-prog progress{flex:1;min-width:0;accent-color:var(--leaf-strong)}
+#diag-card button,#diag-view button,#parent-list button,#parent-list select,.parent-tabs button{min-height:44px}
+#diag-view .opt{width:100%;margin:8px 0}
+#diag-view .opt[aria-pressed="true"]{border-color:var(--sky);background:var(--sky-soft)}
+.trow{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,2fr) auto;gap:8px;align-items:center;margin:12px 0;overflow-wrap:anywhere}
+.trow .b{position:relative;height:14px;background:var(--leaf-soft);border-radius:8px}.trow i{display:block;height:100%;background:var(--leaf-strong);border-radius:8px}
+.trow i.mid{background:var(--sun)}.trow i.low{background:var(--coral)}.trow s{position:absolute;top:-3px;height:20px;border-left:2px solid #000}
+@media(prefers-reduced-motion:no-preference){.flash{animation:diag-flash .3s}@keyframes diag-flash{50%{background:var(--sun-soft)}}}
 </style>
 </head>
 <body>
@@ -3760,6 +3783,165 @@ ${lines}`,{signal:sumState.ctl.signal,modelTier:'quick'});
 /* ===== 題庫書架：有閱讀碼或邀請碼就能練習公開題庫，作答紀錄只存在這台裝置 ===== */
 let READER=store.get('reader',{code:'',name:''});
 const libCode=()=>READER.code||FAMILY.code;
+/* ===== 學習檢定 UI 與可靠補送（共用區塊外） ===== */
+function diagRead(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch(e){return fallback}}
+function diagWrite(key,value){localStorage.setItem(key,JSON.stringify(value))}
+let evQueue=diagRead('diag-evq',[]),diagFlush=null,diagOffline=false,diagRun=null;
+function diagId(){const bytes=new Uint32Array(16);if(globalThis.crypto?.getRandomValues)crypto.getRandomValues(bytes);else for(let i=0;i<16;i++)bytes[i]=Math.floor(Math.random()*4294967296);return Array.from(bytes,n=>(n%36).toString(36)).join('')}
+function evPush(e){evQueue.push({...e,eid:e.eid||diagId()});diagWrite('diag-evq',evQueue);if(evQueue.length>=10)void flushEvents()}
+function diagForget(pid){
+  evQueue=evQueue.filter(e=>e.playerId!==pid);diagWrite('diag-evq',evQueue);
+  diagWrite('diag-pending-save',diagRead('diag-pending-save',[]).filter(e=>e.playerId!==pid));
+  localStorage.removeItem('diag-run:'+pid);localStorage.removeItem('diag-profile:'+pid);
+}
+function flushEvents(){
+  if(diagFlush)return diagFlush;
+  diagFlush=(async()=>{
+    diagOffline=false;
+    const players=[...new Set(evQueue.map(e=>e.playerId))];
+    for(const playerId of players){
+      while(evQueue.some(e=>e.playerId===playerId)){
+        const batch=evQueue.filter(e=>e.playerId===playerId).slice(0,50);
+        try{
+          const j=await api('diag_postEvents',{playerId,events:batch.map(({playerId,...e})=>e)});
+          const ids=new Set(j.accepted);evQueue=evQueue.filter(e=>e.playerId!==playerId||!ids.has(e.eid));diagWrite('diag-evq',evQueue);
+          if(j.profile)diagWrite('diag-profile:'+playerId,j.profile);
+          if(!ids.size)break;
+        }catch(e){if(e.code==='no_consent')diagForget(playerId);else diagOffline=true;break}
+      }
+    }
+    for(const payload of diagRead('diag-pending-save',[])){
+      if(evQueue.some(e=>e.playerId===payload.playerId))continue;
+      try{
+        const j=await api('diag_saveDiag',payload);if(j.profile)diagWrite('diag-profile:'+payload.playerId,j.profile);
+        diagWrite('diag-pending-save',diagRead('diag-pending-save',[]).filter(p=>p.sid!==payload.sid));
+      }catch(e){if(e.code==='no_consent')diagForget(payload.playerId);else diagOffline=true}
+    }
+  })().finally(()=>{diagFlush=null;diagRefreshStatus()});
+  return diagFlush;
+}
+function diagStatus(root,pid){
+  root.innerHTML='';const n=evQueue.filter(e=>e.playerId===pid).length;
+  if(diagOffline&&n){root.innerHTML='<p role="status">網路斷了，剛才 '+n+' 題的作答先存在這台裝置。連上網路後會自動補送，不用重做。</p><button class="ghost">現在重送</button>';root.querySelector('button').onclick=()=>flushEvents()}
+}
+function diagRefreshStatus(){document.querySelectorAll('[data-diag-status]').forEach(el=>diagStatus(el,el.dataset.diagStatus))}
+window.addEventListener('online',()=>void flushEvents());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){if(diagRun)diagRun.intr=1}else void flushEvents()});
+setTimeout(()=>{if(FAMILY.code)void flushEvents()},0);
+async function diagHomeCard(){
+  const card=document.getElementById('diag-card'),pid=ACTIVE_PLAYER;if(!card)return;
+  const draw=p=>{
+    if(!card.isConnected||pid!==ACTIVE_PLAYER)return;
+    card.innerHTML='<h2>學習檢定</h2>'+(p?.consent?(!p.lastDiag?'<p>還沒做過學習檢定。做一次 20 題（約 15 分鐘），就能看到哪些讀題習慣要多練。</p>':'')+'<button class="big" id="diag-start">開始學習檢定</button>':'<p>學習檢定要先請家長在家長頁同意</p><button class="ghost" id="diag-parent">到家長頁</button>')+'<div data-diag-status="'+esc(pid)+'"></div>';
+    if(card.querySelector('#diag-start'))card.querySelector('#diag-start').onclick=()=>viewDiag();
+    if(card.querySelector('#diag-parent'))card.querySelector('#diag-parent').onclick=()=>{location.hash='#parent'};
+    diagRefreshStatus();
+  };
+  draw(diagRead('diag-profile:'+pid,null));
+  try{const j=await api('diag_getProfile',{playerId:pid});diagWrite('diag-profile:'+pid,j.profile);if(!j.profile.consent)diagForget(pid);draw(j.profile)}catch(e){if(e.code==='diag_off')card.remove()}
+}
+function diagPool(){
+  const banks=new Map([...Object.values(localBanks()),...BANKS].map(b=>[b.id,b]));
+  return [...Array.from(banks.values()).flatMap(b=>(b.questions||[]).filter(q=>q.sk?.length).map(q=>({q,src:'bank',bankId:b.id}))),...DIAG_BANK.map(q=>({q,src:'builtin'}))];
+}
+function diagOptions(q){return q.t==='tf'?['對','錯']:q.o||[]}
+function diagCorrect(q,index){const value=diagOptions(q)[index];return q.t==='tf'?(['O',true,'對'].includes(q.a)?index===0:index===1):value===q.a}
+async function viewDiag(fresh=false){
+  if(!FAMILY.code||parentHere())return;
+  const pid=ACTIVE_PLAYER,old=diagRead('diag-run:'+pid,null);
+  app.innerHTML='<section id="diag-view"><h1>學習檢定</h1><p role="status">正在從題庫挑題，不夠的用內建題補…</p><div class="reward-skeleton"></div></section>';
+  const root=document.getElementById('diag-view');
+  // Read the authoritative consent before starting or resuming; cached consent permits offline continuation.
+  let profile=diagRead('diag-profile:'+pid,null);
+  try{profile=(await api('diag_getProfile',{playerId:pid})).profile;diagWrite('diag-profile:'+pid,profile)}catch(e){if(e.code!=='network'){if(root.isConnected)await libHome();return}}
+  if(!root.isConnected||pid!==ACTIVE_PLAYER)return;
+  if(!profile?.consent){diagForget(pid);return libHome()}
+  if(old&&!fresh){
+    root.innerHTML='<h1>學習檢定</h1><button class="big" id="diag-resume">接著做上次的檢定</button><button class="ghost" id="diag-restart">重新開始</button>';
+    root.querySelector('#diag-resume').onclick=()=>{diagRun={...old,intr:1,started:performance.now()};diagQuestion()};
+    root.querySelector('#diag-restart').onclick=()=>viewDiag(true);return;
+  }
+  const form=buildDiagForm(diagPool(),DIAG_CFG,Math.random);
+  diagRun={pid,sid:diagId(),ids:form.items.map(x=>x.q.id),items:form.items,index:0,events:[],first:null,last:null,changes:0,intr:0,elapsed:0};
+  diagSaveRun();diagQuestion();
+}
+function diagSaveRun(){const {started,...saved}=diagRun;diagWrite('diag-run:'+diagRun.pid,saved)}
+function diagQuestion(){
+  const run=diagRun;if(!run)return;
+  const item=run.items[run.index],q=item.q,options=diagOptions(q);
+  const supplemented=[...new Set(run.items.filter(x=>x.src==='builtin').map(x=>primaryTag(x.q)))];
+  app.innerHTML='<section id="diag-view"><div class="toprow"><h1>學習檢定</h1><button class="ghost" id="diag-pause">暫停</button></div><div class="diag-prog"><span id="diag-number">第 '+(run.index+1)+' / 20 題</span><progress max="20" value="'+run.index+'" aria-label="檢定進度"></progress></div>'+(supplemented.length?'<p>題庫裡「'+supplemented.map(t=>esc(DIAG_TAGS.find(x=>x.id===t).name)).join('、')+'」不夠，已用內建題補。</p>':'')+'<div class="card"><div class="tags">'+(q.subj?'<span class="tag">'+esc(q.subj)+'</span>':'')+(q.src==='內建'?'<span class="tag">內建題</span>':['AI','改寫'].includes(q.src)?'<span class="tag ai">AI 出題</span>':'')+'</div>'+(q.ptext?'<p class="passage">'+esc(q.ptext)+'</p>':'')+'<p class="q">'+esc(q.q)+'</p>'+(q.items?'<ul>'+q.items.map(x=>'<li>'+esc(x.t)+'</li>').join('')+'</ul>':'')+options.map((o,i)=>'<button class="opt" data-diag-opt="'+i+'" aria-pressed="'+(run.last===i)+'">'+(i+1)+'. '+esc(o)+'</button>').join('')+'<button class="big" id="diag-next" '+(run.last===null?'hidden':'')+'>下一題</button></div></section>';
+  run.started=performance.now();
+  document.querySelectorAll('[data-diag-opt]').forEach(b=>b.onclick=()=>diagSelect(Number(b.dataset.diagOpt)));
+  document.getElementById('diag-next').onclick=diagNext;
+  document.getElementById('diag-pause').onclick=()=>{run.elapsed=(run.elapsed||0)+(performance.now()-run.started)/1000;run.intr=1;diagSaveRun();diagRun=null;void libHome()};
+  document.getElementById('diag-number').tabIndex=-1;document.getElementById('diag-number').focus();
+}
+function diagSelect(i){
+  if(!diagRun||!document.getElementById('diag-view'))return;
+  if(diagRun.first===null)diagRun.first=i;else if(diagRun.last!==i)diagRun.changes++;
+  diagRun.last=i;document.querySelectorAll('[data-diag-opt]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.diagOpt)===i)));document.getElementById('diag-next').hidden=false;
+}
+function diagNext(){
+  const r=diagRun;if(!r||r.last===null||!document.getElementById('diag-view'))return;
+  const {q,bankId}=r.items[r.index],ok=Number(diagCorrect(q,r.last)),first=diagCorrect(q,r.first);
+  const event={playerId:r.pid,ts:Date.now(),eid:diagId(),qid:q.id,bank:bankId||'',tags:q.sk.join(','),ok,sec:Math.min(3600,(r.elapsed||0)+(performance.now()-r.started)/1000),len:Math.min(2000,q.q.length+diagOptions(q).join('').length),chg:!r.changes||first&&ok?'0':first?'RW':ok?'WR':'WW',scf:0,scok:'',mode:'diag',sid:r.sid,retry:0,intr:r.intr};
+  r.events.push(event);evPush(event);r.index++;r.first=null;r.last=null;r.changes=0;r.intr=0;r.elapsed=0;
+  if(r.index<r.items.length){diagSaveRun();diagQuestion();return}
+  const perTag={};r.events.forEach(e=>e.tags.split(',').filter(t=>DIAG_TAG_IDS.includes(t)).forEach(t=>{perTag[t]??={n:0,ok:0};perTag[t].n++;perTag[t].ok+=e.ok}));
+  const payload={playerId:r.pid,sid:r.sid,form:'v1',n:r.events.length,ok:r.events.reduce((s,e)=>s+e.ok,0),perTag};
+  diagWrite('diag-pending-save',[...diagRead('diag-pending-save',[]),payload]);localStorage.removeItem('diag-run:'+r.pid);diagRun=null;
+  app.innerHTML='<section id="diag-done"><div class="card"><h1>做完了！謝謝你，結果會給家長看。</h1><div data-diag-status="'+esc(r.pid)+'"></div><button class="ghost" id="diag-home">回書架</button></div></section>';
+  document.getElementById('diag-home').onclick=()=>libHome();diagRefreshStatus();
+  // An automatic ten-event flush may already be running. Join it, then drain anything added meanwhile.
+  void flushEvents().then(()=>flushEvents());
+}
+document.addEventListener('keydown',e=>{
+  if(!diagRun||!document.getElementById('diag-view')||e.altKey||e.ctrlKey||e.metaKey||e.repeat)return;
+  if(/^[1-4]$/.test(e.key)&&Number(e.key)<=diagOptions(diagRun.items[diagRun.index].q).length){e.preventDefault();diagSelect(Number(e.key)-1)}
+  else if(e.key==='Enter'&&diagRun.last!==null&&!e.target.closest?.('[data-diag-opt],#diag-pause')){e.preventDefault();diagNext()}
+});
+async function viewDiagLearn(list,alive){
+  try{
+    const players=(await parentCall('playerList')).players;if(!alive())return;
+    list.innerHTML='<section id="diag-learn"><label>玩家<select id="diag-player">'+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><div id="diag-parent-body"></div></section>';
+    const select=list.querySelector('select'),body=list.querySelector('#diag-parent-body');if(players.some(p=>p.id===ACTIVE_PLAYER))select.value=ACTIVE_PLAYER;
+    let generation=0;
+    const draw=async()=>{
+      const gen=++generation,pid=select.value,player=players.find(p=>p.id===pid),valid=()=>alive()&&gen===generation;body.innerHTML='<p>讀取中……</p>';
+      try{
+        const report=await parentCall('diag_report',{playerId:pid});if(!valid())return;
+        if(!report.consent){
+          body.innerHTML='<article class="card"><h2>開始學習檢定前，請先看這段</h2><div class="consent" tabindex="0">本站由站長（個人）經營，目的是幫孩子練習、找出讀題上的習慣。我們會記錄：孩子暱稱、每題對錯、作答秒數、有沒有改答案、題目的讀題能力標籤、學校考卷錯題的題號和科目。不收真實姓名、學校、分數和照片。資料存在站長的 Google 試算表，只有您和站長看得到。出題時只把讀題標籤、年級、科目送給 Anthropic 的 AI（在美國），不送暱稱。資料保存 12 個月後自動刪除。您可以隨時查看、更正、停止，或在家長頁刪除這位玩家的資料。</div><label class="diag-check"><input type="checkbox" id="diag-agree">我是家長，看過上面的說明，同意記錄。</label><button class="big" id="diag-consent" disabled>同意，開始檢定</button><button class="ghost" id="diag-decline">先不要，只練習</button><p>同意文字版本 v1 與時間會一起存下。不同意也能照常練習，只是沒有檢定和讀題小幫手。</p></article>';
+          body.querySelector('#diag-agree').onchange=e=>{body.querySelector('#diag-consent').disabled=!e.target.checked};
+          body.querySelector('#diag-decline').onclick=()=>{body.innerHTML=''};
+          body.querySelector('#diag-consent').onclick=()=>consent(true);
+        }else{
+          body.innerHTML=diagReportHTML(report,player.name)+'<p>已同意（版本 '+esc(report.consent.ver)+'，'+new Date(report.consent.at).toISOString().slice(0,10)+'）</p><button class="ghost danger" id="diag-revoke">撤回同意</button>';
+          body.querySelector('#diag-revoke').onclick=()=>consent(false);
+        }
+        async function consent(agree){
+          body.querySelectorAll('button,input').forEach(b=>b.disabled=true);
+          try{const j=await parentCall('diag_consent',{playerId:pid,agree});if(!agree)diagForget(pid);diagWrite('diag-profile:'+pid,j.profile);if(valid())await draw()}
+          catch(e){if(valid())parentError(body,'連不到雲端，請稍後再試',draw)}
+        }
+      }catch(e){if(valid())parentError(body,e.code==='diag_off'?'尚未開啟學習檢定':'連不到雲端，請稍後再試',draw)}
+    };
+    select.onchange=draw;await draw();
+  }catch(e){if(alive())parentError(list,'連不到雲端，請稍後再試',()=>viewDiagLearn(list,alive))}
+}
+function diagReportHTML(report,name){
+  const [latest,previous]=report.diags;if(!latest)return '<p>'+esc(name)+'還沒做過學習檢定。</p>';
+  const date=new Date(latest.ts),label=t=>DIAG_TAGS.find(x=>x.id===t).name;
+  return '<article class="card"><h2>'+String(date.getMonth()+1).padStart(2,'0')+'/'+String(date.getDate()).padStart(2,'0')+' 學習檢定：'+latest.n+' 題對 '+latest.ok+' 題</h2>'+DIAG_TAG_IDS.map(t=>{
+    const c=latest.perTag[t]||{n:0,ok:0},rate=c.n?c.ok/c.n:0,p=previous?.perTag[t];
+    return '<div class="trow"><span>'+esc(label(t))+'</span><span class="b"><i class="'+(rate<.5?'low':rate<.7?'mid':'')+'" style="width:'+rate*100+'%"></i>'+(p?.n?'<s aria-label="上次 '+p.ok+'/'+p.n+'" style="left:'+p.ok/p.n*100+'%"></s>':'')+'</span><span class="v">'+c.ok+'/'+c.n+'</span></div>';
+  }).join('')+'<p>圖例：長條＝這次正確率；黑線＝上次正確率；右側＝答對題數／作答題數。</p><p>題數少，前後差 ±1 題屬正常波動。</p></article>'+DIAG_TAG_IDS.filter(t=>report.perTag[t]?.n).map(t=>{
+    const c=report.perTag[t],v=c.verdict,kind=v==='slip'?'quick':v==='learn'?'learn':'wait',title=v==='slip'?'比較像一時沒看清楚':v==='learn'?'比較像還在學':'還看不出來';
+    const text=v==='slip'?label(t)+'：檢定加練習共 '+c.n+' 題錯 '+c.wrong+' 題，看起來比較像讀太快、一時沒看清楚題目。':v==='learn'?label(t)+'：檢定加練習共 '+c.n+' 題錯 '+c.wrong+' 題，這類題目還需要多練習。':label(t)+'：目前做了 '+c.n+' 題、錯 '+c.wrong+' 題，題數還太少，先不下結論。';
+    return '<article class="card"><span class="pill '+kind+'">'+title+'</span><p>'+esc(text)+'</p>'+(c.fixes>0?'<p>有 '+c.fixes+' 次改答案改對了，值得稱讚。</p>':'')+(report.exams[t]?'<p>段考補登：錯 '+report.exams[t]+' 題。</p>':'')+'</article>';
+  }).join('')+'<article class="card diag-talk"><h2>怎麼跟孩子說</h2><p>'+(Object.values(report.perTag).some(c=>c.verdict==='slip')?'「你這題再看一次就對了，好厲害。下次看到題目先找找關鍵字。」也可以請孩子說說當時怎麼想的。':'「這些題目我們一起再多練幾次。」也可以請孩子說說當時怎麼想的。')+'</p></article>';
+}
 let LIB=null;              // 公開題庫清單
 let LIBERR='';
 const LIBBANKS={};         // 已下載的公開題庫
@@ -3800,6 +3982,7 @@ async function libHome(){
      <button class="iconbtn" id="codes">🔑 ${READER.code?'閱讀碼：'+esc(READER.code):FAMILY.code?'使用邀請碼':'輸入閱讀碼'}</button>
      <button class="iconbtn beta-btn" id="mine">🧪 我的題庫 <span class="tag" style="background:var(--sun-soft)">邀請碼</span></button>
    </div>
+   ${FAMILY.code&&!READER.code?'<div class="card" id="diag-card"></div>':''}
    <h1 class="pg">📚 題庫書架</h1>
    <p class="lead">選一本題庫開始練習。作答紀錄只存在這台裝置。</p>
    ${!libCode()?`<section class="card form"><h2 class="ct">🔑 輸入親友閱讀碼，就能看到更多題庫</h2>
@@ -3817,6 +4000,7 @@ async function libHome(){
   $('mine').onclick=()=>betaHome();
   $('bdg').onclick=()=>badgeBookPage(libHome);
   $('codes').onclick=()=>codePage();
+  if(document.getElementById('diag-card'))diagHomeCard();
   app.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{libFilter[b.dataset.f]=b.dataset.v;libHome()});
   app.querySelectorAll('[data-lib]').forEach(b=>b.onclick=()=>b.dataset.lib==='__plant'?home():openLib(b.dataset.lib));
   if($('rcgo'))$('rcgo').onclick=()=>verifyReader($('rc').value.trim(),$('rcmsg'));
@@ -5045,7 +5229,7 @@ function parentCacheClear(){try{localStorage.removeItem(parentCacheKey())}catch(
 async function parentMain(tab='pending',notice=''){
   if(!PARENT_SESSION||!parentHere())return;
   const epoch=++parentEpoch;parentActivity();const root=document.getElementById('parent-content');if(!root)return;
-  root.innerHTML='<nav class="parent-tabs" aria-label="家長分頁">'+[['pending','待核准'],['rewards','獎項'],['players','玩家'],['log','紀錄']].map(([k,v])=>'<button data-parent-tab="'+k+'" aria-current="'+(tab===k?'page':'false')+'">'+v+(k==='pending'?'<span id="parent-count"></span>':'')+'</button>').join('')+'</nav><button class="ghost" id="parent-diag">連線診斷</button><p id="parent-notice" role="status">'+esc(notice)+'</p><div class="parent-body" id="parent-list"><div class="reward-skeleton"></div>讀取中……</div>';
+  root.innerHTML='<nav class="parent-tabs" aria-label="家長分頁">'+[['pending','待核准'],['rewards','獎項'],['players','玩家'],['log','紀錄'],['learn','學習']].map(([k,v])=>'<button data-parent-tab="'+k+'" aria-current="'+(tab===k?'page':'false')+'">'+v+(k==='pending'?'<span id="parent-count"></span>':'')+'</button>').join('')+'</nav><button class="ghost" id="parent-diag">連線診斷</button><p id="parent-notice" role="status">'+esc(notice)+'</p><div class="parent-body" id="parent-list"><div class="reward-skeleton"></div>讀取中……</div>';
   const list=root.querySelector('#parent-list'),alive=()=>parentHere()&&!!PARENT_SESSION&&epoch===parentEpoch&&root.isConnected;
   root.querySelectorAll('[data-parent-tab]').forEach(b=>b.onclick=()=>parentMain(b.dataset.parentTab));
   if(notice){const retry=document.createElement('button');retry.className='ghost';retry.textContent='再試一次';retry.onclick=()=>parentMain(tab);root.querySelector('#parent-notice').append(retry)}
@@ -5144,6 +5328,7 @@ async function parentMain(tab='pending',notice=''){
       root.querySelector('#parent-notice').insertAdjacentHTML('afterend','<p id="parent-updating" role="status">更新中…</p>');
     }
   }
+  if(tab==='learn'){await viewDiagLearn(list,alive);return}
   const cache=parentCacheGet();
   if(cache.pending&&(tab==='pending'||(['rewards','players'].includes(tab)&&cache[tab])))try{draw(cache.pending,{[tab]:cache[tab]},true)}catch(e){parentCacheClear();root.querySelector('#parent-updating')?.remove();root.querySelector('#parent-count').innerHTML='';list.innerHTML='<div class="reward-skeleton"></div>讀取中……'}
   try{
