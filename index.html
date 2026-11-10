@@ -473,6 +473,11 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 #diag-card button,#diag-view button,#parent-list button,#parent-list select,.parent-tabs button{min-height:44px}
 #diag-view .opt{width:100%;margin:8px 0}
 #diag-view .opt[aria-pressed="true"]{border-color:var(--sky);background:var(--sky-soft)}
+.mark-neg{background:var(--sun);color:#1E2B10;padding:2px 4px;border-radius:4px}
+.friends{display:flex;gap:10px;align-items:center;padding:12px;border-radius:16px;background:var(--sun-soft);border:2px solid var(--sun)}
+#diag-view .locked{position:relative}#diag-view .veil{position:absolute;inset:0;display:grid;place-items:center;background:var(--card);border:2px dashed var(--sun);border-radius:12px;padding:12px;text-align:center}
+#diag-view .sent{display:block;width:100%;text-align:left;white-space:normal;margin:4px 0}#diag-view .tick{flex-wrap:wrap;margin:4px 0}
+#diag-ratio{min-height:44px;width:100%}
 .trow{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,2fr) auto;gap:8px;align-items:center;margin:12px 0;overflow-wrap:anywhere}
 .trow .b{position:relative;height:14px;background:var(--leaf-soft);border-radius:8px}.trow i{display:block;height:100%;background:var(--leaf-strong);border-radius:8px}
 .trow i.mid{background:var(--sun)}.trow i.low{background:var(--coral)}.trow s{position:absolute;top:-3px;height:20px;border-left:2px solid #000}
@@ -1283,7 +1288,7 @@ function ask(){
      const prev=S.pos>0&&S.queue[S.pos-1]&&S.queue[S.pos-1].q.p;const open=prev!==q.p;
      return `<details class="passage" id="pas" ${open?'open':''}><summary>📖 ${esc(pas.title)}<small>${open?'先讀文章，再回答下面的題目':'按這裡再看一次文章'}</small></summary><div class="ptext">${paraHTML(pas.text,zyT)}</div><button class="iconbtn" id="rdp">🔊 念文章</button></details>`})()}
    <section class="card pop">
-     <span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${q.tpl?' <span class="tag">🔢 換數字題</span>':''}${q.rl?` <span class="tag">${RL_NAME[q.rl]}</span>`:''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
+     ${diagSource(q)}<span class="tag">${esc(CTX.label(q))}</span> <span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.ai?' <span class="tag">🤖 AI 新題</span>':''}${q.tpl?' <span class="tag">🔢 換數字題</span>':''}${q.rl?` <span class="tag">${RL_NAME[q.rl]}</span>`:''}${rv?` <span class="tag retry-tag">複習${item.stage===2?'第二次':''}</span>`:''}
      ${flagOf(q)==='reported'?' <span class="tag warn">🚩 已有人回報，確認中</span>':''}
      <div class="qrow"><p class="qtext">${zyT(q.q)}</p><span class="qbtns"><button class="speak" id="sp" aria-label="念題目">🔊</button>${zyGrade(CTX.bank)?`<button class="speak zyb" id="zyt" aria-pressed="${zyOn(CTX.bank)}" aria-label="注音開關">ㄅ</button>`:''}${libCode()?`<button class="speak rp" id="rp" aria-label="回報題目有問題" ${flagOf(q)?'disabled':''}>🚩</button>`:''}</span></div>
      <div class="opts ${q.t==='tf'?'tf':''}" id="opts">
@@ -1324,7 +1329,7 @@ function askGroup(g){
    ${!S.leaves.length?`<p class="roundinfo">這次要做 <b>${S.total}</b> 題。先讀文章，把這篇的 ${items.length} 題都選好，再一起對答案 📖</p>`:`<p class="roundinfo">這篇有 ${items.length} 題，都選好再一起對答案</p>`}
    <details class="passage" id="pas" open><summary>📖 ${esc(pas.title)}<small>先讀文章，再回答下面的題目（按這裡可以收起來）</small></summary><div class="ptext">${paraHTML(pas.text,zyT)}</div><button class="iconbtn" id="rdp">🔊 念文章</button></details>
    ${items.map((it,gi)=>{const q=it.q;return `<section class="card gq" id="gq${gi}">
-     <span class="qno">${gi+1}</span><span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.rl?` <span class="tag">${RL_NAME[q.rl]}</span>`:''}${flagOf(q)==='reported'?' <span class="tag warn">🚩 已有人回報，確認中</span>':''}
+     ${diagSource(q)}<span class="qno">${gi+1}</span><span class="tag">${q.t==='tf'?'是非題':'選擇題'}</span>${q.rl?` <span class="tag">${RL_NAME[q.rl]}</span>`:''}${flagOf(q)==='reported'?' <span class="tag warn">🚩 已有人回報，確認中</span>':''}
      <div class="qrow"><p class="qtext">${zyT(q.q)}</p><span class="qbtns"><button class="speak" data-sp="${gi}" aria-label="念第 ${gi+1} 題">🔊</button>${libCode()?`<button class="speak rp" data-rp="${gi}" aria-label="回報題目有問題" ${flagOf(q)?'disabled':''}>🚩</button>`:''}</span></div>
      <div class="opts ${q.t==='tf'?'tf':''}">${optHTML(it,gi)}</div>
      <div class="gfb" role="status" aria-live="polite"></div>
@@ -3828,11 +3833,137 @@ function diagRefreshStatus(){document.querySelectorAll('[data-diag-status]').for
 window.addEventListener('online',()=>void flushEvents());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){if(diagRun)diagRun.intr=1}else void flushEvents()});
 setTimeout(()=>{if(FAMILY.code)void flushEvents()},0);
+function diagSource(q){return ['AI','改寫'].includes(q.src)?'<span class="tag ai">AI 出題</span>':q.src==='內建'?'<span class="tag">內建題</span>':''}
+function diagRatio(pid){const n=Number(localStorage.getItem('diag-ratio:'+pid));return n>=20&&n<=50&&n%5===0?n:50}
+function diagHomeExtra(p){
+  const n=dueReviews(p.review||[],Date.now(),DIAG_CFG).length;
+  const days=p.lastDiag?Math.floor((Date.now()-p.lastDiag.at)/86400000):null;
+  const exam=p.lastExam?Math.floor((Date.now()-p.lastExam.at)/86400000):null;
+  const afterExam=exam!==null&&exam>=DIAG_CFG.examRetest[0]&&exam<=DIAG_CFG.examRetest[1];
+  return (n?'<div class="friends"><span aria-hidden="true">✿</span><div><b>今天有 '+n+' 題老朋友要複習</b><br><span class="small">上次答錯的題型，換一題再試</span></div></div>':'')+
+    (days!==null&&days>=DIAG_CFG.retestMinGap&&(days>=DIAG_CFG.retestDays||afterExam)?'<h3>'+(afterExam?'段考後做一次學習檢定':'距離上次檢定 '+days+' 天')+'</h3><p class="small">再做一次 20 題，就能看到前後比較。</p>':'')+
+    '<button class="big" id="diag-practice">練習 12 題</button>';
+}
+function diagPracticeItems(profile,pid){
+  const banks=new Map([...Object.values(localBanks()),...BANKS].map(b=>[b.id,b]));
+  const family=[...banks.values()].flatMap(b=>(b.questions||[]).map(q=>({q,bankId:b.id,src:'bank'})));
+  const pool=[...family,...DIAG_BANK.map(q=>({q,src:'builtin'}))],weak=t=>profile.tags[t]?.w>0;
+  const normal=family.filter(x=>!weak(primaryTag(x.q))).map(x=>x.q);
+  // Complete the round even when this device has only a small family bank.
+  if(normal.length<12)for(const q of DIAG_BANK)if(normal.length<12&&!weak(primaryTag(q))&&!normal.some(x=>x.id===q.id))normal.push(q);
+  const weakPool={};for(const tag of DIAG_TAG_IDS)weakPool[tag]=weak(tag)?pool.filter(x=>primaryTag(x.q)===tag).map(x=>x.q):[];
+  const old=dueReviews(profile.review||[],Date.now(),DIAG_CFG).flatMap(entry=>{
+    const item=pool.find(x=>primaryTag(x.q)===entry.tag&&!entry.qidSeen.includes(x.q.id));return item?[{entry,q:item.q}]:[];
+  });
+  // composeRound reserves reviews inside its weighted quota. A single mistake may
+  // create a due review before w becomes positive; reserve that slot in this local
+  // composition copy only. Scaffolds always use the authoritative, unchanged profile.
+  const roundProfile={...profile,tags:{...profile.tags}};
+  if(!pickWeak(profile,DIAG_CFG).tags.length)for(const {entry} of old)roundProfile.tags[entry.tag]={...profile.tags[entry.tag],w:1};
+  return composeRound({normal,weakPool,old,profile:roundProfile,cfg:{...DIAG_CFG,ratioMax:diagRatio(pid)/100},n:12,rng:Math.random}).map(item=>({...pool.find(x=>x.q===item.q),...item,retry:0}));
+}
+function diagPassage(item){
+  const bank=[...Object.values(localBanks()),...BANKS].find(b=>b.id===item.bankId);
+  return item.q.ptext||passageOf(bank,item.q)?.text||'';
+}
+function diagPrepareScaffold(run,item){
+  if(run.scaffold)return;
+  const q=item.q,tag=primaryTag(q),t=run.profile?.tags[tag],kind=DIAG_TAGS.find(x=>x.id===tag)?.scf;
+  const s=run.scaffold={level:t?.w>0?t.scf||0:0,kind,scok:'',wrong:0};
+  if(!s.level||!kind){s.level=0;return}
+  if(kind==='neg'){
+    s.hit=ruleTags(q.q)[tag];if(!s.hit){s.level=0;return}
+    s.unlocked=s.level<2;
+  }else if(kind==='count'){
+    if(!q.items?.length){s.level=0;return}s.picks=q.items.map(()=>null);s.unlocked=false;
+  }else if(kind==='evidence'){
+    const text=diagPassage(item);s.sentences=text.match(/[^。！？]+[。！？]?/g)||[];
+    const at=q.ev?text.indexOf(q.ev):-1;
+    let offset=0;s.evidence=s.sentences.findIndex(sentence=>{const start=offset;offset+=sentence.length;return at>=start&&at<offset});
+    if(at<0||s.evidence<0){s.level=0;return}
+    run.eviCount=(run.eviCount||0)+1;s.ask=s.level>=2||run.eviCount%2===0;
+    s.unlocked=true;
+  }
+}
+function diagQuestionBody(run,item){
+  const q=item.q,s=run.mode==='prac'?run.scaffold:null,text=diagPassage(item);
+  let stem=esc(q.q),hint='',passage=text?'<p class="passage">'+esc(text)+'</p>':'',items=q.items?'<ul>'+q.items.map(x=>'<li>'+esc(x.t)+'</li>').join('')+'</ul>':'';
+  if(s?.level&&s.kind==='neg'){
+    const {at,word}=s.hit;
+    let offset=0;
+    stem=s.level===1?esc(q.q.slice(0,at))+'<b class="mark-neg">'+esc(word)+'</b>'+esc(q.q.slice(at+word.length)):
+      Array.from(q.q).map(ch=>{const i=offset;offset+=ch.length;return /[\p{L}\p{N}]/u.test(ch)?'<button class="w" data-word="'+i+'">'+esc(ch)+'</button>':esc(ch)}).join('');
+    if(s.level===2)hint='<p id="diag-hint" role="status"></p><button class="ghost" id="diag-word-alt">這題有「'+esc(word[0])+'」字（用按鈕代替點字）</button>';
+  }else if(s?.level&&s.kind==='count'){
+    items=q.items.map((x,i)=>'<div>'+esc(x.t)+'<span class="tick">'+[true,false].map(yes=>'<button data-tick="'+i+'" data-yes="'+yes+'" aria-pressed="'+(s.picks[i]===yes)+'">'+(yes?'✓ 是':'✗ 不是')+'</button>').join('')+'</span></div>').join('')+'<p id="diag-count-left" role="status"></p>';
+  }else if(s?.level&&s.kind==='evidence'&&s.ask){
+    passage='<div class="passage">'+s.sentences.map((sentence,i)=>'<button class="sent" data-sentence="'+i+'" disabled>'+esc(sentence)+'</button>').join('')+'</div><p id="diag-evidence-hint" role="status"></p>';
+  }
+  return passage+'<div class="q">'+stem+'</div>'+hint+items;
+}
+function diagFlash(el){if(!el)return;el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');el.addEventListener('animationend',()=>el.classList.remove('flash'),{once:true})}
+function diagBindScaffold(run,item){
+  const s=run.scaffold,root=document.getElementById('diag-view');
+  const options=()=>root.querySelectorAll('[data-diag-opt]');
+  const lock=()=>{
+    options().forEach(b=>b.disabled=!!s.level&&!s.unlocked);
+    root.querySelector('.veil')?.remove();
+    if(s.level===2&&s.kind==='neg'&&!s.unlocked){
+      const box=document.createElement('div');box.className='locked';
+      const first=options()[0];first.before(box);options().forEach(b=>box.append(b));
+      box.insertAdjacentHTML('beforeend','<div class="veil">點到「'+esc(s.hit.word[0])+'」字，選項就會出現</div>');
+    }
+  };
+  if(s.level===2&&s.kind==='neg'){
+    const hint=root.querySelector('#diag-hint');hint.textContent=s.unlocked?'找到了！':s.wrong?'再找找看，題目裡有一個「'+s.hit.word[0]+'」字。':'先找出題目裡的「'+s.hit.word+'」，點它一下。';
+    const found=()=>{s.unlocked=true;s.scok=s.wrong?0:1;hint.textContent='找到了！';lock();diagSaveRun()};
+    root.querySelector('#diag-word-alt').onclick=found;
+    root.querySelectorAll('.w').forEach(b=>b.onclick=()=>{
+      if(s.unlocked)return;
+      if(Number(b.dataset.word)===s.hit.at)found();
+      else {s.wrong++;hint.textContent='再找找看，題目裡有一個「'+s.hit.word[0]+'」字。';if(s.wrong>=2)diagFlash(root.querySelector('[data-word="'+s.hit.at+'"]'))}
+      const now=Date.now();if(s.lastTap!==undefined&&now-s.lastTap<1500){const buttons=root.querySelectorAll('.w');buttons.forEach(x=>x.disabled=true);setTimeout(()=>{if(!run.answered)buttons.forEach(x=>x.disabled=false)},2000)}s.lastTap=now;diagSaveRun();
+    });
+  }
+  if(s.level&&s.kind==='count'){
+    const refresh=()=>{const n=s.picks.filter(x=>x===null).length;root.querySelector('#diag-count-left').textContent='還有 '+n+' 個沒打勾';s.unlocked=!n;s.scok=n?'':Number(s.picks.every((v,i)=>v===item.q.items[i].yes));lock()};
+    root.querySelectorAll('[data-tick]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.tick);s.picks[i]=b.dataset.yes==='true';root.querySelectorAll('[data-tick="'+i+'"]').forEach(x=>x.setAttribute('aria-pressed',String((x.dataset.yes==='true')===s.picks[i])));refresh();diagSaveRun()});refresh();
+  }
+  if(s.level&&s.kind==='evidence'&&s.ask){
+    root.querySelectorAll('.sent').forEach(b=>b.onclick=()=>{
+      if(!run.answered||s.done)return;
+      const correct=Number(b.dataset.sentence)===s.evidence;
+      const hint=root.querySelector('#diag-evidence-hint');
+      if(correct){s.done=true;s.scok=s.wrong?0:1;hint.textContent='找到了！'}
+      else {s.wrong++;s.scok=0;hint.textContent='答案在第 '+(s.evidence+1)+' 句附近';if(s.wrong>=2){diagFlash(root.querySelector('[data-sentence="'+s.evidence+'"]'));s.done=true}}
+      document.getElementById('diag-next').disabled=!s.done;diagSaveRun();
+    });
+  }
+  lock();
+  if(run.answered)diagPracticeFeedback(run,true);
+}
+function diagPracticeFeedback(run,restore=false){
+  const item=run.items[run.index],q=item.q,s=run.scaffold,ok=diagCorrect(q,run.last);
+  run.answered=true;
+  if(!restore&&!ok&&!item.retry){
+    let copy={...item,q:{...q},retry:1};
+    if(q.t!=='tf'&&q.o?.length>1){copy.q.o=diagShuffle(q.o,Math.random);if(copy.q.o.every((o,i)=>o===q.o[i]))copy.q.o.push(copy.q.o.shift())}
+    const [min,max]=DIAG_CFG.retryGap,gap=min+Math.floor(Math.random()*(max-min+1));
+    run.items.splice(Math.min(run.items.length,run.index+gap+1),0,copy);
+  }
+  const fb=document.getElementById('diag-feedback');fb.textContent=ok?'答對了！ '+(q.why||''):!item.retry?'等一下再看一次':'正確答案：'+q.a+'。'+(q.why||'');
+  document.querySelectorAll('[data-diag-opt]').forEach(b=>{b.disabled=true;if(ok||item.retry)b.classList.toggle('ok',diagCorrect(q,Number(b.dataset.diagOpt)))});
+  document.querySelectorAll('.w,#diag-word-alt,[data-tick]').forEach(b=>b.disabled=true);
+  const next=document.getElementById('diag-next');next.textContent='下一題';next.hidden=false;next.disabled=!!s?.ask&&!s.done;
+  if(s?.ask){document.querySelectorAll('.sent').forEach(b=>b.disabled=!!s.done);if(!s.done)document.getElementById('diag-evidence-hint').textContent='再點一下，是文章裡的哪一句讓你知道的？'}
+  diagSaveRun();
+}
 async function diagHomeCard(){
   const card=document.getElementById('diag-card'),pid=ACTIVE_PLAYER;if(!card)return;
   const draw=p=>{
     if(!card.isConnected||pid!==ACTIVE_PLAYER)return;
-    card.innerHTML='<h2>學習檢定</h2>'+(p?.consent?(!p.lastDiag?'<p>還沒做過學習檢定。做一次 20 題（約 15 分鐘），就能看到哪些讀題習慣要多練。</p>':'')+'<button class="big" id="diag-start">開始學習檢定</button>':'<p>學習檢定要先請家長在家長頁同意</p><button class="ghost" id="diag-parent">到家長頁</button>')+'<div data-diag-status="'+esc(pid)+'"></div>';
+    card.innerHTML='<h2>學習檢定</h2>'+(p?.consent?diagHomeExtra(p)+(!p.lastDiag?'<p>還沒做過學習檢定。做一次 20 題（約 15 分鐘），就能看到哪些讀題習慣要多練。</p>':'')+'<button class="big" id="diag-start">開始學習檢定</button>':'<p>學習檢定要先請家長在家長頁同意</p><button class="ghost" id="diag-parent">到家長頁</button>')+'<div data-diag-status="'+esc(pid)+'"></div>';
+    if(card.querySelector('#diag-practice'))card.querySelector('#diag-practice').onclick=()=>viewDiag(false,'prac');
     if(card.querySelector('#diag-start'))card.querySelector('#diag-start').onclick=()=>viewDiag();
     if(card.querySelector('#diag-parent'))card.querySelector('#diag-parent').onclick=()=>{location.hash='#parent'};
     diagRefreshStatus();
@@ -3846,7 +3977,7 @@ function diagPool(){
 }
 function diagOptions(q){return q.t==='tf'?['對','錯']:q.o||[]}
 function diagCorrect(q,index){const value=diagOptions(q)[index];return q.t==='tf'?(['O',true,'對'].includes(q.a)?index===0:index===1):value===q.a}
-async function viewDiag(fresh=false){
+async function viewDiag(fresh=false,mode='diag'){
   if(!FAMILY.code||parentHere())return;
   const pid=ACTIVE_PLAYER,old=diagRead('diag-run:'+pid,null);
   app.innerHTML='<section id="diag-view"><h1>學習檢定</h1><p role="status">正在從題庫挑題，不夠的用內建題補…</p><div class="reward-skeleton"></div></section>';
@@ -3857,37 +3988,48 @@ async function viewDiag(fresh=false){
   if(!root.isConnected||pid!==ACTIVE_PLAYER)return;
   if(!profile?.consent){diagForget(pid);return libHome()}
   if(old&&!fresh){
-    root.innerHTML='<h1>學習檢定</h1><button class="big" id="diag-resume">接著做上次的檢定</button><button class="ghost" id="diag-restart">重新開始</button>';
+    root.innerHTML='<h1>學習檢定</h1><button class="big" id="diag-resume">接著做上次的'+(old.mode==='prac'?'練習':'檢定')+'</button><button class="ghost" id="diag-restart">重新開始</button>';
     root.querySelector('#diag-resume').onclick=()=>{diagRun={...old,intr:1,started:performance.now()};diagQuestion()};
-    root.querySelector('#diag-restart').onclick=()=>viewDiag(true);return;
+    root.querySelector('#diag-restart').onclick=()=>viewDiag(true,mode);return;
   }
-  const form=buildDiagForm(diagPool(),DIAG_CFG,Math.random);
-  diagRun={pid,sid:diagId(),ids:form.items.map(x=>x.q.id),items:form.items,index:0,events:[],first:null,last:null,changes:0,intr:0,elapsed:0};
+  const form=mode==='prac'?{items:diagPracticeItems(profile,pid)}:buildDiagForm(diagPool(),DIAG_CFG,Math.random);
+  diagRun={pid,mode,profile,sid:diagId(),ids:form.items.map(x=>x.q.id),items:form.items,index:0,events:[],first:null,last:null,changes:0,intr:0,elapsed:0};
   diagSaveRun();diagQuestion();
 }
 function diagSaveRun(){const {started,...saved}=diagRun;diagWrite('diag-run:'+diagRun.pid,saved)}
 function diagQuestion(){
   const run=diagRun;if(!run)return;
   const item=run.items[run.index],q=item.q,options=diagOptions(q);
+  if(run.mode==='prac')diagPrepareScaffold(run,item);
   const supplemented=[...new Set(run.items.filter(x=>x.src==='builtin').map(x=>primaryTag(x.q)))];
-  app.innerHTML='<section id="diag-view"><div class="toprow"><h1>學習檢定</h1><button class="ghost" id="diag-pause">暫停</button></div><div class="diag-prog"><span id="diag-number">第 '+(run.index+1)+' / 20 題</span><progress max="20" value="'+run.index+'" aria-label="檢定進度"></progress></div>'+(supplemented.length?'<p>題庫裡「'+supplemented.map(t=>esc(DIAG_TAGS.find(x=>x.id===t).name)).join('、')+'」不夠，已用內建題補。</p>':'')+'<div class="card"><div class="tags">'+(q.subj?'<span class="tag">'+esc(q.subj)+'</span>':'')+(q.src==='內建'?'<span class="tag">內建題</span>':['AI','改寫'].includes(q.src)?'<span class="tag ai">AI 出題</span>':'')+'</div>'+(q.ptext?'<p class="passage">'+esc(q.ptext)+'</p>':'')+'<p class="q">'+esc(q.q)+'</p>'+(q.items?'<ul>'+q.items.map(x=>'<li>'+esc(x.t)+'</li>').join('')+'</ul>':'')+options.map((o,i)=>'<button class="opt" data-diag-opt="'+i+'" aria-pressed="'+(run.last===i)+'">'+(i+1)+'. '+esc(o)+'</button>').join('')+'<button class="big" id="diag-next" '+(run.last===null?'hidden':'')+'>下一題</button></div></section>';
+  app.innerHTML='<section id="diag-view"><div class="toprow"><h1>'+(run.mode==='prac'?'練習':'學習檢定')+'</h1><button class="ghost" id="diag-pause">暫停</button></div><div class="diag-prog"><span id="diag-number">第 '+(run.index+1)+' / '+run.items.length+' 題</span><progress max="'+run.items.length+'" value="'+run.index+'" aria-label="檢定進度"></progress></div>'+(run.mode!=='prac'&&supplemented.length?'<p>題庫裡「'+supplemented.map(t=>esc(DIAG_TAGS.find(x=>x.id===t).name)).join('、')+'」不夠，已用內建題補。</p>':'')+'<div class="card"><div class="tags">'+(q.subj?'<span class="tag">'+esc(q.subj)+'</span>':'')+diagSource(q)+(item.retry?'<span class="tag retry">再看一次</span>':'')+(item.kind==='old'?'<span class="tag">老朋友</span>':'')+(run.scaffold?.level?'<span class="tag">讀題小幫手</span>':'')+'</div>'+diagQuestionBody(run,item)+options.map((o,i)=>'<button class="opt" data-diag-opt="'+i+'" aria-pressed="'+(run.last===i)+'">'+(i+1)+'. '+esc(o)+'</button>').join('')+'<div id="diag-feedback" role="status" aria-live="polite"></div><button class="big" id="diag-next" '+(run.last===null?'hidden':'')+'>下一題</button></div></section>';
+  if(run.mode==='prac')diagBindScaffold(run,item);
   run.started=performance.now();
   document.querySelectorAll('[data-diag-opt]').forEach(b=>b.onclick=()=>diagSelect(Number(b.dataset.diagOpt)));
   document.getElementById('diag-next').onclick=diagNext;
+  if(run.mode==='prac'&&!run.answered)document.getElementById('diag-next').textContent='對答案';
   document.getElementById('diag-pause').onclick=()=>{run.elapsed=(run.elapsed||0)+(performance.now()-run.started)/1000;run.intr=1;diagSaveRun();diagRun=null;void libHome()};
   document.getElementById('diag-number').tabIndex=-1;document.getElementById('diag-number').focus();
 }
 function diagSelect(i){
   if(!diagRun||!document.getElementById('diag-view'))return;
+  if(document.querySelector('[data-diag-opt="'+i+'"]')?.disabled||diagRun.answered)return;
   if(diagRun.first===null)diagRun.first=i;else if(diagRun.last!==i)diagRun.changes++;
   diagRun.last=i;document.querySelectorAll('[data-diag-opt]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.diagOpt)===i)));document.getElementById('diag-next').hidden=false;
 }
 function diagNext(){
   const r=diagRun;if(!r||r.last===null||!document.getElementById('diag-view'))return;
+  if(r.mode==='prac'&&!r.answered){diagPracticeFeedback(r);return}
+  if(r.mode==='prac'&&r.scaffold?.ask&&!r.scaffold.done)return;
   const {q,bankId}=r.items[r.index],ok=Number(diagCorrect(q,r.last)),first=diagCorrect(q,r.first);
-  const event={playerId:r.pid,ts:Date.now(),eid:diagId(),qid:q.id,bank:bankId||'',tags:q.sk.join(','),ok,sec:Math.min(3600,(r.elapsed||0)+(performance.now()-r.started)/1000),len:Math.min(2000,q.q.length+diagOptions(q).join('').length),chg:!r.changes||first&&ok?'0':first?'RW':ok?'WR':'WW',scf:0,scok:'',mode:'diag',sid:r.sid,retry:0,intr:r.intr};
-  r.events.push(event);evPush(event);r.index++;r.first=null;r.last=null;r.changes=0;r.intr=0;r.elapsed=0;
+  const event={playerId:r.pid,ts:Date.now(),eid:diagId(),qid:q.id,bank:bankId||'',tags:(q.sk||['unk']).join(','),ok,sec:Math.min(3600,(r.elapsed||0)+(performance.now()-r.started)/1000),len:Math.min(2000,q.q.length+diagOptions(q).join('').length),chg:!r.changes||first&&ok?'0':first?'RW':ok?'WR':'WW',scf:r.mode==='prac'?(r.scaffold?.level||0):0,scok:r.mode==='prac'?(r.scaffold?.scok??''):'',mode:r.mode==='prac'?(r.items[r.index].kind==='old'?'rev':'prac'):'diag',sid:r.sid,retry:r.items[r.index].retry||0,intr:r.intr};
+  r.events.push(event);evPush(event);r.index++;r.answered=false;r.scaffold=null;r.first=null;r.last=null;r.changes=0;r.intr=0;r.elapsed=0;
   if(r.index<r.items.length){diagSaveRun();diagQuestion();return}
+  if(r.mode==='prac'){
+    localStorage.removeItem('diag-run:'+r.pid);diagRun=null;
+    app.innerHTML='<section id="diag-done" class="card"><h1>練習完成！</h1><p>本回合答對 '+r.events.reduce((n,e)=>n+e.ok,0)+' 題</p><div data-diag-status="'+esc(r.pid)+'"></div><button class="ghost" id="diag-home">回書架</button></section>';
+    document.getElementById('diag-home').onclick=()=>libHome();void flushEvents().then(()=>flushEvents());return;
+  }
   const perTag={};r.events.forEach(e=>e.tags.split(',').filter(t=>DIAG_TAG_IDS.includes(t)).forEach(t=>{perTag[t]??={n:0,ok:0};perTag[t].n++;perTag[t].ok+=e.ok}));
   const payload={playerId:r.pid,sid:r.sid,form:'v1',n:r.events.length,ok:r.events.reduce((s,e)=>s+e.ok,0),perTag};
   diagWrite('diag-pending-save',[...diagRead('diag-pending-save',[]),payload]);localStorage.removeItem('diag-run:'+r.pid);diagRun=null;
@@ -3898,8 +4040,12 @@ function diagNext(){
 }
 document.addEventListener('keydown',e=>{
   if(!diagRun||!document.getElementById('diag-view')||e.altKey||e.ctrlKey||e.metaKey||e.repeat)return;
+  if(diagRun.mode==='prac'&&(e.key==='Enter'||e.key===' ')){
+    const button=e.target.closest?.('#diag-view button');
+    if(button){e.preventDefault();if(!button.disabled)button.click();return}
+  }
   if(/^[1-4]$/.test(e.key)&&Number(e.key)<=diagOptions(diagRun.items[diagRun.index].q).length){e.preventDefault();diagSelect(Number(e.key)-1)}
-  else if(e.key==='Enter'&&diagRun.last!==null&&!e.target.closest?.('[data-diag-opt],#diag-pause')){e.preventDefault();diagNext()}
+  else if(e.key==='Enter'&&diagRun.last!==null&&!e.target.closest?.('button')){e.preventDefault();diagNext()}
 });
 async function viewDiagLearn(list,alive){
   try{
@@ -3918,6 +4064,8 @@ async function viewDiagLearn(list,alive){
           body.querySelector('#diag-consent').onclick=()=>consent(true);
         }else{
           body.innerHTML=diagReportHTML(report,player.name)+'<p>已同意（版本 '+esc(report.consent.ver)+'，'+new Date(report.consent.at).toISOString().slice(0,10)+'）</p><button class="ghost danger" id="diag-revoke">撤回同意</button>';
+          body.insertAdjacentHTML('afterbegin','<label for="diag-ratio">讀題小幫手題目比例 <output id="diag-ratio-value">'+diagRatio(pid)+'%</output></label><input id="diag-ratio" type="range" min="20" max="50" step="5" value="'+diagRatio(pid)+'">');
+          body.querySelector('#diag-ratio').oninput=e=>{localStorage.setItem('diag-ratio:'+pid,e.target.value);body.querySelector('#diag-ratio-value').textContent=e.target.value+'%'};
           body.querySelector('#diag-revoke').onclick=()=>consent(false);
         }
         async function consent(agree){
