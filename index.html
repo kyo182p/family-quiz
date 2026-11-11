@@ -5062,6 +5062,290 @@ function tourStepsReady(k){return k}
   const notice=store.get('player-notice','');if(notice){store.set('player-notice','');toast(notice)}
   setTimeout(badgeSync,3000);   // 開站後在背景把徽章和雲端對一次
 })();
+// ==DIAG-SHARED-BEGIN==
+const DIAG_SUBJECTS=['zh','math','sci','soc','en'];
+const DIAG_SUBJECT_NAME={zh:'國語',math:'數學',sci:'自然',soc:'社會',en:'英語'};
+const DIAG_CAUSE_NAME={read:'題目沒看完整',concept:'觀念還沒弄懂',slip:'一時沒注意',unknown:'看不出來'};
+const DIAG_STATUS={ok:'已經會了',unsteady:'還不穩',practice:'要再練',unknown:'還看不出來'};
+const DIAG_CONSENT_VER=2;
+const DIAG_TOP_BOX={x:0,y:0,w:1,h:0.15};
+const DIAG_TAGS=[
+  {id:'neg',name:'否定題',scf:'neg'},{id:'qnt',name:'限定詞',scf:'neg'},
+  {id:'cnt',name:'多項數數／組合',scf:'count'},{id:'ctx',name:'情境轉概念',scf:''},
+  {id:'evi',name:'閱讀找證據／推論',scf:'evidence'},{id:'shp',name:'形近字與字形細節',scf:''},
+  {id:'prf',name:'校對錯字',scf:''}
+];
+const DIAG_TAG_IDS=DIAG_TAGS.map(t=>t.id);
+const DIAG_CFG={spcDefault:0.35,spcMinN:8,base:3,fast:0.6,slow:1.5,interrupt:1.8,minN:4,minWrong:2,streakFade:5,fade:0.7,graduate:0.2,ratioMin:0.2,ratioMax:0.5,target:[0.65,0.75],ladder:[1,3,7],windowDays:21,maxReview:3};
+function diagCauseCounts(items){
+  const out={read:0,concept:0,slip:0,unknown:0,wrong:0};
+  for(const x of items)if(x.verdict==='ng'||x.verdict==='half'){
+    out[Object.prototype.hasOwnProperty.call(DIAG_CAUSE_NAME,x.cause)?x.cause:'unknown']++;out.wrong++;
+  }
+  return out;
+}
+function pickWeak(items){
+  let left=items.filter(x=>x.verdict==='ng'||x.verdict==='half');
+  const out=[],rank={tag:0,code:1,type:2};
+  while(out.length<3){
+    const groups=new Map();
+    for(const x of left){
+      const keys=[];
+      if(x.readTag&&x.readTag!=='unk')keys.push('tag:'+x.readTag);
+      if(x.code&&x.code!=='unclassified')keys.push('code:'+x.code);
+      if(x.type)keys.push('type:'+x.type);
+      for(const key of keys){if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x);}
+    }
+    const choices=[...groups].filter(([,xs])=>xs.length>=2).sort((a,b)=>b[1].length-a[1].length||rank[a[0].split(':')[0]]-rank[b[0].split(':')[0]]||(a[0]<b[0]?-1:a[0]>b[0]?1:0));
+    if(!choices.length)break;
+    const [key,xs]=choices[0],value=key.slice(key.indexOf(':')+1),counts={concept:0,read:0,slip:0,unknown:0};
+    for(const x of xs){let c=x.cause;if(!Object.prototype.hasOwnProperty.call(counts,c)||(c==='concept'&&x.parentConfirmed!==true&&x.parentEdited!==true))c='unknown';counts[c]++;}
+    const cause=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0];
+    const tag=DIAG_TAGS.find(t=>t.id===value);
+    out.push({key,label:key.startsWith('tag:')&&tag?tag.name:value,code:xs.every(x=>x.code===xs[0].code)?xs[0].code||'':'',cause,examQs:xs.map(x=>x.qNo),n:xs.length});
+    const used=new Set(xs);left=left.filter(x=>!used.has(x));
+  }
+  return out;
+}
+function judgeWeak(items,answers){
+  const groups=new Map();let trap=0,plain=0,rephrase=0,rephraseN=0;
+  for(const x of items){
+    const ok=answers[x.id]===true;
+    if(x.variant==='R'){rephraseN++;if(ok)rephrase++;continue;}
+    if(x.variant!=='A'&&x.variant!=='B')continue;
+    if(!groups.has(x.pairId))groups.set(x.pairId,{A:[],B:[]});
+    groups.get(x.pairId)[x.variant].push(ok);
+    if(ok){if(x.variant==='A')trap++;else plain++;}
+  }
+  const pairs=[...groups].map(([pairId,g])=>{
+    let result='mixed';
+    if(g.A.length===1&&g.B.length===1)result=g.A[0]?(g.B[0]?'pass':'mixed'):(g.B[0]?'read':'concept');
+    return {pairId,result};
+  });
+  let status='unknown';
+  if(pairs.length===2&&pairs[0].result===pairs[1].result){
+    const r=pairs[0].result;
+    if(r==='pass'&&rephraseN>0&&rephrase===rephraseN)status='ok';
+    if(r==='read')status='unsteady';
+    if(r==='concept')status='practice';
+  }
+  return {status,pairs,trap,plain,pairsN:pairs.length,rephrase,rephraseN};
+}
+// Rational arithmetic uses safe integers; reject overflow rather than round answers.
+function mathEval(expr){
+  if(typeof expr!=='string'||expr.length>2000)return null;
+  const s=expr.replace(/×/g,'*').replace(/÷/g,'/');let pos=0,decimal=false;
+  function rational(n,d){
+    if(!Number.isSafeInteger(n)||!Number.isSafeInteger(d)||d===0)throw Error('range');
+    if(d<0){n=-n;d=-d;}
+    let a=Math.abs(n),b=d;while(b){const t=a%b;a=b;b=t;}
+    return [n/(a||1),d/(a||1)];
+  }
+  function skip(){while(/\s/.test(s[pos]||'')&&pos<s.length)pos++;}
+  function atom(){
+    skip();const c=s[pos];
+    if(c==='+'||c==='-'){pos++;const v=atom();return [c==='-'?-v[0]:v[0],v[1]];}
+    if(c==='('){pos++;const v=sum();skip();if(s[pos++]!==')')throw Error('paren');return v;}
+    const m=/^(?:\d+(?:\.\d+)?|\.\d+)/.exec(s.slice(pos));if(!m)throw Error('number');
+    pos+=m[0].length;const bits=m[0].split('.');if(bits.length>1)decimal=true;
+    return rational(Number(bits.join('')),bits.length>1?10**bits[1].length:1);
+  }
+  function product(){let a=atom();while(true){skip();const op=s[pos];if(op!=='*'&&op!=='/')return a;pos++;const b=atom();a=op==='*'?rational(a[0]*b[0],a[1]*b[1]):rational(a[0]*b[1],a[1]*b[0]);}}
+  function sum(){let a=product();while(true){skip();const op=s[pos];if(op!=='+'&&op!=='-')return a;pos++;const b=product();a=rational(a[0]*b[1]+(op==='+'?1:-1)*b[0]*a[1],a[1]*b[1]);}}
+  try{
+    const [n,d]=sum();skip();if(pos!==s.length)return null;
+    if(d===1)return String(n);
+    if(decimal){
+      let rest=d,two=0,five=0;while(rest%2===0){rest/=2;two++;}while(rest%5===0){rest/=5;five++;}
+      const places=Math.max(two,five),scaled=n*2**(places-two)*5**(places-five);
+      if(rest===1&&Number.isSafeInteger(scaled)){
+        const digits=String(Math.abs(scaled)).padStart(places+1,'0');
+        return (n<0?'-':'')+digits.slice(0,-places)+'.'+digits.slice(-places);
+      }
+    }
+    return n+'/'+d;
+  }catch(e){return null;}
+}
+function codeGrade(code){const m=/^[NSRD]-([1-9]\d*)-[1-9]\d*$/.exec(code);return m&&Number.isSafeInteger(Number(m[1]))?Number(m[1]):null;}
+function buildCheck(raw,ctx){
+  const items=[],pending=[];
+  for(const original of raw){
+    const item={...original},options=Array.isArray(item.o)?item.o.map(x=>String(x).trim()):[];
+    let reason='';
+    if(new Set(options).size!==options.length)reason='選項重複';
+    if(ctx.subject==='math'){
+      const limit=ctx.grade<=2?3:ctx.grade<=4?5:8;
+      if((String(item.q||'')+' '+String(item.expr||'')).match(/\d+(?:\.\d+)?/g)?.some(x=>x.split('.')[0].length>limit))reason='整數位數超出年級';
+      if(item.expr!==undefined&&item.expr!==null&&item.expr!==''){
+        item.a=mathEval(item.expr);if(item.a===null)reason='算式無法驗算';
+      }
+    }
+    if(options.length&&!options.includes(String(item.a).trim()))reason=reason||'答案不在選項中';
+    if(item.targetCode){
+      const entry=(ctx.whitelist||[]).find(x=>x.code===item.targetCode),grade=codeGrade(item.targetCode);
+      if(!entry||(grade!==null&&grade>ctx.grade)||entry.grade>ctx.grade)reason=reason||'編碼不在年級白名單';
+    }
+    if(ctx.subject==='en'){
+      const allowed=new Set(ctx.words||[]),words=([item.q||'',...options].join(' ').match(/[A-Za-z]+/g)||[]).map(x=>x.toLowerCase());
+      if(words.some(x=>!allowed.has(x)))reason=reason||'英文超出白名單';
+    }
+    if(reason)pending.push({item:original,reason});else items.push({...item,...(Array.isArray(item.o)?{o:options}:{}),verified:true});
+  }
+  return {items,pending};
+}
+function arrangeCheck(items){
+  const groups=new Map(),out=[];
+  items.forEach((x,i)=>{const k=x.variant==='R'?Symbol(i):x.pairId;if(!groups.has(k))groups.set(k,[]);groups.get(k).push({x,i});});
+  let previous;
+  while(groups.size){
+    let choices=[...groups].filter(([key])=>key!==previous);
+    if(!choices.length)choices=[...groups];
+    choices.sort((a,b)=>b[1].length-a[1].length||a[1][0].i-b[1][0].i);
+    const [key,list]=choices[0];out.push(list.shift().x);previous=key;if(!list.length)groups.delete(key);
+  }
+  return out;
+}
+function redactPlan(w,h,boxes,maxSide=1600){
+  const scale=Math.min(1,maxSide/Math.max(w,h)),W=Math.max(1,Math.floor(w*scale)),H=Math.max(1,Math.floor(h*scale));
+  const rects=boxes.map(b=>{
+    const x=Math.max(0,Math.min(W,Math.floor(b.x*W))),y=Math.max(0,Math.min(H,Math.floor(b.y*H)));
+    const right=Math.max(x,Math.min(W,Math.ceil((b.x+b.w)*W))),bottom=Math.max(y,Math.min(H,Math.ceil((b.y+b.h)*H)));
+    return {x,y,w:right-x,h:bottom-y};
+  });
+  return {w:W,h:H,rects};
+}
+function jpegHasExif(bytes){
+  if(bytes[0]!==255||bytes[1]!==216)return false;
+  let p=2;
+  while(p<bytes.length){
+    if(bytes[p++]!==255)return false;while(bytes[p]===255)p++;
+    const marker=bytes[p++];if(marker===218||marker===217||marker===undefined)return false;
+    if(marker===1||(marker>=208&&marker<=215))continue;
+    if(p+2>bytes.length)return false;
+    const length=bytes[p]*256+bytes[p+1];if(length<2||p+length>bytes.length)return false;
+    if(marker===225&&length>=8&&[69,120,105,102,0,0].every((v,i)=>bytes[p+2+i]===v))return true;
+    p+=length;
+  }
+  return false;
+}
+function primaryTag(q){return q.sk&&q.sk[0]||'unk';}
+function speedOf(events,cfg){
+  const values=events.filter(e=>e.ok===1&&e.intr===0&&e.len>0).map(e=>e.sec/e.len).sort((a,b)=>a-b);
+  const m=Math.floor(values.length/2);
+  const spc=values.length>=cfg.spcMinN?(values.length%2?values[m]:(values[m-1]+values[m])/2):cfg.spcDefault;
+  return {spc,rel:e=>e.sec/(cfg.base+e.len*spc)};
+}
+function diagEventTag(e){return (e.tags||'').split(',')[0]||'unk';}
+function classifyTag(events,cfg,now){
+  const recent=events.filter(e=>now-e.ts<=cfg.windowDays*86400000);
+  const speed=speedOf(recent,cfg);
+  const clean=recent.filter(e=>e.intr!==1&&speed.rel(e)<=cfg.interrupt).slice().sort((a,b)=>a.ts-b.ts);
+  const result={};
+  for(const tag of DIAG_TAG_IDS){
+    const all=clean.filter(e=>diagEventTag(e)===tag);
+    if(!all.length)continue;
+    const first=all.filter(e=>e.retry===0);
+    const n=first.length,ok=first.reduce((s,e)=>s+e.ok,0);
+    const out={tag,n,ok,wrong:n-ok,fixes:all.filter(e=>e.chg==='WR').length,slip:0,learn:0,verdict:'unclear'};
+    for(let i=0;i<first.length;i++){
+      const e=first[i];if(e.ok!==0)continue;
+      const retries=all.filter(r=>r.retry===1&&r.sid===e.sid&&r.qid===e.qid&&r.ts>=e.ts);
+      if(speed.rel(e)<cfg.fast)out.slip++;
+      if(retries.some(r=>r.ok===1))out.slip++;
+      const before=first.slice(0,i).filter(r=>r.sid===e.sid);
+      if(before.length>=2&&before[before.length-1].ok===1&&before[before.length-2].ok===1)out.slip++;
+      if(speed.rel(e)>cfg.slow)out.learn++;
+      if(retries.some(r=>r.ok===0))out.learn++;
+      if(e.chg==='RW'||e.chg==='WW')out.learn++;
+    }
+    if(n&&ok/n<0.5)out.learn++;
+    if(n>=cfg.minN&&out.wrong>=cfg.minWrong){
+      if(out.slip>=3&&out.learn<=1)out.verdict='slip';
+      else if(out.learn>=3&&out.slip<=1)out.verdict='learn';
+    }
+    result[tag]=out;
+  }
+  return result;
+}
+function scheduleReview(review,e,cfg,now){
+  const next=review.map(r=>({...r,qidSeen:r.qidSeen.slice()}));
+  const tag=diagEventTag(e);
+  if(!DIAG_TAG_IDS.includes(tag)||e.retry===1)return next;
+  const i=next.findIndex(r=>r.tag===tag),r=next[i];
+  if(e.mode==='rev'){
+    if(!r)return next;
+    if(e.ok===1&&r.step===cfg.ladder.length-1){next.splice(i,1);return next;}
+    r.step=e.ok===1?r.step+1:Math.max(0,r.step-1);
+    r.dueAt=now+cfg.ladder[r.step]*86400000;
+    if(!r.qidSeen.includes(e.qid))r.qidSeen.push(e.qid);
+  }else if(e.ok===0&&e.retry===0){
+    if(!r)next.push({tag,qidSeen:[e.qid],step:0,dueAt:now+cfg.ladder[0]*86400000});
+    else if(!r.qidSeen.includes(e.qid))r.qidSeen.push(e.qid);
+  }
+  return next;
+}
+function diagShuffle(items,rng){
+  const out=items.slice();
+  for(let i=out.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));const x=out[i];out[i]=out[j];out[j]=x;}
+  return out;
+}
+function diagArrange(items,rng,round){
+  const left=diagShuffle(items,rng),out=[];
+  let run=0;
+  while(left.length){
+    const prev=out.length?out[out.length-1].tag:'unk';
+    const normals=left.filter(x=>x.kind==='normal').length;
+    let choices=left.map((x,i)=>({x,i})).filter(({x})=>{
+      if(!round)return true;
+      if(out.length===0&&normals>=2)return x.kind==='normal';
+      if(left.length===1&&normals)return x.kind==='normal';
+      if(x.kind==='normal'&&normals===1&&left.length>1&&out.some(y=>y.kind==='normal'))return false;
+      if(x.kind==='normal'&&normals>1&&left.length-normals>2*(normals-1))return false;
+      return x.kind==='normal'||run<2;
+    });
+    // With too few normal questions a perfect arrangement may be impossible.
+    if(!choices.length)choices=left.map((x,i)=>({x,i}));
+    // Prefer the most numerous remaining tag, avoiding the previous one.
+    const counts={};for(const x of left)counts[x.tag]=(counts[x.tag]||0)+1;
+    choices.sort((a,b)=>Number(b.x.tag!==prev||prev==='unk')-Number(a.x.tag!==prev||prev==='unk')||counts[b.x.tag]-counts[a.x.tag]);
+    const x=left.splice(choices[0].i,1)[0];out.push(x);
+    run=x.kind==='normal'?0:run+1;
+  }
+  return out;
+}
+function composeRound(opts){
+  const {profile}=opts,cfg=opts.cfg||DIAG_CFG,n=opts.n||12,rng=opts.rng||(()=>0.5);
+  const active=(profile.weak||[]).map(t=>({...t,w:(t.w===undefined?1:t.w)*cfg.fade**Math.max(0,(t.streak||0)-cfg.streakFade+1)})).filter(t=>t.w>=cfg.graduate);
+  const total=active.reduce((sum,t)=>sum+t.w,0);
+  const weak={tags:active.map(t=>({tag:t.tag||t.key,w:t.w})),ratio:total?Math.max(cfg.ratioMin,cfg.ratioMax*Math.min(1,total)):0};
+  const quota=Math.round(weak.ratio*n);
+  const used=new Set(),selected=[];
+  function add(q,kind,tag){if(!q||used.has(q.id))return false;used.add(q.id);selected.push({q,kind,tag});return true;}
+  for(const old of (opts.old||[]).filter(x=>(profile.review||[]).some(r=>r.tag===x.entry.tag))){
+    if(selected.length>=Math.min(quota,cfg.maxReview))break;
+    add(old.q,'old',old.entry.tag);
+  }
+  const pools={};for(const t of weak.tags)pools[t.tag]=diagShuffle((opts.weakPool||{})[t.tag]||[],rng);
+  const taken={};
+  while(selected.length<quota){
+    const available=weak.tags.filter(t=>pools[t.tag].some(q=>!used.has(q.id)));
+    if(!available.length)break;
+    available.sort((a,b)=>(taken[a.tag]||0)/a.w-(taken[b.tag]||0)/b.w);
+    const tag=available[0].tag,q=pools[tag].find(q=>!used.has(q.id));
+    if(add(q,'weak',tag))taken[tag]=(taken[tag]||0)+1;
+  }
+  const normal=diagShuffle(opts.normal,rng).filter(q=>!used.has(q.id));
+  while(selected.length<n&&normal.length){const q=normal.shift();add(q,'normal',primaryTag(q));}
+  function expected(){return selected.reduce((s,x)=>{const t=active.find(t=>(t.tag||t.key)===x.tag);return s+(x.kind==='normal'?0.85:t&&t.n?t.ok/t.n:0.5);},0)/selected.length;}
+  while(expected()<cfg.target[0]&&selected.filter(x=>x.kind!=='normal').length>1&&normal.length){
+    const i=selected.map(x=>x.kind).lastIndexOf('weak');
+    const at=i>=0?i:selected.map(x=>x.kind).lastIndexOf('old');
+    const q=normal.shift();selected[at]={q,kind:'normal',tag:primaryTag(q)};
+  }
+  return diagArrange(selected,rng,true);
+}
+// ==DIAG-SHARED-END==
+
 </script>
 </body>
 </html>
