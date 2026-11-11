@@ -5443,8 +5443,7 @@ async function exAnalyze(job,pages,root,alive,records){
   try{
     const result=await parentCall('diag_analyzeExam',{...job.meta,...(job.examId?{examId:job.examId}:{}),pages:pages.map(p=>({n:p.n,b64:p.b64}))});
     if(exJob!==job)return;job.examId=result.examId;job.left=result.left;job.total+=(result.items||[]).length;
-    const succeeded=pages.filter(p=>!(result.failed||[]).some(f=>f.page===p.n));
-    for(const p of pages){const failed=(result.failed||[]).find(f=>f.page===p.n);p.state=failed?(failed.code==='zero_items'?'zero':'failed'):'done';if(succeeded.length===1&&!failed)p.count=(result.items||[]).length;if(!failed||p.state==='zero')delete p.b64}
+    for(const p of pages){const failed=(result.failed||[]).find(f=>f.page===p.n);p.state=failed?(failed.code==='zero_items'?'zero':'failed'):'done';if(!failed)p.count=(result.pages||[]).find(x=>x.page===p.n)?.count;if(!failed||p.state==='zero')delete p.b64}
   }catch(e){if(exJob!==job)return;job.error=EX_NETWORK_ERROR;for(const p of pages){p.state='network';delete p.b64}}
   job.busy=false;
   if(exRefresh)exRefresh();
@@ -5599,8 +5598,7 @@ async function viewSubjectProfile(playerId,subject='zh'){
     if(!players.length){ui.msg.textContent='請先新增孩子。';return}
     const player=players.find(p=>p.id===playerId)||players[0],pid=player.id;
     const data=await parentCall('diag_getProfile',{playerId:pid});
-    // getProfile omits exam.createdAt; obtain it through the existing detail route.
-    const exams=await Promise.all((data.exams||[]).map(async e=>e.createdAt?e:(await parentCall('diag_examItems',{examId:e.examId})).exam));
+    const exams=data.exams||[];
     if(!ui.alive())return;
     ui.msg.textContent='AI 判讀，請家長確認';
     ui.body.innerHTML='<label>孩子<select id="ex-profile-player">'+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><div class="subj" role="tablist" aria-label="科目">'+DIAG_SUBJECTS.map(s=>'<button role="tab" id="ex-tab-'+s+'" aria-controls="ex-subject-body" data-subject="'+s+'">'+DIAG_SUBJECT_NAME[s]+'</button>').join('')+'</div><div id="ex-subject-body" role="tabpanel"></div><p>'+DIAG_SOURCE+'</p><button class="ghost" id="ex-upload-back">上傳考卷</button>';

@@ -1874,7 +1874,7 @@ function diagAnalyze(fam,req) {
   let responses,fetchError;
   try {responses=UrlFetchApp.fetchAll(req.pages.map(p=>diagRequest(MODELS.default,DIAG_PAGE_PROMPT+'\n'+JSON.stringify({subject:req.subject,grade:req.grade,codes:req.codes,page:p.n}),[p.b64],DIAG_PAGE_SCHEMA)));}
   catch(e){fetchError=/timeout|timed out/i.test(String(e))?'timeout':'ai_error';}
-  const items=[],failed=[],refund=[];
+  const items=[],pages=[],failed=[],refund=[];
   req.pages.forEach((p,i)=>{
     try {
       if(fetchError)diagFail(fetchError);
@@ -1884,7 +1884,7 @@ function diagAnalyze(fam,req) {
         const teacher=x.teacher_mark!=='none',verdict=teacher?x.teacher_mark:(x.student_answer!==null&&x.student_answer.trim()===x.correct_answer.trim()?'ok':'ng');
         return diagClean({examId:exam.examId,qNo:x.q_no,type:x.type,text:x.question_text,studentAnswer:x.student_answer,teacherMark:x.teacher_mark,correctAnswer:x.correct_answer,verdict,verdictSource:teacher?'teacher':'ai',cause:verdict==='ok'?'unknown':(['read','concept','slip','unknown'].includes(x.error_cause)?x.error_cause:'unknown'),causeLayer:['read','comprehend','transform','process','encode'].includes(x.newman_layer)?x.newman_layer:'',readTag:'',pirls:'',code:req.codes.includes(x.code)?x.code:'unclassified',confidence:x.confidence,needsReview:x.needs_review,parentEdited:false});
       });
-      items.push(...converted);
+      items.push(...converted);pages.push({page:p.n,count:converted.length});
     }catch(e){const code=['zero_items','timeout','refused'].includes(e.code)?e.code:'ai_error';failed.push({page:p.n,code});refund.push(reservation.tokens[i]);console.error('diag_analyzeExam '+code);}
   });
   return withLock(()=>{
@@ -1894,7 +1894,7 @@ function diagAnalyze(fam,req) {
     if(req.examId){const current=diagObjects('exams').find(x=>x.examId===exam.examId&&x.fk===exam.fk);if(!current){diagRefund(fam,reservation.tokens.filter(t=>!refund.includes(t)));return {ok:false,code:'not_found'};}exam=current;}
     const charged=req.pages.length-failed.length;
     if(charged){exam.pages+=charged;exam.aiCalls+=charged;exam.status='review';exam.confirmedAt='';diagPut('exams',exam,exam._row);items.forEach(x=>{const old=diagObjects('examItems').find(y=>y.examId===x.examId&&y.qNo===x.qNo);diagPut('examItems',x,old&&old._row);});}
-    return {ok:true,examId:exam.examId,items,failed,charged,left:diagLeft(fam)};
+    return {ok:true,examId:exam.examId,items,pages,failed,charged,left:diagLeft(fam)};
   });
 }
 function diagConfirm(fam,req) {
@@ -2033,7 +2033,7 @@ function diagAction(fam,req) {
       if(req.action==='diag_postEvents')return diagPostEvents(fam,req,fk);
       if(req.action==='diag_getProfile'){
         const profiles={};diagObjects('profiles').filter(x=>x.fk===fk).forEach(x=>profiles[x.subject]=JSON.parse(x.json));
-        const fields=['examId','subject','grade','term','examDate','status','confirmedAt'];
+        const fields=['examId','subject','grade','term','examDate','status','confirmedAt','createdAt'];
         return {ok:true,profiles,exams:diagObjects('exams').filter(x=>x.fk===fk).map(x=>Object.fromEntries(fields.map(k=>[k,x[k]]))),checks:diagObjects('checks').filter(x=>x.fk===fk).map(x=>({checkId:x.checkId,examId:x.examId,subject:x.subject,resultJSON:x.resultJSON?JSON.parse(x.resultJSON):null,createdAt:x.createdAt,doneAt:x.doneAt})),consent:diagConsent(fam)};
       }
       if(req.action==='diag_deleteSubject'){
