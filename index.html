@@ -482,6 +482,23 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 #ex-panel input[type=checkbox],#ex-panel input[type=radio]{min-height:24px;width:24px;vertical-align:middle}
 #ex-panel button:disabled{opacity:.55;cursor:default}
 #ex-label{position:sticky;bottom:0;background:var(--card);padding:12px;color:var(--sky-ink)}
+.ex-review{display:grid;gap:12px;min-width:0;overflow-wrap:anywhere}
+.ex-review .qli{display:grid;gap:8px;padding:12px;border:2px solid var(--line);border-radius:14px;background:var(--card);min-width:0}
+.ex-review .qli.flag{border-color:var(--sun)}
+.ex-review .top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
+.ex-review .conf,.ex-review .pill{padding:4px 8px;border-radius:10px;background:var(--sky-soft);color:var(--sky-ink)}
+.ex-review .seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.ex-review button,.ex-review input,.ex-review select,.ex-review summary{min-height:44px;font:inherit}
+.ex-review .big{min-height:56px}
+.ex-review input,.ex-review select{width:100%;min-width:0;background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:10px;padding:8px}
+.ex-review .seg button{background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:10px;cursor:pointer}
+.ex-review .seg [aria-pressed=true]{border-color:var(--sky-ink);background:var(--sky-soft);color:var(--sky-ink);font-weight:bold}
+.ex-review :focus-visible{outline:3px solid var(--sky-ink);outline-offset:3px}
+.ex-review details>div{display:grid;gap:12px}
+.ex-review summary{cursor:pointer;padding:12px 0}
+.ex-review .cz{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(40px,1fr) auto;align-items:center;gap:8px;margin:12px 0}
+.ex-review .bar-track{height:12px;background:var(--line);border-radius:6px;overflow:hidden}
+.ex-review .bar-track i{display:block;height:100%;background:var(--sky-ink)}
 </style>
 </head>
 <body>
@@ -5169,9 +5186,9 @@ function diagReview(due){
 function diagOptions(q){return q.t==='tf'?['對','錯']:q.o||[]}
 function diagCorrect(q,i){return q.t==='tf'?(['O',true,'對'].includes(q.a)?i===0:i===1):diagOptions(q)[i]===q.a}
 function diagStart(r){diagRun={...r,sid:diagId(),index:0,answers:[],seconds:[],first:null,last:null,changes:0,intr:0,elapsed:0};diagQuestion()}
-function viewCheck(check){
+function viewCheck(check,pid=ACTIVE_PLAYER){
   void flushEvents();
-  const pid=ACTIVE_PLAYER,old=diagRead('diag-check:'+pid+':'+check.checkId,null);
+  const old=diagRead('diag-check:'+pid+':'+check.checkId,null);
   diagStart({pid,checkId:check.checkId,subject:check.subject,mode:'check',items:check.items.map(q=>({q:{...q,sk:diagQuestionTags(q)},retry:0})),profile:diagPracticeProfile(diagStates.get(pid),check.subject)});
   if(old){diagRun.answers=old.answers||[];diagRun.seconds=old.seconds||[];diagRun.index=Math.min(diagRun.answers.findIndex(x=>x===null||x===undefined)<0?diagRun.answers.length:diagRun.answers.findIndex(x=>x===null||x===undefined),check.items.length-1);diagRun.intr=1;diagQuestion()}
 }
@@ -5426,6 +5443,106 @@ function viewAnalyzing(root,job,alive,records){
   slot.innerHTML='<h3>考卷分析</h3><p role="status">'+esc(job.error||'')+'</p><p>共讀到 '+job.total+' 題</p>'+(job.left!==null?'<p class="quota">今天還剩 '+job.left+' 次</p>':'')+job.pages.map(p=>'<article class="card par"><p>'+esc(p.state==='busy'?'第 '+p.n+' 頁：分析中…':p.state==='done'?'第 '+p.n+' 頁：完成'+(p.count===undefined?'':'，讀到 '+p.count+' 題'):p.state==='zero'?'第 '+p.n+' 頁沒有讀到題目，沒有扣次數。可以重拍這頁再送。':p.state==='failed'?'第 '+p.n+' 頁沒有讀到。這頁不扣次數。':p.state==='abandoned'?'第 '+p.n+' 頁：只用其他頁':EX_NETWORK_ERROR)+'</p>'+(p.state==='failed'?'<button class="ghost" data-ex-retry="'+p.n+'" '+(job.busy?'disabled':'')+'>重送第 '+p.n+' 頁</button><button class="ghost" data-ex-abandon="'+p.n+'" '+(job.busy?'disabled':'')+'>只用其他頁</button>':'')+'</article>').join('');
   slot.querySelectorAll('[data-ex-retry]').forEach(b=>b.onclick=()=>exAnalyze(job,[job.pages.find(p=>p.n===Number(b.dataset.exRetry))],root,alive,records));
   slot.querySelectorAll('[data-ex-abandon]').forEach(b=>b.onclick=()=>{const p=job.pages.find(p=>p.n===Number(b.dataset.exAbandon));delete p.b64;p.state='abandoned';if(exRefresh)exRefresh();viewAnalyzing(root,job,alive,records)});
+}
+
+// 家長確認與檢定預覽：僅保留當前畫面的草稿，不寫入本機儲存。
+function exReviewScreen(title){
+  const root=document.getElementById('parent-list'),epoch=parentEpoch;
+  if(!root||!PARENT_SESSION)return null;
+  const panel=document.createElement('section');panel.className='card par ex-review';
+  panel.innerHTML='<h2>'+esc(title)+'</h2><p role="status" data-ex-status>讀取中…</p><div data-ex-content></div>';
+  root.replaceChildren(panel);
+  return {panel,body:panel.querySelector('[data-ex-content]'),msg:panel.querySelector('[data-ex-status]'),alive:()=>panel.isConnected&&epoch===parentEpoch&&!!PARENT_SESSION};
+}
+async function exExamContext(exam){
+  const pid=String(exam.fk).split(':').pop(),j=await parentCall('playerList');
+  return {exam,pid,name:(j.players||[]).find(p=>p.id===pid)?.name||'孩子'};
+}
+async function viewExamReview(examId){
+  const root=document.getElementById('parent-list'),epoch=parentEpoch;
+  if(!root||!PARENT_SESSION)return;
+  // Keep the analysis handoff visible until the next screen's data is ready.
+  const loading=root.querySelector('#ex-message')||document.getElementById('parent-notice');
+  if(loading)loading.textContent='下一步畫面準備中';
+  let ui;
+  try{
+    const j=await parentCall('diag_examItems',{examId}),ctx=await exExamContext(j.exam);
+    if(!root.isConnected||epoch!==parentEpoch||!PARENT_SESSION)return;
+    ui=exReviewScreen('確認分析');if(!ui)return;
+    const items=j.items.map(x=>({...x})),edited=new Map();
+    const rank=x=>x.needsReview?0:x.confidence==='lo'?1:x.teacherMark&&x.teacherMark!=='none'&&x.teacherMark!==x.verdict?2:3;
+    const sorted=items.slice().sort((a,b)=>rank(a)-rank(b)),flagged=sorted.filter(x=>rank(x)<3),other=sorted.filter(x=>rank(x)===3);
+    ui.msg.textContent='AI 判讀，請家長確認';
+    ui.body.innerHTML='<p>AI 是照老師的紅筆判對錯；黃框是看不清楚或和老師記號不一樣的題，請先看。改這裡不扣次數。</p><div data-ex-flags></div><details><summary>其他 '+other.length+' 題（看起來沒問題）</summary><div data-ex-other></div></details><button class="big" id="ex-save">都看過了，存下來</button>';
+    function row(x,flag){
+      const el=document.createElement('article');el.className='qli'+(flag?' flag':'');el.dataset.qNo=x.qNo;
+      el.innerHTML='<div class="top"><span>第 '+esc(x.qNo)+' 題'+(flag?' · 要確認':'')+'</span><span class="conf">'+esc(({hi:'清楚',mid:'可能',lo:'看不清楚'})[x.confidence]||'看不清楚')+'</span></div><p>'+esc(x.text)+'</p><label>孩子寫<input aria-label="第 '+esc(x.qNo)+' 題孩子作答" placeholder="看不清楚，請照考卷填"></label><div class="seg" role="group" aria-label="第 '+esc(x.qNo)+' 題的對錯">'+[['ok','對'],['ng','錯'],['half','半對']].map(([v,label])=>'<button type="button" data-verdict="'+v+'" aria-pressed="'+(v===x.verdict)+'">'+label+'</button>').join('')+'</div><label data-cause-label>錯在哪裡<select aria-label="錯因">'+Object.entries(DIAG_CAUSE_NAME).map(([v,label])=>'<option value="'+v+'">'+esc(label)+'</option>').join('')+'</select></label><p data-concept>把題目念給我聽，你是怎麼算的？</p>';
+      const input=el.querySelector('input'),select=el.querySelector('select');input.value=x.studentAnswer??'';select.value=x.cause||'unknown';
+      function change(field,value){x[field]=value;if(!edited.has(x.qNo))edited.set(x.qNo,new Set());edited.get(x.qNo).add(field)}
+      function refresh(){const wrong=x.verdict==='ng'||x.verdict==='half';el.querySelector('[data-cause-label]').hidden=!wrong;el.querySelector('[data-concept]').hidden=!wrong||x.cause!=='concept';el.querySelectorAll('[data-verdict]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.verdict===x.verdict)))}
+      input.oninput=()=>change('studentAnswer',input.value);select.onchange=()=>{change('cause',select.value);refresh()};
+      el.querySelectorAll('[data-verdict]').forEach(b=>b.onclick=()=>{change('verdict',b.dataset.verdict);refresh()});refresh();return el;
+    }
+    flagged.forEach(x=>ui.body.querySelector('[data-ex-flags]').append(row(x,true)));other.forEach(x=>ui.body.querySelector('[data-ex-other]').append(row(x,false)));
+    const save=ui.body.querySelector('#ex-save');
+    save.onclick=async()=>{
+      if(save.disabled)return;save.disabled=true;
+      // Freeze the submitted draft until the request finishes; failures keep every value.
+      const controls=[...ui.body.querySelectorAll('input,select,.seg button')];controls.forEach(b=>b.disabled=true);
+      try{
+        const result=await parentCall('diag_confirmExam',{examId,items:items.map(x=>({qNo:x.qNo,studentAnswer:x.studentAnswer,verdict:x.verdict,cause:x.cause,parentEdited:edited.has(x.qNo),editedFields:[...(edited.get(x.qNo)||[])]}))});
+        if(exJob?.examId===examId){exClearPhotos();exForgetJob()}
+        if(ui.alive())await viewSubjectResult({...ctx,...result});
+      }catch(e){if(ui.alive()){ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。';save.disabled=false;controls.forEach(b=>b.disabled=false)}}
+    };
+  }catch(e){if(ui?.alive())ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。';else if(root.isConnected&&epoch===parentEpoch&&loading)loading.textContent=e.message||e.code||'送不出去，請再試一次。'}
+}
+async function viewSubjectResult(ctx){
+  const ui=exReviewScreen('這一科的分析結果');if(!ui)return;
+  const counts=ctx.counts,weak=(ctx.weak||ctx.profile?.weak||[]).filter(w=>w.examQs?.length>=2).slice(0,3),total=Object.keys(DIAG_CAUSE_NAME).reduce((n,k)=>n+(counts[k]||0),0);
+  ctx={...ctx,weak};ui.msg.textContent='';
+  ui.body.innerHTML='<h3>共錯 '+total+' 題</h3><div class="causes" aria-label="錯因分布">'+Object.entries(DIAG_CAUSE_NAME).map(([k,label])=>'<div class="cz" data-cause="'+k+'"><span>'+esc(label)+'</span><span class="bar-track"><i style="width:'+((counts[k]||0)/Math.max(total,1)*100)+'%"></i></span><span data-count="'+(counts[k]||0)+'">'+(counts[k]||0)+' 題</span></div>').join('')+'</div>'+weak.map(w=>'<article class="weak"><h3>'+esc(w.label)+'</h3><p>考卷錯 '+w.examQs.length+' 題（第 '+w.examQs.map(esc).join('、')+' 題）</p><span class="pill">'+esc(DIAG_CAUSE_NAME[w.cause]||DIAG_CAUSE_NAME.unknown)+'</span></article>').join('')+(weak.length?'<h3>要不要做一次檢定確認？</h3><button class="big" id="ex-make" disabled>要，幫'+esc(ctx.name)+'出檢定題（約扣 1 次）</button><button class="ghost" id="ex-later">先不要，之後再說</button>':'<p>這份考卷沒有同一類錯 2 題以上的地方，先不用做挑戰。</p>');
+  if(!weak.length)return;
+  ui.body.querySelector('#ex-later').onclick=()=>{ui.msg.textContent='已存進'+ctx.name+'的'+DIAG_SUBJECT_NAME[ctx.exam.subject]+'紀錄。'};
+  const make=ui.body.querySelector('#ex-make');make.onclick=()=>viewCheckPreview(null,ctx);
+  try{const quota=await parentCall('diag_quota');if(!ui.alive())return;make.disabled=quota.left<1;if(make.disabled)ui.msg.textContent='今天的次數用完了，明天再出題。'}catch(e){if(ui.alive())ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。'}
+}
+async function viewCheckPreview(value,ctx){
+  const ui=exReviewScreen('檢定題預覽');if(!ui)return;ui.msg.textContent='正在出題…';
+  try{
+    let result=value,math=[];
+    if(typeof value==='string'){
+      const j=await parentCall('diag_check',{checkId:value});result={...j.check,items:typeof j.check.items==='string'?JSON.parse(j.check.items):j.check.items,pending:[]};
+    }
+    if(!ctx){
+      const examId=result.examId||(await parentCall('diag_check',{checkId:result.checkId})).check.examId;
+      const j=await parentCall('diag_examItems',{examId}),base=await exExamContext(j.exam),p=await parentCall('diag_getProfile',{playerId:base.pid,subject:j.exam.subject});ctx={...base,weak:p.profiles?.[j.exam.subject]?.weak||[]};
+    }
+    let whitelist=[],words=[];
+    if(ctx.exam.subject==='math'){
+      const response=await fetch('data/curriculum/math.json');math=await response.json();whitelist=math.filter(x=>x.grade<=ctx.exam.grade).map(({code,grade})=>({code,grade}));
+    }else if(ctx.exam.subject==='en'&&!result){const response=await fetch('data/curriculum/en.json'),en=await response.json();words=[...en.words300,...en.words1200]}
+    if(!ui.alive())return;
+    if(!result)result=await parentCall('diag_makeCheck',{examId:ctx.exam.examId,whitelist,words});
+    if(!ui.alive())return;
+    const items=result.items||[],pending=result.pending||[];
+    function question(x){return '<article class="qli" data-check-item><p><span class="pill">AI 出的題</span> '+esc(({A:'有陷阱',B:'沒陷阱',R:'換問法'})[x.variant]||'')+'</p><p>'+esc(x.q||'')+'</p><ol>'+(x.o||[]).map(o=>'<li>'+esc(o)+'</li>').join('')+'</ol><p>答案：'+esc(x.a??'')+'</p></article>'}
+    const groups=[...new Set(items.map(x=>x.weakKey))];
+    ui.msg.textContent='已出好 '+items.length+' 題，交給'+ctx.name+'做';
+    ui.body.innerHTML=groups.map(key=>{const group=items.filter(x=>x.weakKey===key),w=(ctx.weak||[]).find(w=>w.key===key);return '<section data-weak-group><h3>'+esc(w?.label||key)+'</h3>'+[...new Set(group.map(x=>x.targetCode).filter(Boolean))].map(code=>'<p>範圍：'+esc(code)+' '+esc(math.find(x=>x.code===code)?.text||'')+'</p>').join('')+group.map(question).join('')+'</section>'}).join('')+(pending.length?'<section data-pending><h3>待確認</h3><p>這幾題沒通過驗算，不會出給孩子。</p>'+pending.map(p=>question(p.item||p)).join('')+'</section>':'')+'<p>出處：十二年國民基本教育課程綱要（國家教育研究院），本站為個人非營利使用，不代表該院立場。</p><button class="big" id="ex-now">讓'+esc(ctx.name)+'現在做</button><button class="ghost" id="ex-home">放到'+esc(ctx.name)+'首頁，等一下做</button>';
+    const now=ui.body.querySelector('#ex-now');now.disabled=!items.length;
+    now.onclick=async()=>{
+      if(typeof viewCheck!=='function'){ui.msg.textContent='下一步畫面準備中';return}
+      now.disabled=true;
+      try{
+        const state=await diagChildState(ctx.pid);if(!ui.alive())return;
+        const check=(state.checks||[]).find(x=>x.checkId===result.checkId);
+        if(!check?.items.length){ui.msg.textContent='下一步畫面準備中';now.disabled=false;return}
+        parentLock();viewCheck(check,ctx.pid);
+      }catch(e){if(ui.alive()){ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。';now.disabled=false}}
+    };
+    ui.body.querySelector('#ex-home').onclick=()=>{ui.msg.textContent='已放到'+ctx.name+'的首頁。'};
+  }catch(e){if(ui.alive()){ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。';ui.body.innerHTML='<button class="ghost" id="ex-preview-retry">再試一次</button>';ui.body.querySelector('button').onclick=()=>viewCheckPreview(value,ctx)}}
 }
 
 // ==DIAG-SHARED-BEGIN==
