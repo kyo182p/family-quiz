@@ -13,6 +13,7 @@
 try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAttribute('data-style',st)}catch(e){}</script>
 <style>
 :root{
+  --sky:#3A6EA5; --sky-soft:#DCE8F5; --sky-ink:#2A5786; --redact:#111111;
   --paper:#F1F7EA; --grid:#DCEBD2; --ink:#1E3A2B; --muted:#506A5A;
   --card:#FFFFFF; --leaf:#3D8B4F; --leaf-soft:#D6EBCF; --sun:#F2B23A; --sun-soft:#FFF1CC;
   --coral:#E25D44; --coral-soft:#FBE0DA; --soil:#8B5E3C; --line:#C9DDBF;
@@ -23,6 +24,7 @@ try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAt
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
+    --sky:#7FB0E6; --sky-soft:#1F3349; --sky-ink:#A9CBF0; --redact:#000000;
     --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
     --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
     --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
@@ -31,6 +33,7 @@ try{var st=localStorage.getItem('ui-style');if(st)document.documentElement.setAt
   }
 }
 :root[data-theme="dark"]{
+  --sky:#7FB0E6; --sky-soft:#1F3349; --sky-ink:#A9CBF0; --redact:#000000;
   --paper:#13201A; --grid:#1B2C23; --ink:#E4F0E4; --muted:#9DB8A6;
   --card:#1C2C23; --leaf:#6CC17F; --leaf-soft:#25412E; --sun:#F5BE4E; --sun-soft:#3D3318;
   --coral:#FF7A63; --coral-soft:#4A2620; --soil:#C49470; --line:#2E4637;
@@ -219,6 +222,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 /* ===== 風格：教室黑板（預設） =====
    要新增風格：在 STYLES 加一筆，並寫一段 :root[data-style="名稱"] 的變數與覆寫 */
 :root[data-style="chalk"]{
+  --sky:#9FC7F0; --sky-soft:#2E4458; --sky-ink:#BFDAF5; --redact:#000000;
   --paper:#24352D; --grid:#2C4036; --ink:#ECEEE4; --muted:#B9C4B6;
   --card:#2A3D34; --leaf:#9BE3A5; --leaf-soft:#2F4B3B; --sun:#F2D65F; --sun-soft:#45432A;
   --coral:#F3A7B6; --coral-soft:#4A3038; --soil:#7A5434; --line:#6F8277;
@@ -441,7 +445,7 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .parent-page button[aria-pressed="true"]{background:var(--leaf-soft);border-color:var(--leaf-strong);color:var(--leaf-ink)}
 .parent-bar{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;background:var(--parent);color:#EAF4EC;padding:10px;border-radius:14px}
 .parent-bar strong{flex:1}.parent-bar button{background:transparent;color:inherit;border:1px solid #8EA697;border-radius:10px;padding:8px}
-.parent-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:var(--parent);padding:6px;border-radius:12px}
+.parent-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;background:var(--parent);padding:6px;border-radius:12px}
 .parent-tabs button{padding:4px 0;border:0;border-radius:8px;background:transparent;color:#EAF4EC}
 .parent-tabs [aria-current="page"]{background:var(--parent-soft);color:var(--ink)}
 .parent-count{background:var(--sun);color:#3a2700;border-radius:12px;padding:1px 5px}
@@ -454,6 +458,56 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .parent-off{border-style:dashed!important;color:var(--muted)}.parent-actions{display:flex;flex-wrap:wrap;gap:8px}
 .parent-step{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;text-align:center;gap:8px}
 .parent-step button{font-size:1.4rem}.parent-page h2{margin:8px 0}.parent-page [role="status"]{white-space:pre-line}
+
+.tag.ai{background:var(--sky-soft,var(--leaf-soft));color:var(--sky-ink,var(--ink))}
+.w,.tick button,.sent,.consent input{min-height:44px}
+.w{min-width:32px;font-size:1.4rem}.sent{line-height:2.2}
+.w,.tick button,.sent{border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:2px 8px}
+.w{margin:2px 1px}.tick button{font-size:1.1rem;padding:6px 14px}
+.tick button[aria-pressed="true"]{background:var(--leaf-soft);border-color:var(--leaf-strong);box-shadow:inset 0 0 0 2px var(--leaf-strong)}
+.w:disabled,.tick button:disabled,.sent:disabled{cursor:default;color:var(--ink);opacity:.8}
+
+.tick{display:flex;gap:8px}.mark-neg{background:var(--sun);color:#1E2B10;padding:2px 4px;border-radius:4px}.sent{line-height:2.2}.locked{position:relative}.veil{position:absolute;inset:0;background:var(--card);display:grid;place-items:center}.flash{outline:3px solid var(--sun)}
+/* 家長考卷分析 */
+.cmp{overflow-x:auto;max-width:100%;border:2px solid var(--line);border-radius:12px}
+.cmp table{border-collapse:collapse;width:100%;min-width:700px}
+.cmp th,.cmp td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
+.subj{display:flex;gap:6px;overflow-x:auto;max-width:100%;padding:4px}
+.subj button{flex:0 0 auto;min-height:44px}
+.subj button[aria-selected=true]{border-color:var(--sky);background:var(--sky-soft);color:var(--sky-ink)}
+.ex-review .pill{display:inline-block;padding:4px 8px;background:var(--sky-soft);color:var(--sky-ink);border-radius:10px}
+.ex-delete{border:2px solid var(--coral);padding:12px;border-radius:12px;margin-top:16px}
+.ex-delete input{max-width:100%;min-width:0;min-height:44px;box-sizing:border-box}
+.card.par{border-color:var(--sky)}
+.quota{background:var(--sky-soft);color:var(--sky-ink);padding:12px;border-radius:12px;margin-top:16px}
+.redwrap{touch-action:none;overflow:hidden;border:2px solid var(--line);margin-top:16px}
+.redwrap canvas{display:block;width:100%;height:auto;touch-action:none}
+.ex-pages,.ex-tools{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.ex-pages img{width:80px;height:100px;object-fit:contain}
+#ex-panel input,#ex-panel select{max-width:100%;min-height:44px}
+#ex-panel label{display:block;margin:12px 0}
+#ex-panel select{font:inherit;background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:10px;padding:8px;width:100%}
+#ex-panel fieldset{min-width:0;border:1px solid var(--line)}
+#ex-panel input[type=checkbox],#ex-panel input[type=radio]{min-height:24px;width:24px;vertical-align:middle}
+#ex-panel button:disabled{opacity:.55;cursor:default}
+#ex-label{position:sticky;bottom:0;background:var(--card);padding:12px;color:var(--sky-ink)}
+.ex-review{display:grid;gap:12px;min-width:0;overflow-wrap:anywhere}
+.ex-review .qli{display:grid;gap:8px;padding:12px;border:2px solid var(--line);border-radius:14px;background:var(--card);min-width:0}
+.ex-review .qli.flag{border-color:var(--sun)}
+.ex-review .top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
+.ex-review .conf,.ex-review .pill{padding:4px 8px;border-radius:10px;background:var(--sky-soft);color:var(--sky-ink)}
+.ex-review .seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.ex-review button,.ex-review input,.ex-review select,.ex-review summary{min-height:44px;font:inherit}
+.ex-review .big{min-height:56px}
+.ex-review input,.ex-review select{width:100%;min-width:0;background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:10px;padding:8px}
+.ex-review .seg button{background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:10px;cursor:pointer}
+.ex-review .seg [aria-pressed=true]{border-color:var(--sky-ink);background:var(--sky-soft);color:var(--sky-ink);font-weight:bold}
+.ex-review :focus-visible{outline:3px solid var(--sky-ink);outline-offset:3px}
+.ex-review details>div{display:grid;gap:12px}
+.ex-review summary{cursor:pointer;padding:12px 0}
+.ex-review .cz{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(40px,1fr) auto;align-items:center;gap:8px;margin:12px 0}
+.ex-review .bar-track{height:12px;background:var(--line);border-radius:6px;overflow:hidden}
+.ex-review .bar-track i{display:block;height:100%;background:var(--sky-ink)}
 </style>
 </head>
 <body>
@@ -4698,6 +4752,7 @@ let parentEpoch=0,parentTimer=null;
 const parentHere=()=>location.hash==='#parent';
 function parentActivity(){clearTimeout(parentTimer);if(parentHere())parentTimer=setTimeout(parentLock,PARENT_IDLE_MS)}
 function parentLock(){
+  exClearPhotos();exForgetJob();
   const session=PARENT_SESSION;PARENT_SESSION=null;parentEpoch++;clearTimeout(parentTimer);
   parentCacheClear();
   document.getElementById('parent-page')?.replaceChildren();
@@ -4810,8 +4865,9 @@ function parentCacheSet(v){try{localStorage.setItem(parentCacheKey(),JSON.string
 function parentCacheClear(){try{localStorage.removeItem(parentCacheKey())}catch(e){}}
 async function parentMain(tab='pending',notice=''){
   if(!PARENT_SESSION||!parentHere())return;
+  exClearPhotos();
   const epoch=++parentEpoch;parentActivity();const root=document.getElementById('parent-content');if(!root)return;
-  root.innerHTML='<nav class="parent-tabs" aria-label="家長分頁">'+[['pending','待核准'],['rewards','獎項'],['players','玩家'],['log','紀錄']].map(([k,v])=>'<button data-parent-tab="'+k+'" aria-current="'+(tab===k?'page':'false')+'">'+v+(k==='pending'?'<span id="parent-count"></span>':'')+'</button>').join('')+'</nav><button class="ghost" id="parent-diag">連線診斷</button><p id="parent-notice" role="status">'+esc(notice)+'</p><div class="parent-body" id="parent-list"><div class="reward-skeleton"></div>讀取中……</div>';
+  root.innerHTML='<nav class="parent-tabs" aria-label="家長分頁">'+[['pending','待核准'],['rewards','獎項'],['players','玩家'],['log','紀錄'],['exam','考卷分析']].map(([k,v])=>'<button data-parent-tab="'+k+'" aria-current="'+(tab===k?'page':'false')+'">'+v+(k==='pending'?'<span id="parent-count"></span>':'')+'</button>').join('')+'</nav><button class="ghost" id="parent-diag">連線診斷</button><p id="parent-notice" role="status">'+esc(notice)+'</p><div class="parent-body" id="parent-list"><div class="reward-skeleton"></div>讀取中……</div>';
   const list=root.querySelector('#parent-list'),alive=()=>parentHere()&&!!PARENT_SESSION&&epoch===parentEpoch&&root.isConnected;
   root.querySelectorAll('[data-parent-tab]').forEach(b=>b.onclick=()=>parentMain(b.dataset.parentTab));
   if(notice){const retry=document.createElement('button');retry.className='ghost';retry.textContent='再試一次';retry.onclick=()=>parentMain(tab);root.querySelector('#parent-notice').append(retry)}
@@ -4819,6 +4875,7 @@ async function parentMain(tab='pending',notice=''){
   const diag=root.querySelector('#parent-diag');
   diag.onclick=async()=>{
     if(diag.disabled||!alive())return;
+    if(tab==='exam')exClearPhotos();
     diagnostic=true;writeGen++;diag.disabled=true;diag.textContent='診斷中…';
     root.querySelector('#parent-updating')?.remove();
     list.innerHTML='<div id="parent-diag-panel"><table id="parent-diag-table"><thead><tr>'+['次','動作','往返(秒)','後端總計','開表','等鎖','讀表','讀表次數','快取'].map(s=>'<th>'+s+'</th>').join('')+'</tr></thead><tbody></tbody></table></div>';
@@ -4847,6 +4904,7 @@ async function parentMain(tab='pending',notice=''){
     ].map(s=>'<p>'+s+'</p>').join(''));
     diag.disabled=false;diag.textContent='連線診斷';
   };
+  if(tab==='exam'){await viewExamUpload(list,()=>alive()&&!diagnostic);return}
   function draw(pending,j,stale){
     root.querySelector('#parent-count').innerHTML=pending.pendingCount?'<span class="parent-count">'+esc(pending.pendingCount)+'</span>':'';
     if(tab==='pending'){
@@ -5034,7 +5092,7 @@ async function playerSheet(){
 (function hookTours(){
   const wrap=(name,key)=>{const f=window[name];if(typeof f!=='function')return;
     window[name]=function(...a){CUR_TOUR=null;helpBtn();const r=f.apply(this,a);
-      const go=()=>{if(['libHome','home','betaHome'].includes(name)){playerButton();if(ACTIVE_PLAYER!=='p1'&&!parentHere())refreshPlayers()}const k=typeof key==='function'?key(...a):key;if(k)runTour(k)};
+      const go=()=>{if(['libHome','home','betaHome'].includes(name)){if(diagRun){diagSaveRun();diagRun=null}void diagHomeCard();playerButton();if(ACTIVE_PLAYER!=='p1'&&!parentHere())refreshPlayers()}const k=typeof key==='function'?key(...a):key;if(['home','bankHome','libBankHome'].includes(name)){const bank=name==='home'?{...PLANT_CARD,questions:Q}:a[0],go=document.getElementById('go');if(go&&bank.questions?.length){const b=document.createElement('button');b.className='ghost';b.id='diag-practice';b.textContent='練習 12 題';b.onclick=()=>diagPractice(bank);go.after(b)}}if(k)runTour(k)};
       if(r&&typeof r.then==='function')r.then(go);else go();return r}};
   wrap('libHome','lib');wrap('home','plant');wrap('betaHome',()=>FAMILY.code?'mine':null);wrap('bankHome','bank');
   wrap('uploadPage','upload');wrap('reviewPage',()=>tourStepsReady('review'));wrap('libBankHome','libBank');
@@ -5062,6 +5120,801 @@ function tourStepsReady(k){return k}
   const notice=store.get('player-notice','');if(notice){store.set('player-notice','');toast(notice)}
   setTimeout(badgeSync,3000);   // 開站後在背景把徽章和雲端對一次
 })();
+/* ===== 孩子端：分科練習、挑戰與補送 ===== */
+function diagRead(k,f){try{return JSON.parse(localStorage.getItem(k))??f}catch(e){return f}}
+function diagWrite(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+let evQueue=diagRead('diag-evq',[]),diagFlush=null,diagRun=null;
+const diagStates=new Map();
+function diagId(){return crypto.randomUUID().replace(/-/g,'')}
+function ruleTags(text){const find=words=>{for(const word of words){const at=text.indexOf(word);if(at>=0)return {at,word}}return null};return {neg:find(['不屬於','不正確','不可能','不符合','不是','不會','不能','錯誤','沒有']),qnt:find(['所有','有些','一定','至少','只有','都'])}}
+function diagRefreshStatus(){document.querySelectorAll('[data-diag-status]').forEach(el=>{const n=evQueue.length;el.textContent=n?'有 '+n+' 題作答紀錄還沒送出，連上網路後會自動補送。':''})}
+function evPush(e){
+  // Explicit allowlist: never persist question text or player names.
+  const clean={};for(const k of ['playerId','ts','eid','qid','bank','tags','ok','sec','len','chg','scf','scok','mode','sid','retry','intr','subject','checkId'])if(e[k]!==undefined)clean[k]=e[k];
+  clean.eid=clean.eid||diagId();evQueue.push(clean);diagWrite('diag-evq',evQueue);diagRefreshStatus();
+}
+function diagForget(pid){evQueue=evQueue.filter(e=>e.playerId!==pid);diagWrite('diag-evq',evQueue);diagStates.delete(pid);for(const k of Object.keys(localStorage))if(k.startsWith('diag-check:'+pid+':'))localStorage.removeItem(k);diagRefreshStatus()}
+function flushEvents(){
+  if(diagFlush)return diagFlush.then(()=>evQueue.length?flushEvents():undefined);
+  diagFlush=(async()=>{
+    for(const playerId of new Set(evQueue.map(e=>e.playerId))){
+      while(evQueue.some(e=>e.playerId===playerId)){
+        const batch=evQueue.filter(e=>e.playerId===playerId).slice(0,50);
+        try{const j=await api('diag_postEvents',{playerId,events:batch.map(({playerId,...e})=>e)}),ids=new Set(j.accepted||[]);
+          if(!ids.size)break;evQueue=evQueue.filter(e=>e.playerId!==playerId||!ids.has(e.eid));diagWrite('diag-evq',evQueue);
+        }catch(e){if(e.code==='no_consent')diagForget(playerId);break}
+      }
+    }
+  })().finally(()=>{diagFlush=null;diagRefreshStatus()});return diagFlush;
+}
+window.addEventListener('online',()=>void flushEvents());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&diagRun){diagRun.intr=1;diagSaveRun()}else if(document.visibilityState==='visible')void flushEvents()});
+window.addEventListener('pagehide',()=>{if(diagRun){diagRun.intr=1;diagSaveRun()}});
+const diagSafe=s=>String(s??'').replace(/弱點|粗心|檢定/g,'練習');
+function diagSubject(bank){const s=String(bank.subject||'').trim();return DIAG_SUBJECTS.includes(s)?s:({'國語':'zh','國文':'zh','數學':'math','自然':'sci','科學':'sci','社會':'soc','英語':'en','英文':'en'})[s]||''}
+async function diagChildState(pid){const state=await api('diag_childState',{playerId:pid});if(state.consent)diagStates.set(pid,state);else diagForget(pid);return state}
+async function diagHomeCard(){
+  const pid=ACTIVE_PLAYER,slot=document.createElement('section');slot.id='diag-home';
+  app.querySelector('h1')?.after(slot);slot.innerHTML='<p data-diag-status role="status"></p>';diagRefreshStatus();void flushEvents();
+  if(!FAMILY.code||READER.code)return;
+  try{const s=await diagChildState(pid);if(!slot.isConnected||pid!==ACTIVE_PLAYER||!s.consent)return;
+    const due=Object.entries(s.subjects||{}).flatMap(([subject,p])=>(p.review||[]).filter(r=>r.dueAt<=Date.now()).map(entry=>({subject,entry})));
+    if(due.length){const card=document.createElement('article');card.className='card';card.innerHTML='<h2>老朋友來找你了：'+due.length+' 題</h2><button class="big">去複習</button>';card.querySelector('button').onclick=()=>diagReview(due);slot.append(card)}
+    for(const check of s.checks||[]){const card=document.createElement('article');card.className='card';card.innerHTML='<h2>'+esc(DIAG_SUBJECT_NAME[check.subject]||'')+'挑戰</h2><p>AI 出的題，做完給爸媽看。</p><button class="big">開始</button>';card.querySelector('button').onclick=()=>viewCheck(check);slot.append(card)}
+  }catch(e){}
+}
+function diagBanks(){return [...new Map([PLANT_CARD,...Object.values(localBanks()),...BANKS,...Object.values(LIBBANKS)].map(b=>[b.id,b.id==='__plant'?{...b,questions:Q}:b])).values()]}
+function diagTag(key){const tag=String(key||'').replace(/^tag:/,'');return DIAG_TAG_IDS.includes(tag)?tag:''}
+function diagQuestionTags(q){const tags=(q.sk||[]).filter(t=>DIAG_TAG_IDS.includes(t));if(tags.length)return tags;const hits=ruleTags(q.q);return [hits.neg?'neg':hits.qnt?'qnt':'ctx']}
+function diagMatches(q,key){return (diagTag(key)&&primaryTag(q)===diagTag(key))||q.code===key||('code:'+q.code)===key||q.c===key}
+function diagRoundProfile(profile){return {...profile,weak:(profile.weak||[]).map(w=>({...w,tag:diagTag(w.key)||w.key})),review:(profile.review||[]).map(r=>({...r,tag:diagTag(r.key)||r.tag||r.key,qidSeen:r.qidSeen||[]}))}}
+function diagPracticeItems(bank,state=diagStates.get(ACTIVE_PLAYER)){
+  const subject=diagSubject(bank),p=diagRoundProfile(subject&&state?.consent?state.subjects?.[subject]||{}:{}),qs=bank.questions||[],weakPool={};
+  for(const w of p.weak)weakPool[w.tag]=qs.filter(q=>diagMatches(q,w.key));
+  const old=p.review.filter(r=>r.dueAt<=Date.now()).map(entry=>({entry,q:qs.find(q=>diagMatches(q,entry.key)&&!entry.qidSeen.includes(q.id))})).filter(x=>x.q);
+  // Due friends reserve a slot even before an active weight exists.
+  for(const {entry} of old)if(!p.weak.some(w=>w.tag===entry.tag))p.weak.push({key:entry.key,tag:entry.tag,w:1});
+  const active=p.weak.filter(w=>(w.w??1)*DIAG_CFG.fade**Math.max(0,(w.streak||0)-DIAG_CFG.streakFade+1)>=DIAG_CFG.graduate);
+  const normal=qs.filter(q=>!active.some(w=>diagMatches(q,w.key)));
+  return composeRound({profile:p,normal,weakPool,old,n:12,rng:Math.random}).map(x=>({...x,bankId:bank.id,retry:0}));
+}
+async function diagPractice(bank){
+  void flushEvents();
+  const pid=ACTIVE_PLAYER;let state;try{state=await diagChildState(pid)}catch(e){}
+  if(pid!==ACTIVE_PLAYER)return;
+  const items=diagPracticeItems(bank,state||{consent:false});if(!items.length)return;
+  diagStart({pid,subject:diagSubject(bank),mode:'prac',items,profile:diagPracticeProfile(state,diagSubject(bank))});
+}
+function diagPracticeProfile(state,subject){const p=diagRoundProfile(state?.subjects?.[subject]||{});return {...p,tags:Object.fromEntries(p.weak.filter(w=>diagTag(w.key)).map(w=>[diagTag(w.key),{...w,scf:w.w>0?1:0}]))}}
+function diagReview(due){
+  const banks=diagBanks(),items=[];
+  for(const {subject,entry} of due){const candidates=banks.filter(b=>diagSubject(b)===subject).flatMap(b=>(b.questions||[]).map(q=>({q,bankId:b.id})));const item=candidates.find(x=>diagMatches(x.q,entry.key)&&!(entry.qidSeen||[]).includes(x.q.id))||candidates.find(x=>diagMatches(x.q,entry.key));if(item)items.push({...item,subject,kind:'old',retry:0})}
+  if(!items.length){toast('先選一本題庫練習，再來找老朋友。');return}
+  diagStart({pid:ACTIVE_PLAYER,mode:'prac',subject:items[0].subject,items,profile:diagPracticeProfile(diagStates.get(ACTIVE_PLAYER),items[0].subject)});
+}
+function diagOptions(q){return q.t==='tf'?['對','錯']:q.o||[]}
+function diagCorrect(q,i){return q.t==='tf'?(['O',true,'對'].includes(q.a)?i===0:i===1):diagOptions(q)[i]===q.a}
+function diagStart(r){diagRun={...r,sid:diagId(),index:0,answers:[],seconds:[],first:null,last:null,changes:0,intr:0,elapsed:0};diagQuestion()}
+function viewCheck(check,pid=ACTIVE_PLAYER){
+  void flushEvents();
+  const old=diagRead('diag-check:'+pid+':'+check.checkId,null);
+  diagStart({pid,checkId:check.checkId,subject:check.subject,mode:'check',items:check.items.map(q=>({q:{...q,sk:diagQuestionTags(q)},retry:0})),profile:diagPracticeProfile(diagStates.get(pid),check.subject)});
+  if(old){diagRun.answers=old.answers||[];diagRun.seconds=old.seconds||[];diagRun.index=Math.min(diagRun.answers.findIndex(x=>x===null||x===undefined)<0?diagRun.answers.length:diagRun.answers.findIndex(x=>x===null||x===undefined),check.items.length-1);diagRun.intr=1;diagQuestion()}
+}
+function diagSaveRun(){const r=diagRun;if(!r||r.mode!=='check')return;const seconds=r.seconds.slice();seconds[r.index]=(r.elapsed||0)+(performance.now()-r.started)/1000;diagWrite('diag-check:'+r.pid+':'+r.checkId,{answers:r.answers,seconds})}
+function diagQuestion(){
+  const r=diagRun,item=r.items[r.index],q=item.q;
+  if(item.subject){r.subject=item.subject;r.profile=diagPracticeProfile(diagStates.get(r.pid),r.subject)}
+  r.last=r.answers[r.index]??null;r.first=r.last;r.changes=0;r.elapsed=r.seconds[r.index]||0;r.answered=false;r.scaffold=null;diagPrepareScaffold(r,item);
+  app.innerHTML='<section id="diag-view"><div class="toprow"><h1>'+esc(r.mode==='check'?(DIAG_SUBJECT_NAME[r.subject]||'')+'挑戰':'練習')+'</h1><button class="ghost" id="diag-pause">暫停</button></div><p>第 '+(r.index+1)+' / '+r.items.length+' 題</p><div class="card">'+(r.mode==='check'||['AI','改寫'].includes(q.src)?'<span class="tag ai">AI 出的題</span>':'')+(r.scaffold?.level?'<span class="tag">讀題小幫手</span>':'')+diagQuestionBody(r,item)+diagOptions(q).map((o,i)=>'<button class="opt" data-diag-opt="'+i+'" aria-pressed="'+(r.last===i)+'">'+esc(diagSafe(o))+'</button>').join('')+'<div id="diag-feedback" role="status"></div><button class="big" id="diag-next" '+(r.mode==='check'?'hidden':'')+'>對答案</button></div>'+(r.index?'<button class="ghost" id="diag-prev">上一題</button>':'')+'</section>';
+  r.started=performance.now();diagBindScaffold(r,item);
+  document.querySelectorAll('[data-diag-opt]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.diagOpt);if(r.first===null)r.first=i;if(r.last!==null&&r.last!==i)r.changes++;r.last=i;if(r.mode==='check')diagNext();else {document.querySelectorAll('[data-diag-opt]').forEach(x=>x.setAttribute('aria-pressed',String(Number(x.dataset.diagOpt)===i)))}});
+  document.getElementById('diag-next').onclick=diagNext;
+  document.getElementById('diag-pause').onclick=()=>{diagSaveRun();diagRun=null;void libHome()};
+  const prev=document.getElementById('diag-prev');if(prev)prev.onclick=()=>{diagSaveRun();r.seconds[r.index]=r.elapsed+(performance.now()-r.started)/1000;r.index--;diagQuestion()};
+}
+function diagNext(){
+  const r=diagRun;if(!r||r.last===null)return;
+  if(r.mode==='prac'&&!r.answered){diagPracticeFeedback(r);return}
+  if(r.scaffold?.ask&&!r.scaffold.done)return;
+  const item=r.items[r.index],q=item.q,ok=Number(diagCorrect(q,r.last)),first=diagCorrect(q,r.first),fresh=r.answers[r.index]===undefined;
+  r.seconds[r.index]=Math.min(3600,r.elapsed+(performance.now()-r.started)/1000);r.answers[r.index]=r.last;
+  if(fresh){const e={playerId:r.pid,ts:Date.now(),qid:q.id,bank:item.bankId||'',tags:diagQuestionTags(q).join(','),ok,sec:r.seconds[r.index],len:Math.min(2000,q.q.length+diagOptions(q).join('').length),chg:!r.changes||first&&ok?'0':first?'RW':ok?'WR':'WW',scf:r.scaffold?.level||0,scok:r.scaffold?.scok??'',mode:r.mode==='check'?'check':item.kind==='old'?'rev':'prac',sid:r.sid,retry:item.retry||0,intr:r.intr,subject:r.subject,checkId:r.checkId||''};
+    if(r.subject&&diagStates.get(r.pid)?.consent){evPush(e);if(r.mode==='prac'){const p=diagStates.get(r.pid).subjects[r.subject]||(diagStates.get(r.pid).subjects[r.subject]={weak:[],review:[]});p.review=scheduleReview(diagRoundProfile(p).review,e,DIAG_CFG,Date.now()).map(x=>({...x,key:x.key||'tag:'+x.tag}));const w=(p.weak||[]).find(w=>diagMatches(q,w.key));if(w&&!e.retry)w.streak=ok?(w.streak||0)+1:0}if(r.mode!=='check')void flushEvents()}
+  }else if(r.mode==='check'&&r.changes){
+    // Amend the unsent event without adding another answer for this question.
+    const queued=evQueue.find(e=>e.playerId===r.pid&&e.checkId===r.checkId&&e.qid===q.id);
+    if(queued){const original=queued.chg==='RW'?true:queued.chg==='WR'?false:queued.ok===1;Object.assign(queued,{ok,sec:r.seconds[r.index],chg:original&&ok?'0':original?'RW':ok?'WR':'WW',intr:Math.max(queued.intr,r.intr)});diagWrite('diag-evq',evQueue)}
+  }
+  diagSaveRun();r.index++;r.intr=0;r.elapsed=0;r.first=null;r.last=null;r.changes=0;r.scaffold=null;
+  if(r.index<r.items.length){diagQuestion();return}
+  if(r.checkId)localStorage.removeItem('diag-check:'+r.pid+':'+r.checkId);
+  const state=diagStates.get(r.pid);if(r.checkId&&state)state.checks=state.checks.filter(c=>c.checkId!==r.checkId);
+  diagRun=null;void flushEvents();app.innerHTML='<section><h1>'+(r.mode==='check'?'做完了！可以給爸媽看。':'練習完成！')+'</h1><button class="big" id="diag-home-back">回首頁</button></section>';document.getElementById('diag-home-back').onclick=()=>libHome();
+}
+function diagPassage(item){
+  const bank=diagBanks().find(b=>b.id===item.bankId);
+  return item.q.ptext||(bank?passageOf(bank,item.q)?.text:'')||'';
+}
+function diagPrepareScaffold(run,item){
+  if(run.scaffold)return;
+  const q=item.q,tag=primaryTag(q),t=run.profile?.tags[tag],kind=DIAG_TAGS.find(x=>x.id===tag)?.scf;
+  const s=run.scaffold={level:t?.w>0?t.scf||0:0,kind,scok:'',wrong:0};
+  if(!s.level||!kind){s.level=0;return}
+  if(kind==='neg'){
+    s.hit=ruleTags(q.q)[tag];if(!s.hit){s.level=0;return}
+    s.unlocked=s.level<2;
+  }else if(kind==='count'){
+    if(!q.items?.length){s.level=0;return}s.picks=q.items.map(()=>null);s.unlocked=false;
+  }else if(kind==='evidence'){
+    const text=diagPassage(item);s.sentences=text.match(/[^。！？]+[。！？]?/g)||[];
+    const at=q.ev?text.indexOf(q.ev):-1;
+    let offset=0;s.evidence=s.sentences.findIndex(sentence=>{const start=offset;offset+=sentence.length;return at>=start&&at<offset});
+    if(at<0||s.evidence<0){s.level=0;return}
+    run.eviCount=(run.eviCount||0)+1;s.ask=run.mode!=='check'&&(s.level>=2||run.eviCount%2===0);
+    s.unlocked=true;
+  }
+}
+function diagQuestionBody(run,item){
+  const q={...item.q,q:diagSafe(item.q.q)},s=run.scaffold,text=diagSafe(diagPassage(item));
+  let stem=esc(diagSafe(q.q)),hint='',passage=text?'<p class="passage">'+esc(diagSafe(text))+'</p>':'',items=q.items?'<ul>'+q.items.map(x=>'<li>'+esc(diagSafe(x.t))+'</li>').join('')+'</ul>':'';
+  if(s?.level&&s.kind==='neg'){
+    const {at,word}=s.hit;
+    let offset=0;
+    stem=s.level===1?esc(q.q.slice(0,at))+'<b class="mark-neg">'+esc(word)+'</b>'+esc(q.q.slice(at+word.length)):
+      Array.from(q.q).map(ch=>{const i=offset;offset+=ch.length;return /[\p{L}\p{N}]/u.test(ch)?'<button class="w" data-word="'+i+'">'+esc(ch)+'</button>':esc(ch)}).join('');
+    if(s.level===2)hint='<p id="diag-hint" role="status"></p><button class="ghost" id="diag-word-alt">這題有「'+esc(word[0])+'」字（用按鈕代替點字）</button>';
+  }else if(s?.level&&s.kind==='count'){
+    items=q.items.map((x,i)=>'<div>'+esc(diagSafe(x.t))+'<span class="tick">'+[true,false].map(yes=>'<button data-tick="'+i+'" data-yes="'+yes+'" aria-pressed="'+(s.picks[i]===yes)+'">'+(yes?'✓ 是':'✗ 不是')+'</button>').join('')+'</span></div>').join('')+'<p id="diag-count-left" role="status"></p>';
+  }else if(s?.level&&s.kind==='evidence'&&s.ask){
+    passage='<div class="passage">'+s.sentences.map((sentence,i)=>'<button class="sent" data-sentence="'+i+'" disabled>'+esc(diagSafe(sentence))+'</button>').join('')+'</div><p id="diag-evidence-hint" role="status"></p>';
+  }
+  return passage+'<div class="q">'+stem+'</div>'+hint+items;
+}
+function diagFlash(el){if(!el)return;el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');el.addEventListener('animationend',()=>el.classList.remove('flash'),{once:true})}
+function diagBindScaffold(run,item){
+  const s=run.scaffold,root=document.getElementById('diag-view');
+  const options=()=>root.querySelectorAll('[data-diag-opt]');
+  const lock=()=>{
+    options().forEach(b=>b.disabled=!!s.level&&!s.unlocked);
+    root.querySelector('.veil')?.remove();
+    if(s.level===2&&s.kind==='neg'&&!s.unlocked){
+      const box=document.createElement('div');box.className='locked';
+      const first=options()[0];first.before(box);options().forEach(b=>box.append(b));
+      box.insertAdjacentHTML('beforeend','<div class="veil">點到「'+esc(s.hit.word[0])+'」字，選項就會出現</div>');
+    }
+  };
+  if(s.level===2&&s.kind==='neg'){
+    const hint=root.querySelector('#diag-hint');hint.textContent=s.unlocked?'找到了！':s.wrong?'再找找看，題目裡有一個「'+s.hit.word[0]+'」字。':'先找出題目裡的「'+s.hit.word+'」，點它一下。';
+    const found=()=>{s.unlocked=true;s.scok=s.wrong?0:1;hint.textContent='找到了！';lock();diagSaveRun()};
+    root.querySelector('#diag-word-alt').onclick=found;
+    root.querySelectorAll('.w').forEach(b=>b.onclick=()=>{
+      if(s.unlocked)return;
+      if(Number(b.dataset.word)===s.hit.at)found();
+      else {s.wrong++;hint.textContent='再找找看，題目裡有一個「'+s.hit.word[0]+'」字。';if(s.wrong>=2)diagFlash(root.querySelector('[data-word="'+s.hit.at+'"]'))}
+      const now=Date.now();if(s.lastTap!==undefined&&now-s.lastTap<1500){const buttons=root.querySelectorAll('.w');buttons.forEach(x=>x.disabled=true);setTimeout(()=>{if(!run.answered)buttons.forEach(x=>x.disabled=false)},2000)}s.lastTap=now;diagSaveRun();
+    });
+  }
+  if(s.level&&s.kind==='count'){
+    const refresh=()=>{const n=s.picks.filter(x=>x===null).length;root.querySelector('#diag-count-left').textContent='還有 '+n+' 個沒打勾';s.unlocked=!n;s.scok=n?'':Number(s.picks.every((v,i)=>v===item.q.items[i].yes));lock()};
+    root.querySelectorAll('[data-tick]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.tick);s.picks[i]=b.dataset.yes==='true';root.querySelectorAll('[data-tick="'+i+'"]').forEach(x=>x.setAttribute('aria-pressed',String((x.dataset.yes==='true')===s.picks[i])));refresh();diagSaveRun()});refresh();
+  }
+  if(s.level&&s.kind==='evidence'&&s.ask){
+    root.querySelectorAll('.sent').forEach(b=>b.onclick=()=>{
+      if(!run.answered||s.done)return;
+      const correct=Number(b.dataset.sentence)===s.evidence;
+      const hint=root.querySelector('#diag-evidence-hint');
+      if(correct){s.done=true;s.scok=s.wrong?0:1;hint.textContent='找到了！'}
+      else {s.wrong++;s.scok=0;hint.textContent='答案在第 '+(s.evidence+1)+' 句附近';if(s.wrong>=2){diagFlash(root.querySelector('[data-sentence="'+s.evidence+'"]'));s.done=true}}
+      document.getElementById('diag-next').disabled=!s.done;diagSaveRun();
+    });
+  }
+  lock();
+  if(run.answered)diagPracticeFeedback(run,true);
+}
+function diagPracticeFeedback(run,restore=false){
+  const item=run.items[run.index],q=item.q,s=run.scaffold,ok=diagCorrect(q,run.last);
+  run.answered=true;
+  if(!restore&&!ok&&!item.retry){
+    let copy={...item,q:{...q},retry:1};
+    if(q.t!=='tf'&&q.o?.length>1){copy.q.o=diagShuffle(q.o,Math.random);if(copy.q.o.every((o,i)=>o===q.o[i]))copy.q.o.push(copy.q.o.shift())}
+    const [min,max]=[3,5],gap=min+Math.floor(Math.random()*(max-min+1));
+    run.items.splice(Math.min(run.items.length,run.index+gap+1),0,copy);
+  }
+  const fb=document.getElementById('diag-feedback');fb.textContent=ok?'答對了！ '+diagSafe(q.why||''):!item.retry?'等一下再看一次':'正確答案：'+diagSafe(q.a)+'。'+diagSafe(q.why||'');
+  document.querySelectorAll('[data-diag-opt]').forEach(b=>{b.disabled=true;if(ok||item.retry)b.classList.toggle('ok',diagCorrect(q,Number(b.dataset.diagOpt)))});
+  document.querySelectorAll('.w,#diag-word-alt,[data-tick]').forEach(b=>b.disabled=true);
+  const next=document.getElementById('diag-next');next.textContent='下一題';next.hidden=false;next.disabled=!!s?.ask&&!s.done;
+  if(s?.ask){document.querySelectorAll('.sent').forEach(b=>b.disabled=!!s.done);if(!s.done)document.getElementById('diag-evidence-hint').textContent='再點一下，是文章裡的哪一句讓你知道的？'}
+  diagSaveRun();
+}
+
+
+// 家長考卷分析：照片只在記憶體，不使用家長清單快取。
+const DIAG_NOTICE='上傳考卷前，請先把姓名、學校、班級、座號、分數塗黑。照片會送到 AI 服務（Anthropic Claude）辨識題目，我們不存照片，只留題目文字和分析。Anthropic 不會拿來訓練 AI，會在約 30 天內刪除；若被系統判定違規，可能保留較久。孩子只用暱稱。同意後才開始使用，隨時可以刪除資料。分析結果保存 12 個月後自動刪除。';
+const EX_IMAGE_ERROR='這張照片打不開。請改用截圖，或把相機格式設成「最相容」再拍一次。';
+const EX_NETWORK_ERROR='送不出去，照片沒有存下來。請確認網路後再試一次。';
+const DIAG_SOURCE='出處：十二年國民基本教育課程綱要（國家教育研究院），本站為個人非營利使用，不代表該院立場。';
+let exPhotos=[],exCanvases=[],exInput=null,exGeneration=0,exJob=null,exRefresh=null;
+const exUrls=new Set();
+function exRevoke(url){URL.revokeObjectURL(url);exUrls.delete(url)}
+function exForgetJob(){if(exJob)for(const p of exJob.pages)delete p.b64;exJob=null;exRefresh=null}
+function exClearPhotos(){
+  exGeneration++;
+  for(const c of exCanvases)c.width=c.height=0;
+  for(const p of exPhotos){exRevoke(p.url);p.img.removeAttribute('src')}
+  if(exInput)exInput.value='';
+  for(const url of exUrls)URL.revokeObjectURL(url);exUrls.clear();
+  document.querySelectorAll('#ex-pages img').forEach(img=>img.removeAttribute('src'));
+  exPhotos=[];exCanvases=[];exInput=null;
+}
+window.addEventListener('pagehide',()=>{exClearPhotos();exForgetJob()});
+function exReview(id,root){if(typeof viewExamReview==='function')viewExamReview(id);else root.querySelector('#ex-message').textContent='下一步畫面準備中'}
+async function viewExamUpload(root,alive){
+  root.innerHTML='<section class="card par" id="ex-panel"><h2>考卷分析</h2><p id="ex-message" role="status">讀取中…</p><div id="ex-body"></div><div id="ex-records"></div><p id="ex-label">AI 判讀，請家長確認</p></section>';
+  const body=root.querySelector('#ex-body'),msg=root.querySelector('#ex-message');
+  try{
+    const players=(await parentCall('playerList')).players||[];if(!alive())return;
+    if(!players.length){msg.textContent='請先新增孩子。';return}
+    let pid=players[0].id;
+    const [profile,quota]=await Promise.all([parentCall('diag_getProfile',{playerId:pid}),parentCall('diag_quota')]);if(!alive())return;
+    msg.textContent='';let left=quota.left;
+    const history=document.createElement('button');history.className='ghost';history.textContent='孩子紀錄';history.id='ex-history';
+    history.onclick=()=>viewSubjectProfile(pid);body.before(history);
+    async function records(){
+      const selected=pid,j=await parentCall('diag_getProfile',{playerId:pid});if(!alive()||selected!==pid)return;
+      const slot=root.querySelector('#ex-records');slot.innerHTML='<h3>考卷紀錄</h3>'+(j.exams||[]).map(e=>'<article class="card par"><p>'+esc(DIAG_SUBJECT_NAME[e.subject]+' '+e.examDate)+'</p>'+(e.status==='review'?'<button class="ghost" data-ex-review="'+esc(e.examId)+'">去逐題確認</button>':'')+'</article>').join('');
+      slot.querySelectorAll('[data-ex-review]').forEach(b=>b.onclick=()=>exReview(b.dataset.exReview,root));
+    }
+    function upload(){
+      body.innerHTML='<button id="ex-upload" class="ghost">上傳考卷</button><form id="ex-form"><label>孩子<select id="ex-player">'+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><fieldset><legend>科目</legend><div class="chips" role="radiogroup" aria-label="科目">'+DIAG_SUBJECTS.map(s=>'<label class="chip"><input type="radio" name="ex-subject" value="'+s+'" '+(s==='math'?'checked':'')+'>'+DIAG_SUBJECT_NAME[s]+'</label>').join('')+'</div></fieldset><label>年級<select required id="ex-grade"><option value="">請選年級</option>'+[1,2,3,4,5,6].map(n=>'<option value="'+n+'">'+n+' 年級</option>').join('')+'</select></label><label>學期<select id="ex-term"><option value="1">上學期</option><option value="2">下學期</option></select></label><label>考試日期<input id="ex-date" type="date" required></label><p>一頁拍一張，四個角都要入鏡，不要斜拍。</p><label>考卷照片<input id="ex-files" type="file" accept="image/*" multiple></label><div class="ex-pages" id="ex-pages"></div><p class="quota"></p><p id="ex-limit" role="status"></p><button class="big" id="ex-next" disabled>下一步：塗黑個資</button></form><div id="ex-progress"></div>';
+      const form=body.querySelector('form'),select=body.querySelector('#ex-player');select.value=pid;
+      function defaults(){const p=players.find(p=>p.id===pid);body.querySelector('#ex-grade').value=p.grade||'';body.querySelector('#ex-term').value=p.term===2?'2':'1'}defaults();
+      const now=new Date();body.querySelector('#ex-date').value=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+      let loading=false;
+      exInput=body.querySelector('#ex-files');body.querySelector('#ex-upload').onclick=()=>exInput?.click();
+      function update(){
+        const n=exPhotos.length;body.querySelector('.quota').textContent='這份大約扣 '+n+' 次 AI · 今天還剩 '+left+' 次';
+        body.querySelector('#ex-limit').textContent=left<n?'今天的次數不夠。可以先移除幾頁、只分析部分頁，或明天再分析。':'';
+        body.querySelector('#ex-next').disabled=!n||left<n||!form.checkValidity()||loading||!!exJob?.busy||!!exJob?.pages.some(p=>p.state==='failed');
+        const pages=body.querySelector('#ex-pages');pages.replaceChildren();exPhotos.forEach((p,i)=>{const wrap=document.createElement('div'),img=document.createElement('img'),b=document.createElement('button');img.src=p.url;img.alt='第 '+(i+1)+' 頁';b.type='button';b.className='iconbtn';b.textContent='移除';b.onclick=()=>{exRevoke(p.url);p.img.removeAttribute('src');exPhotos.splice(i,1);update()};wrap.append(img,b);pages.append(wrap)});
+      }
+      form.oninput=update;select.onchange=()=>{pid=select.value;defaults();update();records().catch(()=>{if(alive())msg.textContent=EX_NETWORK_ERROR})};
+      exInput.onchange=async e=>{
+        if(loading)return;loading=true;update();const gen=exGeneration,files=Array.from(e.target.files);let loadingError=false;
+        msg.textContent=files.length+exPhotos.length>4?'一次最多 4 頁。':'';
+        try{for(const file of files.slice(0,Math.max(0,4-exPhotos.length))){
+          const url=URL.createObjectURL(file),img=new Image();exUrls.add(url);
+          const ok=await new Promise(resolve=>{img.onload=()=>resolve(img.naturalWidth>0&&img.naturalHeight>0);img.onerror=()=>resolve(false);img.src=url});
+          if(gen!==exGeneration||!alive()){exRevoke(url);img.removeAttribute('src');continue}
+          if(ok)exPhotos.push({url,img,boxes:[]});else {exRevoke(url);img.removeAttribute('src');loadingError=true}
+          update();
+        }}finally{loading=false;e.target.value='';if(gen===exGeneration&&alive()&&body.querySelector('#ex-form'))update()}
+        if(loadingError&&alive())msg.textContent=EX_IMAGE_ERROR;
+      };
+      form.onsubmit=e=>{e.preventDefault();if(body.querySelector('#ex-next').disabled)return;const meta={playerId:pid,subject:form.querySelector('[name=ex-subject]:checked').value,grade:Number(body.querySelector('#ex-grade').value),term:Number(body.querySelector('#ex-term').value),examDate:body.querySelector('#ex-date').value};viewRedact(root,body,meta,alive,records)};
+      exRefresh=()=>{if(!alive())return;if(exJob?.left!==null&&exJob?.left!==undefined)left=exJob.left;if(body.querySelector('#ex-form'))update();if(exJob)viewAnalyzing(root,exJob,alive,records);records().catch(()=>{})};
+      update();if(exJob)viewAnalyzing(root,exJob,alive,records);
+    }
+    if(!profile.consent||profile.consent.ver<DIAG_CONSENT_VER){
+      body.innerHTML='<h3>開始考卷分析前，請先看這段</h3><p id="ex-notice"></p><label><input id="ex-agree" type="checkbox">我看過了，同意使用考卷分析</label><button class="big" id="ex-consent" disabled>同意，開始</button><button class="ghost" id="ex-decline">先不要</button><button class="ghost" id="ex-upload" disabled>上傳考卷</button>';
+      body.querySelector('#ex-notice').textContent=DIAG_NOTICE;
+      const agree=body.querySelector('#ex-agree'),go=body.querySelector('#ex-consent');agree.onchange=()=>go.disabled=!agree.checked;
+      body.querySelector('#ex-decline').onclick=()=>{agree.checked=false;go.disabled=true;msg.textContent='沒關係，孩子照常可以練習。'};
+      go.onclick=async()=>{go.disabled=true;agree.disabled=true;try{await parentCall('diag_consent',{agree:true});if(alive()){msg.textContent='';upload()}}catch(e){if(alive()){msg.textContent=EX_NETWORK_ERROR;agree.disabled=false;go.disabled=!agree.checked}}};
+    }else upload();
+    await records();
+  }catch(e){if(alive())msg.textContent=EX_NETWORK_ERROR}
+}
+function viewRedact(root,body,meta,alive,records){
+  body.innerHTML='<h3>塗黑個資</h3><p>用手指拖曳畫黑框。都遮好了再勾：</p><div id="ex-canvas-pages"></div><div id="ex-checks">'+['姓名、座號','學校、班級','分數','老師評語和家長簽名（含背面）'].map(t=>'<label><input type="checkbox">'+t+'</label>').join('')+'</div><button class="big" id="ex-send" disabled>送出分析</button>';
+  exPhotos.forEach((p,i)=>{
+    const article=document.createElement('article');article.innerHTML='<h3>第 '+(i+1)+' 頁</h3><div class="redwrap"><canvas aria-label="第 '+(i+1)+' 頁，拖曳畫黑框"></canvas></div><div class="ex-tools"><button type="button" class="iconbtn" data-ex-top>遮住頂部</button><button type="button" class="iconbtn" data-ex-undo>復原</button><button type="button" class="iconbtn" data-ex-clear>全部清除</button></div>';body.querySelector('#ex-canvas-pages').append(article);
+    const c=article.querySelector('canvas'),plan=redactPlan(p.img.naturalWidth,p.img.naturalHeight,[]);c.width=plan.w;c.height=plan.h;exCanvases.push(c);const ctx=c.getContext('2d');let start=null,preview=null;
+    function draw(){ctx.globalAlpha=1;ctx.drawImage(p.img,0,0,c.width,c.height);ctx.fillStyle=getComputedStyle(c).getPropertyValue('--redact').trim()||'#000';for(const r of redactPlan(c.width,c.height,p.boxes.concat(preview?[preview]:[])).rects)ctx.fillRect(r.x,r.y,r.w,r.h)}
+    function point(e){const r=c.getBoundingClientRect();return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))}}
+    c.onpointerdown=e=>{if(start)return;e.preventDefault();start={...point(e),id:e.pointerId};c.setPointerCapture(e.pointerId)};
+    c.onpointermove=e=>{if(!start||e.pointerId!==start.id)return;const q=point(e);preview={x:Math.min(start.x,q.x),y:Math.min(start.y,q.y),w:Math.abs(start.x-q.x),h:Math.abs(start.y-q.y)};draw()};
+    c.onpointerup=e=>{if(!start||e.pointerId!==start.id)return;c.onpointermove(e);if(preview?.w&&preview.h)p.boxes.push(preview);start=preview=null;draw()};
+    c.onpointercancel=c.onlostpointercapture=()=>{start=preview=null;draw()};
+    for(const [key,fn] of [['top',()=>p.boxes.push({...DIAG_TOP_BOX})],['undo',()=>p.boxes.pop()],['clear',()=>p.boxes.length=0]])article.querySelector('[data-ex-'+key+']').onclick=()=>{fn();draw()};draw();
+  });
+  const checks=Array.from(body.querySelectorAll('#ex-checks input')),send=body.querySelector('#ex-send');checks.forEach(c=>c.onchange=()=>send.disabled=!checks.every(c=>c.checked));
+  send.onclick=async()=>{
+    if(send.disabled)return;send.disabled=true;checks.forEach(c=>c.disabled=true);body.querySelectorAll('.ex-tools button').forEach(b=>b.disabled=true);
+    exCanvases.forEach(c=>{c.onpointerdown=c.onpointermove=c.onpointerup=c.onpointercancel=c.onlostpointercapture=null});
+    const gen=exGeneration,pages=[];
+    try{
+      for(const [i,p] of exPhotos.entries()){
+        const plan=redactPlan(p.img.naturalWidth,p.img.naturalHeight,p.boxes,1600),c=document.createElement('canvas');exCanvases.push(c);c.width=plan.w;c.height=plan.h;const ctx=c.getContext('2d');ctx.drawImage(p.img,0,0,c.width,c.height);ctx.globalAlpha=1;ctx.fillStyle='#000';for(const r of plan.rects)ctx.fillRect(r.x,r.y,r.w,r.h);
+        const blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(Error('jpeg')),'image/jpeg',0.85));
+        const b64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(Error('jpeg'));reader.readAsDataURL(blob)});
+        c.width=c.height=0;if(gen!==exGeneration||!alive())return;pages.push({n:i+1,b64,state:'busy'});
+      }
+      exClearPhotos();
+      const job={meta,pages,examId:null,busy:true,left:null,total:0};exJob=job;body.innerHTML='<div id="ex-progress"></div>';viewAnalyzing(root,job,alive,records);
+      let codes=[];if(meta.subject==='math')try{const response=await fetch('data/curriculum/math.json');codes=(await response.json()).filter(x=>x.grade<=meta.grade).map(x=>x.code)}catch(e){}
+      job.meta.codes=codes;if(exJob!==job)return;await exAnalyze(job,job.pages,root,alive,records);
+    }catch(e){if(gen===exGeneration)exClearPhotos();if(alive())root.querySelector('#ex-message').textContent=EX_NETWORK_ERROR}
+  };
+}
+async function exAnalyze(job,pages,root,alive,records){
+  if(exJob!==job)return;job.busy=true;job.error='';pages.forEach(p=>p.state='busy');viewAnalyzing(root,job,alive,records);
+  try{
+    const result=await parentCall('diag_analyzeExam',{...job.meta,...(job.examId?{examId:job.examId}:{}),pages:pages.map(p=>({n:p.n,b64:p.b64}))});
+    if(exJob!==job)return;job.examId=result.examId;job.left=result.left;job.total+=(result.items||[]).length;
+    for(const p of pages){const failed=(result.failed||[]).find(f=>f.page===p.n);p.state=failed?(failed.code==='zero_items'?'zero':'failed'):'done';if(!failed)p.count=(result.pages||[]).find(x=>x.page===p.n)?.count;if(!failed||p.state==='zero')delete p.b64}
+  }catch(e){if(exJob!==job)return;job.error=EX_NETWORK_ERROR;for(const p of pages){p.state='network';delete p.b64}}
+  job.busy=false;
+  if(exRefresh)exRefresh();
+  viewAnalyzing(root,job,alive,records);
+}
+function viewAnalyzing(root,job,alive,records){
+  if(!alive())return;const slot=root.querySelector('#ex-progress');if(!slot)return;
+  slot.innerHTML='<h3>考卷分析</h3><p role="status">'+esc(job.error||'')+'</p><p>共讀到 '+job.total+' 題</p>'+(job.left!==null?'<p class="quota">今天還剩 '+job.left+' 次</p>':'')+job.pages.map(p=>'<article class="card par"><p>'+esc(p.state==='busy'?'第 '+p.n+' 頁：分析中…':p.state==='done'?'第 '+p.n+' 頁：完成'+(p.count===undefined?'':'，讀到 '+p.count+' 題'):p.state==='zero'?'第 '+p.n+' 頁沒有讀到題目，沒有扣次數。可以重拍這頁再送。':p.state==='failed'?'第 '+p.n+' 頁沒有讀到。這頁不扣次數。':p.state==='abandoned'?'第 '+p.n+' 頁：只用其他頁':EX_NETWORK_ERROR)+'</p>'+(p.state==='failed'?'<button class="ghost" data-ex-retry="'+p.n+'" '+(job.busy?'disabled':'')+'>重送第 '+p.n+' 頁</button><button class="ghost" data-ex-abandon="'+p.n+'" '+(job.busy?'disabled':'')+'>只用其他頁</button>':'')+'</article>').join('');
+  slot.querySelectorAll('[data-ex-retry]').forEach(b=>b.onclick=()=>exAnalyze(job,[job.pages.find(p=>p.n===Number(b.dataset.exRetry))],root,alive,records));
+  slot.querySelectorAll('[data-ex-abandon]').forEach(b=>b.onclick=()=>{const p=job.pages.find(p=>p.n===Number(b.dataset.exAbandon));delete p.b64;p.state='abandoned';if(exRefresh)exRefresh();viewAnalyzing(root,job,alive,records)});
+}
+
+// 家長確認與檢定預覽：僅保留當前畫面的草稿，不寫入本機儲存。
+function exReviewScreen(title){
+  const root=document.getElementById('parent-list'),epoch=parentEpoch;
+  if(!root||!PARENT_SESSION)return null;
+  const panel=document.createElement('section');panel.className='card par ex-review';
+  panel.innerHTML='<h2>'+esc(title)+'</h2><p role="status" data-ex-status>讀取中…</p><div data-ex-content></div>';
+  root.replaceChildren(panel);
+  return {panel,body:panel.querySelector('[data-ex-content]'),msg:panel.querySelector('[data-ex-status]'),alive:()=>panel.isConnected&&epoch===parentEpoch&&!!PARENT_SESSION};
+}
+async function exExamContext(exam){
+  const pid=String(exam.fk).split(':').pop(),j=await parentCall('playerList');
+  return {exam,pid,name:(j.players||[]).find(p=>p.id===pid)?.name||'孩子'};
+}
+async function viewExamReview(examId){
+  const root=document.getElementById('parent-list'),epoch=parentEpoch;
+  if(!root||!PARENT_SESSION)return;
+  // Keep the analysis handoff visible until the next screen's data is ready.
+  const loading=root.querySelector('#ex-message')||document.getElementById('parent-notice');
+  if(loading)loading.textContent='下一步畫面準備中';
+  let ui;
+  try{
+    const j=await parentCall('diag_examItems',{examId}),ctx=await exExamContext(j.exam);
+    if(!root.isConnected||epoch!==parentEpoch||!PARENT_SESSION)return;
+    ui=exReviewScreen('確認分析');if(!ui)return;
+    const items=j.items.map(x=>({...x})),edited=new Map();
+    const rank=x=>x.needsReview?0:x.confidence==='lo'?1:x.teacherMark&&x.teacherMark!=='none'&&x.teacherMark!==x.verdict?2:3;
+    const sorted=items.slice().sort((a,b)=>rank(a)-rank(b)),flagged=sorted.filter(x=>rank(x)<3),other=sorted.filter(x=>rank(x)===3);
+    ui.msg.textContent='AI 判讀，請家長確認';
+    ui.body.innerHTML='<p>AI 是照老師的紅筆判對錯；黃框是看不清楚或和老師記號不一樣的題，請先看。改這裡不扣次數。</p><div data-ex-flags></div><details><summary>其他 '+other.length+' 題（看起來沒問題）</summary><div data-ex-other></div></details><button class="big" id="ex-save">都看過了，存下來</button>';
+    function row(x,flag){
+      const el=document.createElement('article');el.className='qli'+(flag?' flag':'');el.dataset.qNo=x.qNo;
+      el.innerHTML='<div class="top"><span>第 '+esc(x.qNo)+' 題'+(flag?' · 要確認':'')+'</span><span class="conf">'+esc(({hi:'清楚',mid:'可能',lo:'看不清楚'})[x.confidence]||'看不清楚')+'</span></div><p>'+esc(x.text)+'</p><label>孩子寫<input aria-label="第 '+esc(x.qNo)+' 題孩子作答" placeholder="看不清楚，請照考卷填"></label><div class="seg" role="group" aria-label="第 '+esc(x.qNo)+' 題的對錯">'+[['ok','對'],['ng','錯'],['half','半對']].map(([v,label])=>'<button type="button" data-verdict="'+v+'" aria-pressed="'+(v===x.verdict)+'">'+label+'</button>').join('')+'</div><label data-cause-label>錯在哪裡<select aria-label="錯因">'+Object.entries(DIAG_CAUSE_NAME).map(([v,label])=>'<option value="'+v+'">'+esc(label)+'</option>').join('')+'</select></label><p data-concept>把題目念給我聽，你是怎麼算的？</p>';
+      const input=el.querySelector('input'),select=el.querySelector('select');input.value=x.studentAnswer??'';select.value=x.cause||'unknown';
+      function change(field,value){x[field]=value;if(!edited.has(x.qNo))edited.set(x.qNo,new Set());edited.get(x.qNo).add(field)}
+      function refresh(){const wrong=x.verdict==='ng'||x.verdict==='half';el.querySelector('[data-cause-label]').hidden=!wrong;el.querySelector('[data-concept]').hidden=!wrong||x.cause!=='concept';el.querySelectorAll('[data-verdict]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.verdict===x.verdict)))}
+      input.oninput=()=>change('studentAnswer',input.value);select.onchange=()=>{change('cause',select.value);refresh()};
+      el.querySelectorAll('[data-verdict]').forEach(b=>b.onclick=()=>{change('verdict',b.dataset.verdict);refresh()});refresh();return el;
+    }
+    flagged.forEach(x=>ui.body.querySelector('[data-ex-flags]').append(row(x,true)));other.forEach(x=>ui.body.querySelector('[data-ex-other]').append(row(x,false)));
+    const save=ui.body.querySelector('#ex-save');
+    save.onclick=async()=>{
+      if(save.disabled)return;save.disabled=true;
+      // Freeze the submitted draft until the request finishes; failures keep every value.
+      const controls=[...ui.body.querySelectorAll('input,select,.seg button')];controls.forEach(b=>b.disabled=true);
+      try{
+        const result=await parentCall('diag_confirmExam',{examId,items:items.map(x=>({qNo:x.qNo,studentAnswer:x.studentAnswer,verdict:x.verdict,cause:x.cause,parentEdited:edited.has(x.qNo),editedFields:[...(edited.get(x.qNo)||[])]}))});
+        if(exJob?.examId===examId){exClearPhotos();exForgetJob()}
+        if(ui.alive())await viewSubjectResult({...ctx,...result});
+      }catch(e){if(ui.alive()){ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。';save.disabled=false;controls.forEach(b=>b.disabled=false)}}
+    };
+  }catch(e){if(ui?.alive())ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。';else if(root.isConnected&&epoch===parentEpoch&&loading)loading.textContent=e.message||e.code||'送不出去，請再試一次。'}
+}
+async function viewSubjectResult(ctx){
+  const ui=exReviewScreen('這一科的分析結果');if(!ui)return;
+  const counts=ctx.counts,weak=(ctx.weak||ctx.profile?.weak||[]).filter(w=>w.examQs?.length>=2).slice(0,3),total=Object.keys(DIAG_CAUSE_NAME).reduce((n,k)=>n+(counts[k]||0),0);
+  ctx={...ctx,weak};ui.msg.textContent='';
+  ui.body.innerHTML='<h3>共錯 '+total+' 題</h3><div class="causes" aria-label="錯因分布">'+Object.entries(DIAG_CAUSE_NAME).map(([k,label])=>'<div class="cz" data-cause="'+k+'"><span>'+esc(label)+'</span><span class="bar-track"><i style="width:'+((counts[k]||0)/Math.max(total,1)*100)+'%"></i></span><span data-count="'+(counts[k]||0)+'">'+(counts[k]||0)+' 題</span></div>').join('')+'</div>'+weak.map(w=>'<article class="weak"><h3>'+esc(w.label)+'</h3><p>考卷錯 '+w.examQs.length+' 題（第 '+w.examQs.map(esc).join('、')+' 題）</p><span class="pill">'+esc(DIAG_CAUSE_NAME[w.cause]||DIAG_CAUSE_NAME.unknown)+'</span></article>').join('')+(weak.length?'<h3>要不要做一次檢定確認？</h3><button class="big" id="ex-make" disabled>要，幫'+esc(ctx.name)+'出檢定題（約扣 1 次）</button><button class="ghost" id="ex-later">先不要，之後再說</button>':'<p>這份考卷沒有同一類錯 2 題以上的地方，先不用做挑戰。</p>');
+  if(!weak.length)return;
+  ui.body.querySelector('#ex-later').onclick=()=>{ui.msg.textContent='已存進'+ctx.name+'的'+DIAG_SUBJECT_NAME[ctx.exam.subject]+'紀錄。'};
+  const make=ui.body.querySelector('#ex-make');make.onclick=()=>viewCheckPreview(null,ctx);
+  try{const quota=await parentCall('diag_quota');if(!ui.alive())return;make.disabled=quota.left<1;if(make.disabled)ui.msg.textContent='今天的次數用完了，明天再出題。'}catch(e){if(ui.alive())ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。'}
+}
+async function viewCheckPreview(value,ctx){
+  const ui=exReviewScreen('檢定題預覽');if(!ui)return;ui.msg.textContent='正在出題…';
+  try{
+    let result=value,math=[];
+    if(typeof value==='string'){
+      const j=await parentCall('diag_check',{checkId:value});result={...j.check,items:typeof j.check.items==='string'?JSON.parse(j.check.items):j.check.items,pending:[]};
+    }
+    if(!ctx){
+      const examId=result.examId||(await parentCall('diag_check',{checkId:result.checkId})).check.examId;
+      const j=await parentCall('diag_examItems',{examId}),base=await exExamContext(j.exam),p=await parentCall('diag_getProfile',{playerId:base.pid,subject:j.exam.subject});ctx={...base,weak:p.profiles?.[j.exam.subject]?.weak||[]};
+    }
+    let whitelist=[],words=[];
+    if(ctx.exam.subject==='math'){
+      const response=await fetch('data/curriculum/math.json');math=await response.json();whitelist=math.filter(x=>x.grade<=ctx.exam.grade).map(({code,grade})=>({code,grade}));
+    }else if(ctx.exam.subject==='en'&&!result){const response=await fetch('data/curriculum/en.json'),en=await response.json();words=[...en.words300,...en.words1200]}
+    if(!ui.alive())return;
+    if(!result)result=await parentCall('diag_makeCheck',{examId:ctx.exam.examId,whitelist,words});
+    if(!ui.alive())return;
+    const items=result.items||[],pending=result.pending||[];
+    function question(x){return '<article class="qli" data-check-item><p><span class="pill">AI 出的題</span> '+esc(({A:'有陷阱',B:'沒陷阱',R:'換問法'})[x.variant]||'')+'</p><p>'+esc(x.q||'')+'</p><ol>'+(x.o||[]).map(o=>'<li>'+esc(o)+'</li>').join('')+'</ol><p>答案：'+esc(x.a??'')+'</p></article>'}
+    const groups=[...new Set(items.map(x=>x.weakKey))];
+    ui.msg.textContent='已出好 '+items.length+' 題，交給'+ctx.name+'做';
+    ui.body.innerHTML=groups.map(key=>{const group=items.filter(x=>x.weakKey===key),w=(ctx.weak||[]).find(w=>w.key===key);return '<section data-weak-group><h3>'+esc(w?.label||key)+'</h3>'+[...new Set(group.map(x=>x.targetCode).filter(Boolean))].map(code=>'<p>範圍：'+esc(code)+' '+esc(math.find(x=>x.code===code)?.text||'')+'</p>').join('')+group.map(question).join('')+'</section>'}).join('')+(pending.length?'<section data-pending><h3>待確認</h3><p>這幾題沒通過驗算，不會出給孩子。</p>'+pending.map(p=>question(p.item||p)).join('')+'</section>':'')+'<p>'+DIAG_SOURCE+'</p><button class="big" id="ex-now">讓'+esc(ctx.name)+'現在做</button><button class="ghost" id="ex-home">放到'+esc(ctx.name)+'首頁，等一下做</button>';
+    const now=ui.body.querySelector('#ex-now');now.disabled=!items.length;
+    now.onclick=async()=>{
+      if(typeof viewCheck!=='function'){ui.msg.textContent='下一步畫面準備中';return}
+      now.disabled=true;
+      try{
+        const state=await diagChildState(ctx.pid);if(!ui.alive())return;
+        const check=(state.checks||[]).find(x=>x.checkId===result.checkId);
+        if(!check?.items.length){ui.msg.textContent='下一步畫面準備中';now.disabled=false;return}
+        parentLock();viewCheck(check,ctx.pid);
+      }catch(e){if(ui.alive()){ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。';now.disabled=false}}
+    };
+    ui.body.querySelector('#ex-home').onclick=()=>{ui.msg.textContent='已放到'+ctx.name+'的首頁。'};
+  }catch(e){if(ui.alive()){ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。';ui.body.innerHTML='<button class="ghost" id="ex-preview-retry">再試一次</button>';ui.body.querySelector('button').onclick=()=>viewCheckPreview(value,ctx)}}
+}
+
+function exJSON(value){return typeof value==='string'?JSON.parse(value):value}
+function exDate(value){return new Date(typeof value==='string'&&/^\d+$/.test(value)?Number(value):value).toISOString().slice(0,10)}
+const EX_NEXT={ok:'可以先不用特別練。',unsteady:'建議開讀題小幫手，練習把題目看完整。',practice:'建議回到課本把這個觀念再練一次。',unknown:'題目還太少或結果不一致，下次段考再看看。'};
+function exVerifyResult(items,result){
+  // The API retains pair outcomes and totals, but does not expose event answers.
+  // A complete A/B pair has exactly one answer combination for each outcome.
+  const answers={};
+  for(const p of result.pairs||[]){
+    const pair=items.filter(x=>x.pairId===p.pairId&&x.variant!=='R');
+    if(pair.filter(x=>x.variant==='A').length!==1||pair.filter(x=>x.variant==='B').length!==1||!['pass','read','concept','mixed'].includes(p.result))return console.warn('比較報告無法重算不完整配對');
+    pair.forEach(x=>answers[x.id]=x.variant==='A'?['pass','mixed'].includes(p.result):['pass','read'].includes(p.result));
+  }
+  const rs=items.filter(x=>x.variant==='R');
+  if(rs.length!==1||![0,1].includes(result.rephrase))return console.warn('比較報告無法還原換問法作答');
+  answers[rs[0].id]=result.rephrase===1;
+  const computed=judgeWeak(items,answers);
+  if(['status','trap','plain','rephrase','pairsN','rephraseN'].some(k=>computed[k]!==result[k]))console.warn('比較報告重算與後端不一致，採用後端結果');
+}
+async function viewCompare(checkId){
+  const ui=exReviewScreen('比較報告');if(!ui)return;
+  try{
+    const {check}=await parentCall('diag_check',{checkId}),{exam,items:examItems}=await parentCall('diag_examItems',{examId:check.examId}),ctx=await exExamContext(exam);
+    const data=await parentCall('diag_getProfile',{playerId:ctx.pid});if(!ui.alive())return;
+    const results=exJSON(check.resultJSON)||{},items=exJSON(check.items)||[],weak=data.profiles?.[exam.subject]?.weak||[];
+    if(!check.doneAt){ui.msg.textContent='挑戰還沒完成。';return}
+    const day=exDate(check.doneAt),days=Math.round((Date.parse(day)-Date.parse(exam.examDate))/86400000);
+    ui.msg.textContent='AI 判讀，請家長確認';
+    ui.body.innerHTML='<p>考卷是 '+esc(exam.examDate)+' 考的，挑戰是 '+day+' 做的，隔了 '+days+' 天。</p><p>不知道這份考卷有沒有訂正過；如果訂正過，「已經會了」可能是訂正後學會的。</p><div class="cmp" tabindex="0" role="region" aria-label="比較報告表格，可左右捲動"><table><thead><tr>'+['弱點','考卷錯幾題','有陷阱','沒陷阱','換問法','結論','下一步'].map(x=>'<th scope="col">'+x+'</th>').join('')+'</tr></thead><tbody>'+Object.entries(results).map(([key,r])=>{
+      const w=weak.find(w=>w.key===key),group=items.filter(x=>x.weakKey===key);exVerifyResult(group,r);
+      const original=pickWeak(examItems).find(w=>w.key===key),n=original?.examQs?.length??w?.examQs?.length;
+      return '<tr><th scope="row">'+esc(w?.label||original?.label||key)+'</th><td>'+(n===undefined?'—':n+' 題')+'</td><td>'+esc(r.trap)+'/2</td><td>'+esc(r.plain)+'/2</td><td>'+esc(r.rephrase)+'/1</td><td><span class="pill">'+esc(DIAG_STATUS[r.status]||DIAG_STATUS.unknown)+'</span></td><td>'+esc(EX_NEXT[r.status]||EX_NEXT.unknown)+'</td></tr>';
+    }).join('')+'</tbody></table></div><button class="ghost" id="ex-profile-back">返回孩子紀錄</button>';
+    ui.body.querySelector('#ex-profile-back').onclick=()=>viewSubjectProfile(ctx.pid,exam.subject);
+  }catch(e){if(ui.alive())ui.msg.textContent='報告讀取失敗，請稍後再試。'}
+}
+async function viewSubjectProfile(playerId,subject='zh'){
+  const ui=exReviewScreen('孩子紀錄');if(!ui)return;
+  try{
+    const players=(await parentCall('playerList')).players||[];if(!ui.alive())return;
+    if(!players.length){ui.msg.textContent='請先新增孩子。';return}
+    const player=players.find(p=>p.id===playerId)||players[0],pid=player.id;
+    const data=await parentCall('diag_getProfile',{playerId:pid});
+    const exams=data.exams||[];
+    if(!ui.alive())return;
+    ui.msg.textContent='AI 判讀，請家長確認';
+    ui.body.innerHTML='<label>孩子<select id="ex-profile-player">'+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><div class="subj" role="tablist" aria-label="科目">'+DIAG_SUBJECTS.map(s=>'<button role="tab" id="ex-tab-'+s+'" aria-controls="ex-subject-body" data-subject="'+s+'">'+DIAG_SUBJECT_NAME[s]+'</button>').join('')+'</div><div id="ex-subject-body" role="tabpanel"></div><p>'+DIAG_SOURCE+'</p><button class="ghost" id="ex-upload-back">上傳考卷</button>';
+    const select=ui.body.querySelector('select');select.value=pid;select.onchange=()=>viewSubjectProfile(select.value);
+    ui.body.querySelector('#ex-upload-back').onclick=()=>parentMain('exam');
+    function render(s,notice=''){
+      subject=s;const tabs=[...ui.body.querySelectorAll('[role=tab]')];tabs.forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.subject===s));b.tabIndex=b.dataset.subject===s?0:-1});
+      const slot=ui.body.querySelector('#ex-subject-body');slot.setAttribute('aria-labelledby','ex-tab-'+s);
+      const es=exams.filter(e=>e.subject===s),profile=data.profiles?.[s]||{},weak=profile.weak||[],checks=(data.checks||[]).filter(c=>c.subject===s&&c.doneAt);
+      slot.innerHTML='<p role="status">'+esc(notice)+'</p>'+(es.length?'<p>考卷 '+es.length+' 份，最近一份 '+esc(es.map(e=>e.examDate).sort().at(-1))+'</p>'+weak.map(w=>'<article><h3>'+esc(w.label)+'</h3><span class="pill">'+esc(DIAG_STATUS[w.status]||DIAG_STATUS.unknown)+'</span><p>讀題小幫手：'+(w.scf?'開著':'沒有開')+'</p></article>').join('')+(weak.length?'':'<p>還看不出來</p><p>讀題小幫手：沒有開</p>')+'<p>會在 '+exDate(Math.min(...es.map(e=>Number(e.createdAt)||Date.parse(e.createdAt)))+365*86400000)+' 自動刪除。</p><h3>已完成挑戰</h3>'+checks.map(c=>'<button class="ghost" data-compare="'+esc(c.checkId)+'">'+exDate(c.doneAt)+' 比較報告</button>').join(''):'<p>這一科還沒有考卷分析。可以從「上傳考卷」開始。</p>')+'<section class="ex-delete"><h3>刪除這份紀錄</h3><p>會刪掉這一科的考卷分析、挑戰結果和作答紀錄，其他科不受影響。刪掉就找不回來。</p><button class="ghost" id="ex-delete">刪除'+esc(player.name)+'的'+DIAG_SUBJECT_NAME[s]+'紀錄</button><div id="ex-delete-confirm" hidden><label for="ex-delete-name">輸入「'+esc(player.name)+'」確認</label><input id="ex-delete-name" autocomplete="off"><button id="ex-delete-go" class="ghost" disabled>確定刪除</button><button id="ex-delete-cancel" class="ghost">取消</button></div></section>';
+      slot.querySelectorAll('[data-compare]').forEach(b=>b.onclick=()=>viewCompare(b.dataset.compare));
+      const box=slot.querySelector('#ex-delete-confirm'),input=slot.querySelector('input'),go=slot.querySelector('#ex-delete-go'),cancel=slot.querySelector('#ex-delete-cancel'),del=slot.querySelector('#ex-delete');
+      del.onclick=()=>{box.hidden=false;del.hidden=true;input.focus()};
+      input.oninput=()=>go.disabled=input.value!==player.name;
+      cancel.onclick=()=>{box.hidden=true;del.hidden=false;input.value='';go.disabled=true;del.focus()};
+      go.onclick=async()=>{
+        if(go.disabled||input.value!==player.name)return;go.disabled=true;input.disabled=true;cancel.disabled=true;
+        try{
+          await parentCall('diag_deleteSubject',{playerId:pid,subject:s});
+          evQueue=evQueue.filter(e=>e.playerId!==pid||e.subject!==s);diagWrite('diag-evq',evQueue);
+          for(const k of Object.keys(localStorage))if(k.startsWith('diag-check:'+pid+':'))localStorage.removeItem(k);
+          diagStates.delete(pid);diagRefreshStatus();
+          for(let i=exams.length-1;i>=0;i--)if(exams[i].subject===s)exams.splice(i,1);
+          delete data.profiles[s];data.checks=(data.checks||[]).filter(c=>c.subject!==s);
+          if(ui.alive()&&subject===s){render(s,'已刪除。');ui.body.querySelector('[aria-selected=true]').focus()}
+        }catch(e){if(ui.alive()){ui.msg.textContent='刪除失敗，請再試一次。';input.disabled=false;cancel.disabled=false;go.disabled=input.value!==player.name}}
+      };
+    }
+    const tabs=[...ui.body.querySelectorAll('[role=tab]')];
+    tabs.forEach((b,i)=>{b.onclick=()=>render(b.dataset.subject);b.onkeydown=e=>{const offset=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(offset||['Home','End'].includes(e.key)){e.preventDefault();const target=tabs[e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+offset+tabs.length)%tabs.length];target.click();target.focus()}}});render(subject);
+  }catch(e){if(ui.alive())ui.msg.textContent='紀錄讀取失敗，請稍後再試。'}
+}
+// ==DIAG-SHARED-BEGIN==
+const DIAG_SUBJECTS=['zh','math','sci','soc','en'];
+const DIAG_SUBJECT_NAME={zh:'國語',math:'數學',sci:'自然',soc:'社會',en:'英語'};
+const DIAG_CAUSE_NAME={read:'題目沒看完整',concept:'觀念還沒弄懂',slip:'一時沒注意',unknown:'看不出來'};
+const DIAG_STATUS={ok:'已經會了',unsteady:'還不穩',practice:'要再練',unknown:'還看不出來'};
+const DIAG_CONSENT_VER=2;
+const DIAG_TOP_BOX={x:0,y:0,w:1,h:0.15};
+const DIAG_TAGS=[
+  {id:'neg',name:'否定題',scf:'neg'},{id:'qnt',name:'限定詞',scf:'neg'},
+  {id:'cnt',name:'多項數數／組合',scf:'count'},{id:'ctx',name:'情境轉概念',scf:''},
+  {id:'evi',name:'閱讀找證據／推論',scf:'evidence'},{id:'shp',name:'形近字與字形細節',scf:''},
+  {id:'prf',name:'校對錯字',scf:''}
+];
+const DIAG_TAG_IDS=DIAG_TAGS.map(t=>t.id);
+const DIAG_CFG={spcDefault:0.35,spcMinN:8,base:3,fast:0.6,slow:1.5,interrupt:1.8,minN:4,minWrong:2,streakFade:5,fade:0.7,graduate:0.2,ratioMin:0.2,ratioMax:0.5,target:[0.65,0.75],ladder:[1,3,7],windowDays:21,maxReview:3};
+function diagCauseCounts(items){
+  const out={read:0,concept:0,slip:0,unknown:0,wrong:0};
+  for(const x of items)if(x.verdict==='ng'||x.verdict==='half'){
+    out[Object.prototype.hasOwnProperty.call(DIAG_CAUSE_NAME,x.cause)?x.cause:'unknown']++;out.wrong++;
+  }
+  return out;
+}
+function pickWeak(items){
+  let left=items.filter(x=>x.verdict==='ng'||x.verdict==='half');
+  const out=[],rank={tag:0,code:1,type:2};
+  while(out.length<3){
+    const groups=new Map();
+    for(const x of left){
+      const keys=[];
+      if(x.readTag&&x.readTag!=='unk')keys.push('tag:'+x.readTag);
+      if(x.code&&x.code!=='unclassified')keys.push('code:'+x.code);
+      if(x.type)keys.push('type:'+x.type);
+      for(const key of keys){if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x);}
+    }
+    const choices=[...groups].filter(([,xs])=>xs.length>=2).sort((a,b)=>b[1].length-a[1].length||rank[a[0].split(':')[0]]-rank[b[0].split(':')[0]]||(a[0]<b[0]?-1:a[0]>b[0]?1:0));
+    if(!choices.length)break;
+    const [key,xs]=choices[0],value=key.slice(key.indexOf(':')+1),counts={concept:0,read:0,slip:0,unknown:0};
+    for(const x of xs){let c=x.cause;if(!Object.prototype.hasOwnProperty.call(counts,c)||(c==='concept'&&x.parentConfirmed!==true&&x.parentEdited!==true))c='unknown';counts[c]++;}
+    const cause=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0];
+    const tag=DIAG_TAGS.find(t=>t.id===value);
+    out.push({key,label:key.startsWith('tag:')&&tag?tag.name:value,code:xs.every(x=>x.code===xs[0].code)?xs[0].code||'':'',cause,examQs:xs.map(x=>x.qNo),n:xs.length});
+    const used=new Set(xs);left=left.filter(x=>!used.has(x));
+  }
+  return out;
+}
+function judgeWeak(items,answers){
+  const groups=new Map();let trap=0,plain=0,rephrase=0,rephraseN=0;
+  for(const x of items){
+    const ok=answers[x.id]===true;
+    if(x.variant==='R'){rephraseN++;if(ok)rephrase++;continue;}
+    if(x.variant!=='A'&&x.variant!=='B')continue;
+    if(!groups.has(x.pairId))groups.set(x.pairId,{A:[],B:[]});
+    groups.get(x.pairId)[x.variant].push(ok);
+    if(ok){if(x.variant==='A')trap++;else plain++;}
+  }
+  const pairs=[...groups].map(([pairId,g])=>{
+    let result='mixed';
+    if(g.A.length===1&&g.B.length===1)result=g.A[0]?(g.B[0]?'pass':'mixed'):(g.B[0]?'read':'concept');
+    return {pairId,result};
+  });
+  let status='unknown';
+  if(pairs.length===2&&pairs[0].result===pairs[1].result){
+    const r=pairs[0].result;
+    if(r==='pass'&&rephraseN>0&&rephrase===rephraseN)status='ok';
+    if(r==='read')status='unsteady';
+    if(r==='concept')status='practice';
+  }
+  return {status,pairs,trap,plain,pairsN:pairs.length,rephrase,rephraseN};
+}
+// Rational arithmetic uses safe integers; reject overflow rather than round answers.
+function mathEval(expr){
+  if(typeof expr!=='string'||expr.length>2000)return null;
+  const s=expr.replace(/×/g,'*').replace(/÷/g,'/');let pos=0,decimal=false;
+  function rational(n,d){
+    if(!Number.isSafeInteger(n)||!Number.isSafeInteger(d)||d===0)throw Error('range');
+    if(d<0){n=-n;d=-d;}
+    let a=Math.abs(n),b=d;while(b){const t=a%b;a=b;b=t;}
+    return [n/(a||1),d/(a||1)];
+  }
+  function skip(){while(/\s/.test(s[pos]||'')&&pos<s.length)pos++;}
+  function atom(){
+    skip();const c=s[pos];
+    if(c==='+'||c==='-'){pos++;const v=atom();return [c==='-'?-v[0]:v[0],v[1]];}
+    if(c==='('){pos++;const v=sum();skip();if(s[pos++]!==')')throw Error('paren');return v;}
+    const m=/^(?:\d+(?:\.\d+)?|\.\d+)/.exec(s.slice(pos));if(!m)throw Error('number');
+    pos+=m[0].length;const bits=m[0].split('.');if(bits.length>1)decimal=true;
+    return rational(Number(bits.join('')),bits.length>1?10**bits[1].length:1);
+  }
+  function product(){let a=atom();while(true){skip();const op=s[pos];if(op!=='*'&&op!=='/')return a;pos++;const b=atom();a=op==='*'?rational(a[0]*b[0],a[1]*b[1]):rational(a[0]*b[1],a[1]*b[0]);}}
+  function sum(){let a=product();while(true){skip();const op=s[pos];if(op!=='+'&&op!=='-')return a;pos++;const b=product();a=rational(a[0]*b[1]+(op==='+'?1:-1)*b[0]*a[1],a[1]*b[1]);}}
+  try{
+    const [n,d]=sum();skip();if(pos!==s.length)return null;
+    if(d===1)return String(n);
+    if(decimal){
+      let rest=d,two=0,five=0;while(rest%2===0){rest/=2;two++;}while(rest%5===0){rest/=5;five++;}
+      const places=Math.max(two,five),scaled=n*2**(places-two)*5**(places-five);
+      if(rest===1&&Number.isSafeInteger(scaled)){
+        const digits=String(Math.abs(scaled)).padStart(places+1,'0');
+        return (n<0?'-':'')+digits.slice(0,-places)+'.'+digits.slice(-places);
+      }
+    }
+    return n+'/'+d;
+  }catch(e){return null;}
+}
+function codeGrade(code){const m=/^[NSRD]-([1-9]\d*)-[1-9]\d*$/.exec(code);return m&&Number.isSafeInteger(Number(m[1]))?Number(m[1]):null;}
+function buildCheck(raw,ctx){
+  const items=[],pending=[];
+  for(const original of raw){
+    const item={...original},options=Array.isArray(item.o)?item.o.map(x=>String(x).trim()):[];
+    let reason='';
+    if(new Set(options).size!==options.length)reason='選項重複';
+    if(ctx.subject==='math'){
+      const limit=ctx.grade<=2?3:ctx.grade<=4?5:8;
+      if((String(item.q||'')+' '+String(item.expr||'')).match(/\d+(?:\.\d+)?/g)?.some(x=>x.split('.')[0].length>limit))reason='整數位數超出年級';
+      if(item.expr!==undefined&&item.expr!==null&&item.expr!==''){
+        item.a=mathEval(item.expr);if(item.a===null)reason='算式無法驗算';
+      }
+    }
+    if(options.length&&!options.includes(String(item.a).trim()))reason=reason||'答案不在選項中';
+    if(item.targetCode){
+      const entry=(ctx.whitelist||[]).find(x=>x.code===item.targetCode),grade=codeGrade(item.targetCode);
+      if(!entry||(grade!==null&&grade>ctx.grade)||entry.grade>ctx.grade)reason=reason||'編碼不在年級白名單';
+    }
+    if(ctx.subject==='en'){
+      const allowed=new Set(ctx.words||[]),words=([item.q||'',...options].join(' ').match(/[A-Za-z]+/g)||[]).map(x=>x.toLowerCase());
+      if(words.some(x=>!allowed.has(x)))reason=reason||'英文超出白名單';
+    }
+    if(reason)pending.push({item:original,reason});else items.push({...item,...(Array.isArray(item.o)?{o:options}:{}),verified:true});
+  }
+  return {items,pending};
+}
+function arrangeCheck(items){
+  const groups=new Map(),out=[];
+  items.forEach((x,i)=>{const k=x.variant==='R'?Symbol(i):x.pairId;if(!groups.has(k))groups.set(k,[]);groups.get(k).push({x,i});});
+  let previous;
+  while(groups.size){
+    let choices=[...groups].filter(([key])=>key!==previous);
+    if(!choices.length)choices=[...groups];
+    choices.sort((a,b)=>b[1].length-a[1].length||a[1][0].i-b[1][0].i);
+    const [key,list]=choices[0];out.push(list.shift().x);previous=key;if(!list.length)groups.delete(key);
+  }
+  return out;
+}
+function redactPlan(w,h,boxes,maxSide=1600){
+  const scale=Math.min(1,maxSide/Math.max(w,h)),W=Math.max(1,Math.floor(w*scale)),H=Math.max(1,Math.floor(h*scale));
+  const rects=boxes.map(b=>{
+    const x=Math.max(0,Math.min(W,Math.floor(b.x*W))),y=Math.max(0,Math.min(H,Math.floor(b.y*H)));
+    const right=Math.max(x,Math.min(W,Math.ceil((b.x+b.w)*W))),bottom=Math.max(y,Math.min(H,Math.ceil((b.y+b.h)*H)));
+    return {x,y,w:right-x,h:bottom-y};
+  });
+  return {w:W,h:H,rects};
+}
+function jpegHasExif(bytes){
+  if(bytes[0]!==255||bytes[1]!==216)return false;
+  let p=2;
+  while(p<bytes.length){
+    if(bytes[p++]!==255)return false;while(bytes[p]===255)p++;
+    const marker=bytes[p++];if(marker===218||marker===217||marker===undefined)return false;
+    if(marker===1||(marker>=208&&marker<=215))continue;
+    if(p+2>bytes.length)return false;
+    const length=bytes[p]*256+bytes[p+1];if(length<2||p+length>bytes.length)return false;
+    if(marker===225&&length>=8&&[69,120,105,102,0,0].every((v,i)=>bytes[p+2+i]===v))return true;
+    p+=length;
+  }
+  return false;
+}
+function primaryTag(q){return q.sk&&q.sk[0]||'unk';}
+function speedOf(events,cfg){
+  const values=events.filter(e=>e.ok===1&&e.intr===0&&e.len>0).map(e=>e.sec/e.len).sort((a,b)=>a-b);
+  const m=Math.floor(values.length/2);
+  const spc=values.length>=cfg.spcMinN?(values.length%2?values[m]:(values[m-1]+values[m])/2):cfg.spcDefault;
+  return {spc,rel:e=>e.sec/(cfg.base+e.len*spc)};
+}
+function diagEventTag(e){return (e.tags||'').split(',')[0]||'unk';}
+function classifyTag(events,cfg,now){
+  const recent=events.filter(e=>now-e.ts<=cfg.windowDays*86400000);
+  const speed=speedOf(recent,cfg);
+  const clean=recent.filter(e=>e.intr!==1&&speed.rel(e)<=cfg.interrupt).slice().sort((a,b)=>a.ts-b.ts);
+  const result={};
+  for(const tag of DIAG_TAG_IDS){
+    const all=clean.filter(e=>diagEventTag(e)===tag);
+    if(!all.length)continue;
+    const first=all.filter(e=>e.retry===0);
+    const n=first.length,ok=first.reduce((s,e)=>s+e.ok,0);
+    const out={tag,n,ok,wrong:n-ok,fixes:all.filter(e=>e.chg==='WR').length,slip:0,learn:0,verdict:'unclear'};
+    for(let i=0;i<first.length;i++){
+      const e=first[i];if(e.ok!==0)continue;
+      const retries=all.filter(r=>r.retry===1&&r.sid===e.sid&&r.qid===e.qid&&r.ts>=e.ts);
+      if(speed.rel(e)<cfg.fast)out.slip++;
+      if(retries.some(r=>r.ok===1))out.slip++;
+      const before=first.slice(0,i).filter(r=>r.sid===e.sid);
+      if(before.length>=2&&before[before.length-1].ok===1&&before[before.length-2].ok===1)out.slip++;
+      if(speed.rel(e)>cfg.slow)out.learn++;
+      if(retries.some(r=>r.ok===0))out.learn++;
+      if(e.chg==='RW'||e.chg==='WW')out.learn++;
+    }
+    if(n&&ok/n<0.5)out.learn++;
+    if(n>=cfg.minN&&out.wrong>=cfg.minWrong){
+      if(out.slip>=3&&out.learn<=1)out.verdict='slip';
+      else if(out.learn>=3&&out.slip<=1)out.verdict='learn';
+    }
+    result[tag]=out;
+  }
+  return result;
+}
+function scheduleReview(review,e,cfg,now){
+  const next=review.map(r=>({...r,qidSeen:r.qidSeen.slice()}));
+  const tag=diagEventTag(e);
+  if(!DIAG_TAG_IDS.includes(tag)||e.retry===1)return next;
+  const i=next.findIndex(r=>r.tag===tag),r=next[i];
+  if(e.mode==='rev'){
+    if(!r)return next;
+    if(e.ok===1&&r.step===cfg.ladder.length-1){next.splice(i,1);return next;}
+    r.step=e.ok===1?r.step+1:Math.max(0,r.step-1);
+    r.dueAt=now+cfg.ladder[r.step]*86400000;
+    if(!r.qidSeen.includes(e.qid))r.qidSeen.push(e.qid);
+  }else if(e.ok===0&&e.retry===0){
+    if(!r)next.push({tag,qidSeen:[e.qid],step:0,dueAt:now+cfg.ladder[0]*86400000});
+    else if(!r.qidSeen.includes(e.qid))r.qidSeen.push(e.qid);
+  }
+  return next;
+}
+function diagShuffle(items,rng){
+  const out=items.slice();
+  for(let i=out.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));const x=out[i];out[i]=out[j];out[j]=x;}
+  return out;
+}
+function diagArrange(items,rng,round){
+  const left=diagShuffle(items,rng),out=[];
+  let run=0;
+  while(left.length){
+    const prev=out.length?out[out.length-1].tag:'unk';
+    const normals=left.filter(x=>x.kind==='normal').length;
+    let choices=left.map((x,i)=>({x,i})).filter(({x})=>{
+      if(!round)return true;
+      if(out.length===0&&normals>=2)return x.kind==='normal';
+      if(left.length===1&&normals)return x.kind==='normal';
+      if(x.kind==='normal'&&normals===1&&left.length>1&&out.some(y=>y.kind==='normal'))return false;
+      if(x.kind==='normal'&&normals>1&&left.length-normals>2*(normals-1))return false;
+      return x.kind==='normal'||run<2;
+    });
+    // With too few normal questions a perfect arrangement may be impossible.
+    if(!choices.length)choices=left.map((x,i)=>({x,i}));
+    // Prefer the most numerous remaining tag, avoiding the previous one.
+    const counts={};for(const x of left)counts[x.tag]=(counts[x.tag]||0)+1;
+    choices.sort((a,b)=>Number(b.x.tag!==prev||prev==='unk')-Number(a.x.tag!==prev||prev==='unk')||counts[b.x.tag]-counts[a.x.tag]);
+    const x=left.splice(choices[0].i,1)[0];out.push(x);
+    run=x.kind==='normal'?0:run+1;
+  }
+  return out;
+}
+function composeRound(opts){
+  const {profile}=opts,cfg=opts.cfg||DIAG_CFG,n=opts.n||12,rng=opts.rng||(()=>0.5);
+  const active=(profile.weak||[]).map(t=>({...t,w:(t.w===undefined?1:t.w)*cfg.fade**Math.max(0,(t.streak||0)-cfg.streakFade+1)})).filter(t=>t.w>=cfg.graduate);
+  const total=active.reduce((sum,t)=>sum+t.w,0);
+  const weak={tags:active.map(t=>({tag:t.tag||t.key,w:t.w})),ratio:total?Math.max(cfg.ratioMin,cfg.ratioMax*Math.min(1,total)):0};
+  const quota=Math.round(weak.ratio*n);
+  const used=new Set(),selected=[];
+  function add(q,kind,tag){if(!q||used.has(q.id))return false;used.add(q.id);selected.push({q,kind,tag});return true;}
+  for(const old of (opts.old||[]).filter(x=>(profile.review||[]).some(r=>r.tag===x.entry.tag))){
+    if(selected.length>=Math.min(quota,cfg.maxReview))break;
+    add(old.q,'old',old.entry.tag);
+  }
+  const pools={};for(const t of weak.tags)pools[t.tag]=diagShuffle((opts.weakPool||{})[t.tag]||[],rng);
+  const taken={};
+  while(selected.length<quota){
+    const available=weak.tags.filter(t=>pools[t.tag].some(q=>!used.has(q.id)));
+    if(!available.length)break;
+    available.sort((a,b)=>(taken[a.tag]||0)/a.w-(taken[b.tag]||0)/b.w);
+    const tag=available[0].tag,q=pools[tag].find(q=>!used.has(q.id));
+    if(add(q,'weak',tag))taken[tag]=(taken[tag]||0)+1;
+  }
+  const normal=diagShuffle(opts.normal,rng).filter(q=>!used.has(q.id));
+  while(selected.length<n&&normal.length){const q=normal.shift();add(q,'normal',primaryTag(q));}
+  function expected(){return selected.reduce((s,x)=>{const t=active.find(t=>(t.tag||t.key)===x.tag);return s+(x.kind==='normal'?0.85:t&&t.n?t.ok/t.n:0.5);},0)/selected.length;}
+  while(expected()<cfg.target[0]&&selected.filter(x=>x.kind!=='normal').length>1&&normal.length){
+    const i=selected.map(x=>x.kind).lastIndexOf('weak');
+    const at=i>=0?i:selected.map(x=>x.kind).lastIndexOf('old');
+    const q=normal.shift();selected[at]={q,kind:'normal',tag:primaryTag(q)};
+  }
+  return diagArrange(selected,rng,true);
+}
+// ==DIAG-SHARED-END==
+
 </script>
 </body>
 </html>

@@ -1,0 +1,152 @@
+[
+  {
+    "id": "c00",
+    "weakKey": "code:N-1-1",
+    "pairId": "code:N-1-1:0",
+    "variant": "A",
+    "targetCode": "N-1-1",
+    "q": "2 + 3 = ?",
+    "o": [
+      "4",
+      "5",
+      "6"
+    ],
+    "a": "5",
+    "expr": "2+3"
+  },
+  {
+    "id": "c01",
+    "weakKey": "code:N-1-1",
+    "pairId": "code:N-1-1:0",
+    "variant": "B",
+    "targetCode": "N-1-1",
+    "q": "2 + 3 = ?",
+    "o": [
+      "4",
+      "5",
+      "6"
+    ],
+    "a": "5",
+    "expr": "2+3"
+  },
+  {
+    "id": "c02",
+    "weakKey": "code:N-1-1",
+    "pairId": "code:N-1-1:1",
+    "variant": "A",
+    "targetCode": "N-1-1",
+    "q": "2 + 3 = ?",
+    "o": [
+      "4",
+      "5",
+      "6"
+    ],
+    "a": "5",
+    "expr": "2+3"
+  },
+  {
+    "id": "c03",
+    "weakKey": "code:N-1-1",
+    "pairId": "code:N-1-1:1",
+    "variant": "B",
+    "targetCode": "N-1-1",
+    "q": "2 + 3 = ?",
+    "o": [
+      "4",
+      "5",
+      "6"
+    ],
+    "a": "5",
+    "expr": "2+3"
+  },
+  {
+    "id": "c04",
+    "weakKey": "code:N-1-1",
+    "pairId": "code:N-1-1:2",
+    "variant": "R",
+    "targetCode": "N-1-1",
+    "q": "2 + 3 = ?",
+    "o": [
+      "4",
+      "5",
+      "6"
+    ],
+    "a": "5",
+    "expr": "2+3"
+  },
+  {
+    "id": "c10",
+    "weakKey": "code:N-1-2",
+    "pairId": "code:N-1-2:0",
+    "variant": "A",
+    "targetCode": "N-1-2",
+    "q": "2 + 3 = ?",
+    "o": [
+      "4",
+      "5",
+      "6"
+    ],
+    "a": "5",
+    "expr": "2+3"
+  },
+  {
+    "id": "c11",
+    "weakKey": "code:N-1-2",
+    "pairId": "code:N-1-2:0",
+    "variant": "B",
+    "targetCode": "N-1-2",
+    "q": "2 + 3 = ?",
+    "o": [
+      "4",
+      "5",
+      "6"
+    ],
+    "a": "5",
+    "expr": "2+3"
+  },
+  {
+    "id": "c12",
+    "weakKey": "code:N-1-2",
+    "pairId": "code:N-1-2:1",
+    "variant": "A",
+    "targetCode": "N-1-2",
+    "q": "2 + 3 = ?",
+    "o": [
+      "4",
+      "5",
+      "6"
+    ],
+    "a": "5",
+    "expr": "2+3"
+  },
+  {
+    "id": "c13",
+    "weakKey": "code:N-1-2",
+    "pairId": "code:N-1-2:1",
+    "variant": "B",
+    "targetCode": "N-1-2",
+    "q": "2 + 3 = ?",
+    "o": [
+      "4",
+      "5",
+      "6"
+    ],
+    "a": "5",
+    "expr": "2+3"
+  },
+  {
+    "id": "c14",
+    "weakKey": "code:N-1-2",
+    "pairId": "code:N-1-2:2",
+    "variant": "R",
+    "targetCode": "N-1-2",
+    "q": "2 + 3 = ?",
+    "o": [
+      "4",
+      "5",
+      "6"
+    ],
+    "a": "5",
+    "expr": "2+3"
+  }
+]
