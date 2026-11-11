@@ -22,6 +22,11 @@ function build(options = {}) {
   fs.mkdirSync(outDir, {recursive:true});
   fs.writeFileSync(path.join(outDir, 'index.html'), html);
   fs.copyFileSync(path.join(root, 'zhuyin-tw.txt'), path.join(outDir, 'zhuyin-tw.txt'));
+  const curriculum = path.join(outDir, 'data/curriculum');
+  fs.mkdirSync(curriculum, {recursive:true});
+  for (const name of fs.readdirSync(path.join(root, 'data/curriculum')).filter(name => name.endsWith('.json'))) {
+    fs.copyFileSync(path.join(root, 'data/curriculum', name), path.join(curriculum, name));
+  }
   return outDir;
 }
 module.exports = {build};

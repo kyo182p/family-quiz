@@ -469,6 +469,15 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 
 .tick{display:flex;gap:8px}.mark-neg{background:var(--sun);color:#1E2B10;padding:2px 4px;border-radius:4px}.sent{line-height:2.2}.locked{position:relative}.veil{position:absolute;inset:0;background:var(--card);display:grid;place-items:center}.flash{outline:3px solid var(--sun)}
 /* 家長考卷分析 */
+.cmp{overflow-x:auto;max-width:100%;border:2px solid var(--line);border-radius:12px}
+.cmp table{border-collapse:collapse;width:100%;min-width:700px}
+.cmp th,.cmp td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
+.subj{display:flex;gap:6px;overflow-x:auto;max-width:100%;padding:4px}
+.subj button{flex:0 0 auto;min-height:44px}
+.subj button[aria-selected=true]{border-color:var(--sky);background:var(--sky-soft);color:var(--sky-ink)}
+.ex-review .pill{display:inline-block;padding:4px 8px;background:var(--sky-soft);color:var(--sky-ink);border-radius:10px}
+.ex-delete{border:2px solid var(--coral);padding:12px;border-radius:12px;margin-top:16px}
+.ex-delete input{max-width:100%;min-width:0;min-height:44px;box-sizing:border-box}
 .card.par{border-color:var(--sky)}
 .quota{background:var(--sky-soft);color:var(--sky-ink);padding:12px;border-radius:12px;margin-top:16px}
 .redwrap{touch-action:none;overflow:hidden;border:2px solid var(--line);margin-top:16px}
@@ -5325,6 +5334,7 @@ function diagPracticeFeedback(run,restore=false){
 const DIAG_NOTICE='上傳考卷前，請先把姓名、學校、班級、座號、分數塗黑。照片會送到 AI 服務（Anthropic Claude）辨識題目，我們不存照片，只留題目文字和分析。Anthropic 不會拿來訓練 AI，會在約 30 天內刪除；若被系統判定違規，可能保留較久。孩子只用暱稱。同意後才開始使用，隨時可以刪除資料。分析結果保存 12 個月後自動刪除。';
 const EX_IMAGE_ERROR='這張照片打不開。請改用截圖，或把相機格式設成「最相容」再拍一次。';
 const EX_NETWORK_ERROR='送不出去，照片沒有存下來。請確認網路後再試一次。';
+const DIAG_SOURCE='出處：十二年國民基本教育課程綱要（國家教育研究院），本站為個人非營利使用，不代表該院立場。';
 let exPhotos=[],exCanvases=[],exInput=null,exGeneration=0,exJob=null,exRefresh=null;
 const exUrls=new Set();
 function exRevoke(url){URL.revokeObjectURL(url);exUrls.delete(url)}
@@ -5349,6 +5359,8 @@ async function viewExamUpload(root,alive){
     let pid=players[0].id;
     const [profile,quota]=await Promise.all([parentCall('diag_getProfile',{playerId:pid}),parentCall('diag_quota')]);if(!alive())return;
     msg.textContent='';let left=quota.left;
+    const history=document.createElement('button');history.className='ghost';history.textContent='孩子紀錄';history.id='ex-history';
+    history.onclick=()=>viewSubjectProfile(pid);body.before(history);
     async function records(){
       const selected=pid,j=await parentCall('diag_getProfile',{playerId:pid});if(!alive()||selected!==pid)return;
       const slot=root.querySelector('#ex-records');slot.innerHTML='<h3>考卷紀錄</h3>'+(j.exams||[]).map(e=>'<article class="card par"><p>'+esc(DIAG_SUBJECT_NAME[e.subject]+' '+e.examDate)+'</p>'+(e.status==='review'?'<button class="ghost" data-ex-review="'+esc(e.examId)+'">去逐題確認</button>':'')+'</article>').join('');
@@ -5529,7 +5541,7 @@ async function viewCheckPreview(value,ctx){
     function question(x){return '<article class="qli" data-check-item><p><span class="pill">AI 出的題</span> '+esc(({A:'有陷阱',B:'沒陷阱',R:'換問法'})[x.variant]||'')+'</p><p>'+esc(x.q||'')+'</p><ol>'+(x.o||[]).map(o=>'<li>'+esc(o)+'</li>').join('')+'</ol><p>答案：'+esc(x.a??'')+'</p></article>'}
     const groups=[...new Set(items.map(x=>x.weakKey))];
     ui.msg.textContent='已出好 '+items.length+' 題，交給'+ctx.name+'做';
-    ui.body.innerHTML=groups.map(key=>{const group=items.filter(x=>x.weakKey===key),w=(ctx.weak||[]).find(w=>w.key===key);return '<section data-weak-group><h3>'+esc(w?.label||key)+'</h3>'+[...new Set(group.map(x=>x.targetCode).filter(Boolean))].map(code=>'<p>範圍：'+esc(code)+' '+esc(math.find(x=>x.code===code)?.text||'')+'</p>').join('')+group.map(question).join('')+'</section>'}).join('')+(pending.length?'<section data-pending><h3>待確認</h3><p>這幾題沒通過驗算，不會出給孩子。</p>'+pending.map(p=>question(p.item||p)).join('')+'</section>':'')+'<p>出處：十二年國民基本教育課程綱要（國家教育研究院），本站為個人非營利使用，不代表該院立場。</p><button class="big" id="ex-now">讓'+esc(ctx.name)+'現在做</button><button class="ghost" id="ex-home">放到'+esc(ctx.name)+'首頁，等一下做</button>';
+    ui.body.innerHTML=groups.map(key=>{const group=items.filter(x=>x.weakKey===key),w=(ctx.weak||[]).find(w=>w.key===key);return '<section data-weak-group><h3>'+esc(w?.label||key)+'</h3>'+[...new Set(group.map(x=>x.targetCode).filter(Boolean))].map(code=>'<p>範圍：'+esc(code)+' '+esc(math.find(x=>x.code===code)?.text||'')+'</p>').join('')+group.map(question).join('')+'</section>'}).join('')+(pending.length?'<section data-pending><h3>待確認</h3><p>這幾題沒通過驗算，不會出給孩子。</p>'+pending.map(p=>question(p.item||p)).join('')+'</section>':'')+'<p>'+DIAG_SOURCE+'</p><button class="big" id="ex-now">讓'+esc(ctx.name)+'現在做</button><button class="ghost" id="ex-home">放到'+esc(ctx.name)+'首頁，等一下做</button>';
     const now=ui.body.querySelector('#ex-now');now.disabled=!items.length;
     now.onclick=async()=>{
       if(typeof viewCheck!=='function'){ui.msg.textContent='下一步畫面準備中';return}
@@ -5545,6 +5557,82 @@ async function viewCheckPreview(value,ctx){
   }catch(e){if(ui.alive()){ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。';ui.body.innerHTML='<button class="ghost" id="ex-preview-retry">再試一次</button>';ui.body.querySelector('button').onclick=()=>viewCheckPreview(value,ctx)}}
 }
 
+function exJSON(value){return typeof value==='string'?JSON.parse(value):value}
+function exDate(value){return new Date(typeof value==='string'&&/^\d+$/.test(value)?Number(value):value).toISOString().slice(0,10)}
+const EX_NEXT={ok:'可以先不用特別練。',unsteady:'建議開讀題小幫手，練習把題目看完整。',practice:'建議回到課本把這個觀念再練一次。',unknown:'題目還太少或結果不一致，下次段考再看看。'};
+function exVerifyResult(items,result){
+  // The API retains pair outcomes and totals, but does not expose event answers.
+  // A complete A/B pair has exactly one answer combination for each outcome.
+  const answers={};
+  for(const p of result.pairs||[]){
+    const pair=items.filter(x=>x.pairId===p.pairId&&x.variant!=='R');
+    if(pair.filter(x=>x.variant==='A').length!==1||pair.filter(x=>x.variant==='B').length!==1||!['pass','read','concept','mixed'].includes(p.result))return console.warn('比較報告無法重算不完整配對');
+    pair.forEach(x=>answers[x.id]=x.variant==='A'?['pass','mixed'].includes(p.result):['pass','read'].includes(p.result));
+  }
+  const rs=items.filter(x=>x.variant==='R');
+  if(rs.length!==1||![0,1].includes(result.rephrase))return console.warn('比較報告無法還原換問法作答');
+  answers[rs[0].id]=result.rephrase===1;
+  const computed=judgeWeak(items,answers);
+  if(['status','trap','plain','rephrase','pairsN','rephraseN'].some(k=>computed[k]!==result[k]))console.warn('比較報告重算與後端不一致，採用後端結果');
+}
+async function viewCompare(checkId){
+  const ui=exReviewScreen('比較報告');if(!ui)return;
+  try{
+    const {check}=await parentCall('diag_check',{checkId}),{exam,items:examItems}=await parentCall('diag_examItems',{examId:check.examId}),ctx=await exExamContext(exam);
+    const data=await parentCall('diag_getProfile',{playerId:ctx.pid});if(!ui.alive())return;
+    const results=exJSON(check.resultJSON)||{},items=exJSON(check.items)||[],weak=data.profiles?.[exam.subject]?.weak||[];
+    if(!check.doneAt){ui.msg.textContent='挑戰還沒完成。';return}
+    const day=exDate(check.doneAt),days=Math.round((Date.parse(day)-Date.parse(exam.examDate))/86400000);
+    ui.msg.textContent='AI 判讀，請家長確認';
+    ui.body.innerHTML='<p>考卷是 '+esc(exam.examDate)+' 考的，挑戰是 '+day+' 做的，隔了 '+days+' 天。</p><p>不知道這份考卷有沒有訂正過；如果訂正過，「已經會了」可能是訂正後學會的。</p><div class="cmp" tabindex="0" role="region" aria-label="比較報告表格，可左右捲動"><table><thead><tr>'+['弱點','考卷錯幾題','有陷阱','沒陷阱','換問法','結論','下一步'].map(x=>'<th scope="col">'+x+'</th>').join('')+'</tr></thead><tbody>'+Object.entries(results).map(([key,r])=>{
+      const w=weak.find(w=>w.key===key),group=items.filter(x=>x.weakKey===key);exVerifyResult(group,r);
+      const original=pickWeak(examItems).find(w=>w.key===key),n=original?.examQs?.length??w?.examQs?.length;
+      return '<tr><th scope="row">'+esc(w?.label||original?.label||key)+'</th><td>'+(n===undefined?'—':n+' 題')+'</td><td>'+esc(r.trap)+'/2</td><td>'+esc(r.plain)+'/2</td><td>'+esc(r.rephrase)+'/1</td><td><span class="pill">'+esc(DIAG_STATUS[r.status]||DIAG_STATUS.unknown)+'</span></td><td>'+esc(EX_NEXT[r.status]||EX_NEXT.unknown)+'</td></tr>';
+    }).join('')+'</tbody></table></div><button class="ghost" id="ex-profile-back">返回孩子紀錄</button>';
+    ui.body.querySelector('#ex-profile-back').onclick=()=>viewSubjectProfile(ctx.pid,exam.subject);
+  }catch(e){if(ui.alive())ui.msg.textContent='報告讀取失敗，請稍後再試。'}
+}
+async function viewSubjectProfile(playerId,subject='zh'){
+  const ui=exReviewScreen('孩子紀錄');if(!ui)return;
+  try{
+    const players=(await parentCall('playerList')).players||[];if(!ui.alive())return;
+    if(!players.length){ui.msg.textContent='請先新增孩子。';return}
+    const player=players.find(p=>p.id===playerId)||players[0],pid=player.id;
+    const data=await parentCall('diag_getProfile',{playerId:pid});
+    // getProfile omits exam.createdAt; obtain it through the existing detail route.
+    const exams=await Promise.all((data.exams||[]).map(async e=>e.createdAt?e:(await parentCall('diag_examItems',{examId:e.examId})).exam));
+    if(!ui.alive())return;
+    ui.msg.textContent='AI 判讀，請家長確認';
+    ui.body.innerHTML='<label>孩子<select id="ex-profile-player">'+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><div class="subj" role="tablist" aria-label="科目">'+DIAG_SUBJECTS.map(s=>'<button role="tab" id="ex-tab-'+s+'" aria-controls="ex-subject-body" data-subject="'+s+'">'+DIAG_SUBJECT_NAME[s]+'</button>').join('')+'</div><div id="ex-subject-body" role="tabpanel"></div><p>'+DIAG_SOURCE+'</p><button class="ghost" id="ex-upload-back">上傳考卷</button>';
+    const select=ui.body.querySelector('select');select.value=pid;select.onchange=()=>viewSubjectProfile(select.value);
+    ui.body.querySelector('#ex-upload-back').onclick=()=>parentMain('exam');
+    function render(s,notice=''){
+      subject=s;const tabs=[...ui.body.querySelectorAll('[role=tab]')];tabs.forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.subject===s));b.tabIndex=b.dataset.subject===s?0:-1});
+      const slot=ui.body.querySelector('#ex-subject-body');slot.setAttribute('aria-labelledby','ex-tab-'+s);
+      const es=exams.filter(e=>e.subject===s),profile=data.profiles?.[s]||{},weak=profile.weak||[],checks=(data.checks||[]).filter(c=>c.subject===s&&c.doneAt);
+      slot.innerHTML='<p role="status">'+esc(notice)+'</p>'+(es.length?'<p>考卷 '+es.length+' 份，最近一份 '+esc(es.map(e=>e.examDate).sort().at(-1))+'</p>'+weak.map(w=>'<article><h3>'+esc(w.label)+'</h3><span class="pill">'+esc(DIAG_STATUS[w.status]||DIAG_STATUS.unknown)+'</span><p>讀題小幫手：'+(w.scf?'開著':'沒有開')+'</p></article>').join('')+(weak.length?'':'<p>還看不出來</p><p>讀題小幫手：沒有開</p>')+'<p>會在 '+exDate(Math.min(...es.map(e=>Number(e.createdAt)||Date.parse(e.createdAt)))+365*86400000)+' 自動刪除。</p><h3>已完成挑戰</h3>'+checks.map(c=>'<button class="ghost" data-compare="'+esc(c.checkId)+'">'+exDate(c.doneAt)+' 比較報告</button>').join(''):'<p>這一科還沒有考卷分析。可以從「上傳考卷」開始。</p>')+'<section class="ex-delete"><h3>刪除這份紀錄</h3><p>會刪掉這一科的考卷分析、挑戰結果和作答紀錄，其他科不受影響。刪掉就找不回來。</p><button class="ghost" id="ex-delete">刪除'+esc(player.name)+'的'+DIAG_SUBJECT_NAME[s]+'紀錄</button><div id="ex-delete-confirm" hidden><label for="ex-delete-name">輸入「'+esc(player.name)+'」確認</label><input id="ex-delete-name" autocomplete="off"><button id="ex-delete-go" class="ghost" disabled>確定刪除</button><button id="ex-delete-cancel" class="ghost">取消</button></div></section>';
+      slot.querySelectorAll('[data-compare]').forEach(b=>b.onclick=()=>viewCompare(b.dataset.compare));
+      const box=slot.querySelector('#ex-delete-confirm'),input=slot.querySelector('input'),go=slot.querySelector('#ex-delete-go'),cancel=slot.querySelector('#ex-delete-cancel'),del=slot.querySelector('#ex-delete');
+      del.onclick=()=>{box.hidden=false;del.hidden=true;input.focus()};
+      input.oninput=()=>go.disabled=input.value!==player.name;
+      cancel.onclick=()=>{box.hidden=true;del.hidden=false;input.value='';go.disabled=true;del.focus()};
+      go.onclick=async()=>{
+        if(go.disabled||input.value!==player.name)return;go.disabled=true;input.disabled=true;cancel.disabled=true;
+        try{
+          await parentCall('diag_deleteSubject',{playerId:pid,subject:s});
+          evQueue=evQueue.filter(e=>e.playerId!==pid||e.subject!==s);diagWrite('diag-evq',evQueue);
+          for(const k of Object.keys(localStorage))if(k.startsWith('diag-check:'+pid+':'))localStorage.removeItem(k);
+          diagStates.delete(pid);diagRefreshStatus();
+          for(let i=exams.length-1;i>=0;i--)if(exams[i].subject===s)exams.splice(i,1);
+          delete data.profiles[s];data.checks=(data.checks||[]).filter(c=>c.subject!==s);
+          if(ui.alive()&&subject===s){render(s,'已刪除。');ui.body.querySelector('[aria-selected=true]').focus()}
+        }catch(e){if(ui.alive()){ui.msg.textContent='刪除失敗，請再試一次。';input.disabled=false;cancel.disabled=false;go.disabled=input.value!==player.name}}
+      };
+    }
+    const tabs=[...ui.body.querySelectorAll('[role=tab]')];
+    tabs.forEach((b,i)=>{b.onclick=()=>render(b.dataset.subject);b.onkeydown=e=>{const offset=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(offset||['Home','End'].includes(e.key)){e.preventDefault();const target=tabs[e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+offset+tabs.length)%tabs.length];target.click();target.focus()}}});render(subject);
+  }catch(e){if(ui.alive())ui.msg.textContent='紀錄讀取失敗，請稍後再試。'}
+}
 // ==DIAG-SHARED-BEGIN==
 const DIAG_SUBJECTS=['zh','math','sci','soc','en'];
 const DIAG_SUBJECT_NAME={zh:'國語',math:'數學',sci:'自然',soc:'社會',en:'英語'};

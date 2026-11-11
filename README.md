@@ -1,5 +1,17 @@
 # 家庭題庫練習（GitHub Pages 版）
 
+## 考卷分析
+
+家長上傳塗黑個資的考卷，逐題確認 AI 判讀，再以挑戰比較結果並查看孩子各科紀錄。
+
+新建一份 Google 試算表作為資料表，將其 ID 放入 Apps Script 的 Script Properties `DIAG_SHEET_ID`。把 `Code.gs` 貼回 Apps Script 後執行一次 `setupDiag`，建立五張資料表與每日觸發器 `diag_retentionDaily`，資料保存 12 個月。`ANTHROPIC_API_KEY` 沿用原有設定。
+
+考卷每頁扣 1 次、出一份挑戰扣 1 次；失敗與家長修改不扣次數，與原本每天 10 次的額度共用。照片不保存，上傳前請塗黑姓名、學校、班級、座號、分數等個資。
+
+本機試用：執行 `npm run build`，開啟 `dist/index.html`（假後端），家長設定碼為 `MOCK2345`。可用 `?mock=diag-fail2`（第二頁失敗）、`?mock=diag-zero`（沒有讀到題目）、`?mock=diag-name`（個資過濾）或 `?mock=offline`（斷線）試用狀態畫面。
+
+課綱出處：國家教育研究院《十二年國民基本教育課程綱要》[數學領域](https://www.naer.edu.tw/upload/1/16/doc/815/十二年國民基本教育課程綱要國民中小學暨普通型高級中等學校-數學領域.pdf)、[英語文（附錄五）](https://www.naer.edu.tw/upload/1/16/doc/812/\(發布版\)國民中小學暨普通型高級中等學校-語文領域-英語文課程綱要.pdf)。本站為個人非營利使用，不代表該院立場。
+
 這是植物小學堂的獨立開發版本，和目前 claude.ai 上的網頁版互不影響。
 
 - 前端：`index.html`，放在 GitHub Pages，任何人打開網址就能練習，不需要 Claude 帳號
