@@ -33,7 +33,7 @@ function event(env,q,c,i,changes={}){return {ts:env.clock.now(),eid:'event_'+i,q
 test('T034 parent session required for every parent route; family consent v2 and player/subject validation',()=>{
   const s=setup();for(const action of ['diag_analyzeExam','diag_confirmExam','diag_deleteSubject','diag_makeCheck','diag_quota','diag_getProfile','diag_consent','diag_examItems','diag_check'])assert.equal(s.post(action,{session:undefined}).code,'no_session');
   assert.equal(s.post('diag_analyzeExam',input).code,'no_consent');
-  s.post('diag_consent',{agree:true});const stored=objects(s.env,'profiles')[0];assert.equal(stored.fk,code+':*');assert.equal(stored.subject,'all');const c=JSON.parse(stored.json).consent;assert.equal(c.ver,2);assert.equal(typeof c.at,'number');
+  s.post('diag_consent',{agree:true});const stored=objects(s.env,'profiles')[0];assert.equal(stored.fk,code+':*');assert.equal(stored.subject,'all');const c=JSON.parse(stored.json).consent;assert.equal(c.ver,3);assert.equal(typeof c.at,'number');
   assert.equal(s.post('diag_analyzeExam',{...input,playerId:'p9'}).code,'bad_player');assert.equal(s.post('diag_analyzeExam',{...input,subject:'other'}).code,'bad_request');
   for(const fields of [{codes:['bad']},{pages:[]},{examDate:'2026-02-30'},{grade:7},{pages:[{n:5,b64:'QQ=='}]}])assert.equal(s.post('diag_analyzeExam',{...input,...fields}).code,'bad_request');
   s.post('diag_consent',{agree:false});assert.equal(s.post('diag_analyzeExam',input).code,'no_consent');

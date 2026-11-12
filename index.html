@@ -5332,7 +5332,7 @@ function diagPracticeFeedback(run,restore=false){
 
 
 // 家長考卷分析：照片只在記憶體，不使用家長清單快取。
-const DIAG_NOTICE='上傳考卷前，請先把姓名、學校、班級、座號、分數塗黑。照片會送到 AI 服務（Anthropic Claude）辨識題目，我們不存照片，只留題目文字和分析。Anthropic 不會拿來訓練 AI，會在約 30 天內刪除；若被系統判定違規，可能保留較久。孩子只用暱稱。同意後才開始使用，隨時可以刪除資料。分析結果保存 12 個月後自動刪除。';
+const DIAG_NOTICE='本功能由家庭題庫站長（網站維護者）經營。上傳考卷前，請先把姓名、學校、班級、座號、分數塗黑。照片會送到美國的 Anthropic 處理（AI 服務 Anthropic Claude 辨識題目），我們不存照片，只留題目文字和分析。Anthropic 不會拿來訓練 AI，會在約 30 天內刪除；若被系統判定違規，可能保留較久。孩子只用暱稱。同意後才開始使用，隨時可以刪除資料。分析結果保存 12 個月後自動刪除。';
 const EX_IMAGE_ERROR='這張照片打不開。請改用截圖，或把相機格式設成「最相容」再拍一次。';
 const EX_NETWORK_ERROR='送不出去，照片沒有存下來。請確認網路後再試一次。';
 const DIAG_SOURCE='出處：十二年國民基本教育課程綱要（國家教育研究院），本站為個人非營利使用，不代表該院立場。';
@@ -5656,7 +5656,7 @@ const DIAG_SUBJECTS=['zh','math','sci','soc','en'];
 const DIAG_SUBJECT_NAME={zh:'國語',math:'數學',sci:'自然',soc:'社會',en:'英語'};
 const DIAG_CAUSE_NAME={read:'題目沒看完整',concept:'觀念還沒弄懂',slip:'一時沒注意',unknown:'看不出來'};
 const DIAG_STATUS={ok:'已經會了',unsteady:'還不穩',practice:'要再練',unknown:'還看不出來'};
-const DIAG_CONSENT_VER=2;
+const DIAG_CONSENT_VER=3;
 const DIAG_TOP_BOX={x:0,y:0,w:1,h:0.15};
 const DIAG_TAGS=[
   {id:'neg',name:'否定題',scf:'neg'},{id:'qnt',name:'限定詞',scf:'neg'},

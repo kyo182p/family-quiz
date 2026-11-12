@@ -1500,7 +1500,7 @@ const DIAG_SUBJECTS=['zh','math','sci','soc','en'];
 const DIAG_SUBJECT_NAME={zh:'國語',math:'數學',sci:'自然',soc:'社會',en:'英語'};
 const DIAG_CAUSE_NAME={read:'題目沒看完整',concept:'觀念還沒弄懂',slip:'一時沒注意',unknown:'看不出來'};
 const DIAG_STATUS={ok:'已經會了',unsteady:'還不穩',practice:'要再練',unknown:'還看不出來'};
-const DIAG_CONSENT_VER=2;
+const DIAG_CONSENT_VER=3;
 const DIAG_TOP_BOX={x:0,y:0,w:1,h:0.15};
 const DIAG_TAGS=[
   {id:'neg',name:'否定題',scf:'neg'},{id:'qnt',name:'限定詞',scf:'neg'},

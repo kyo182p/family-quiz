@@ -71,7 +71,7 @@ test('T036 A: disabled upload, decline text, explicit consent persists v2 in bac
   q('#ex-decline').click();assert.match(q('#ex-message').textContent,/孩子照常可以練習/);assert.equal(q('#ex-upload').disabled,true);
   q('#ex-agree').checked=true;q('#ex-agree').dispatchEvent(new w.Event('change'));assert.equal(q('#ex-consent').disabled,false);
   await q('#ex-consent').onclick();assert.equal(q('#ex-upload').disabled,false);
-  assert.equal(a.post('diag_getProfile').consent.ver,2);
+  assert.equal(a.post('diag_getProfile').consent.ver,3);
   const rows=a.env.sheets.get('profiles').data;assert.ok(JSON.stringify(rows).includes('consent'));
 });
 

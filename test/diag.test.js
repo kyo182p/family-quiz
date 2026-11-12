@@ -15,7 +15,7 @@ test('T033 shared block is identical and contains no dynamic code execution',()=
   assert.equal(block,extract(fs.readFileSync(path.join(root,'index.html'),'utf8')));
   assert.doesNotMatch(block,/\beval\s*\(|\b(?:new\s+)?Function\s*\(/);
   assert.deepEqual(run('DIAG_SUBJECTS'),['zh','math','sci','soc','en']);
-  assert.equal(run('DIAG_CONSENT_VER'),2);
+  assert.equal(run('DIAG_CONSENT_VER'),3);
   assert.equal(run('DIAG_TAGS.length'),7);
 });
 test('T033 diagCauseCounts counts only wrong and half answers, including unknown causes',()=>{
