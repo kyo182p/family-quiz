@@ -19,14 +19,16 @@ function setup(ai=fixtureAI){
   const session=env.doPost({code,action:'parentSetPin',setupCode:issued.setupCode,pin:'1234'}).session;assert.ok(session);
   env.props.setProperty('DIAG_SHEET_ID','fake-sheet');assert.equal(env.run('setupDiag').ok,true);
   const post=(action,extra={})=>env.doPost({code,session,action,playerId:'p1',...extra});
-  return {env,post,session};
+  const childKey=post('diag_issueChildKey').childKey;
+  const childPost=(action,extra={})=>post(action,{childKey,...extra});
+  return {env,post:childPost,session};
 }
 const input={subject:'math',grade:1,term:1,examDate:'2026-11-01',codes:['N-1-1','N-1-2'],pages:[{n:1,b64:'ZmFrZQ=='}]};
 function analyzed(s,subject='math'){s.post('diag_consent',{agree:true});const r=s.post('diag_analyzeExam',{...clone(input),subject});assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.charged,1);return r;}
 function confirmed(s,subject='math'){const r=analyzed(s,subject);assert.equal(s.post('diag_confirmExam',{examId:r.examId,items:[]}).ok,true);return r;}
 function made(s){const r=confirmed(s);const c=s.post('diag_makeCheck',{examId:r.examId,whitelist:[{code:'N-1-1',grade:1},{code:'N-1-2',grade:1}],words:[]});assert.equal(c.ok,true,JSON.stringify(c));return {...c,examId:r.examId};}
 function objects(env,name){return clone(env.run('diagObjects',name));}
-function event(env,q,c,i,changes={}){return {ts:env.clock.now(),eid:'event_'+i,qid:q.id,bank:'',tags:'neg',ok:q.variant==='A'?0:1,sec:10,len:20,chg:'0',scf:0,scok:'',mode:'check',sid:'round',retry:0,intr:0,subject:'math',checkId:c.checkId,...changes};}
+function event(env,q,c,i,changes={}){return {ts:env.clock.now(),eid:'event_'+i,qid:q.id,bank:'',tags:'neg',ok:q.variant==='A'?0:1,pick:q.variant==='A'?q.o.findIndex(o=>o!==q.a):q.o.indexOf(q.a),first:q.variant==='A'?q.o.findIndex(o=>o!==q.a):q.o.indexOf(q.a),moved:0,sec:10,len:20,chg:'0',scf:0,scok:'',mode:'check',sid:'round',retry:0,intr:0,subject:'math',checkId:c.checkId,...changes};}
 
 test('T034 parent session required for every parent route; family consent v2 and player/subject validation',()=>{
   const s=setup();for(const action of ['diag_analyzeExam','diag_confirmExam','diag_deleteSubject','diag_makeCheck','diag_quota','diag_getProfile','diag_consent','diag_examItems','diag_check'])assert.equal(s.post(action,{session:undefined}).code,'no_session');
@@ -76,7 +78,7 @@ test('T034 high grade check stays pending after one replacement; both AI calls f
   let fail=false;const t=setup(r=>fail?{code:500,body:{}}:fixtureAI(r));const e=confirmed(t);fail=true;const before=t.post('diag_quota').left;const bad=t.post('diag_makeCheck',{examId:e.examId,whitelist:[{code:'N-1-1',grade:1}],words:[]});assert.equal(bad.code,'ai_error');assert.equal(t.post('diag_quota').left,before);
 });
 test('T034 child state only exposes child fields, postEvents deduplicates and judges first answers',()=>{
-  const s=setup(),c=made(s),state=s.post('diag_childState',{session:undefined});const json=JSON.stringify(state);assert.ok(!/弱點|粗心|檢定|"label"|"cause"|"status"|"weakKey"|"variant"/.test(json));assert.equal(state.checks.length,1);assert.deepEqual(Object.keys(state.checks[0].items[0]).sort(),['a','id','o','q']);
+  const s=setup(),c=made(s),state=s.post('diag_childState',{session:undefined});const json=JSON.stringify(state);assert.ok(!/弱點|粗心|檢定|"label"|"cause"|"status"|"weakKey"|"variant"/.test(json));assert.equal(state.checks.length,1);assert.deepEqual(Object.keys(state.checks[0].items[0]).sort(),['id','o','q']);
   const events=c.items.map((q,i)=>event(s.env,q,c,i));const result=s.post('diag_postEvents',{session:undefined,events});assert.equal(result.accepted.length,10);assert.equal(result.rejected.length,0);
   s.post('diag_postEvents',{session:undefined,events});assert.equal(objects(s.env,'events').length,10);assert.ok(objects(s.env,'events').every(e=>e.subject==='math'&&e.checkId===c.checkId));
   const stored=s.post('diag_check',{checkId:c.checkId}).check;assert.ok(stored.doneAt);for(const key of new Set(c.items.map(x=>x.weakKey))){const answers=Object.fromEntries(events.map(e=>[e.qid,e.ok===1]));assert.deepEqual(stored.resultJSON[key],clone(s.env.run('judgeWeak',c.items.filter(x=>x.weakKey===key),answers)));assert.equal(stored.resultJSON[key].status,'unsteady');}

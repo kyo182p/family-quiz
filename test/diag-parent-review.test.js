@@ -28,6 +28,7 @@ async function open(t,{left=10,subject='math',noWeak=false,secondChild=false}={}
   let pid='p1';
   const post=(action,data={})=>env.doPost({code:'TEST-0000',session,playerId:pid,action,...data});
   if(secondChild)pid=post('playerSave',{playerId:undefined,name:'測試弟弟',icon:'🦊'}).player.id;
+  const childKey=post('diag_issueChildKey').childKey;
   post('diag_consent',{agree:true});
   env.props.setProperty(env.run('countKey',env.run('findFamily','TEST-0000')),String(10-left));
   env.run('diagPut','exams',{examId:'exam-review',fk:'TEST-0000:'+pid,subject,grade:1,term:1,examDate:'2026-11-01',pages:1,aiCalls:1,status:'review',createdAt:env.clock.now()});
@@ -53,7 +54,7 @@ async function open(t,{left=10,subject='math',noWeak=false,secondChild=false}={}
     assert.equal(String(url),'mock://gas');const req=JSON.parse(options.body);requests.push(req);
     if(req.action==='diag_confirmExam'&&rejectSave)return {json:async()=>({ok:false,message:'測試：暫時不能儲存'})};
     if(req.action==='diag_makeCheck'&&holdMake)await holdMake;
-    const result=post(req.action,req);
+    const result=post(req.action,{childKey,...req});
     if(req.action==='diag_makeCheck'&&pending&&result.ok)result.pending=[{item:{id:'pending-one',q:'虛構未通過題',o:['甲','乙'],a:'甲',variant:'A',weakKey:'code:N-1-1',targetCode:'N-2-1'},reason:'驗算未通過'}];
     return {json:async()=>result};
   };
@@ -62,7 +63,7 @@ async function open(t,{left=10,subject='math',noWeak=false,secondChild=false}={}
   const q=sel=>w.document.querySelector(sel),all=sel=>[...w.document.querySelectorAll(sel)];
   const changeFirst=()=>{q('[data-q-no="1"] [data-verdict="ng"]').click();const select=q('[data-q-no="1"] select');select.value='read';select.dispatchEvent(new w.Event('change'))};
   const save=async()=>{await q('#ex-save').onclick();await settle()};
-  return {w,env,post,pid,q,all,requests,changeFirst,save,reject:()=>rejectSave=true,pending:()=>pending=true,failCurriculum:()=>failCurriculum=true,hold:()=>{let release;holdMake=new Promise(r=>release=r);return release}};
+  return {w,env,post,pid,childKey,q,all,requests,changeFirst,save,reject:()=>rejectSave=true,pending:()=>pending=true,failCurriculum:()=>failCurriculum=true,hold:()=>{let release;holdMake=new Promise(r=>release=r);return release}};
 }
 
 test('T037 E: priority order, collapsed other questions, escaped text, confidence and concept prompt',async t=>{
@@ -122,7 +123,7 @@ test('T037 G: two weak points produce ten labeled questions, curriculum scope, p
   const req=a.requests.find(r=>r.action==='diag_makeCheck');assert.ok(req.whitelist.length>0&&req.whitelist.every(x=>x.grade<=1&&Object.keys(x).length===2));assert.deepEqual(req.words,[]);
   const viewCheck=a.w.viewCheck;a.w.viewCheck=undefined;await a.q('#ex-now').onclick();assert.equal(a.q('[data-ex-status]').textContent,'下一步畫面準備中');a.w.viewCheck=viewCheck;
   a.q('#ex-home').click();assert.match(a.q('[data-ex-status]').textContent,/已放到.+的首頁。/);
-  const child=a.post('diag_childState');assert.equal(child.checks.length,1);assert.equal(child.checks[0].items.length,10);
+  const child=a.post('diag_childState',{childKey:a.childKey});assert.equal(child.checks.length,1);assert.equal(child.checks[0].items.length,10);
   const id=child.checks[0].checkId;await a.w.viewCheckPreview(id);assert.equal(a.all('[data-weak-group]').length,2);assert.equal(a.all('[data-check-item]').length,10);
   await a.w.viewCheckPreview(a.post('diag_makeCheck',{examId:'exam-review',whitelist:req.whitelist,words:[]}));assert.equal(a.all('[data-check-item]').length,10);
   await a.q('#ex-now').onclick();assert.ok(a.q('#diag-view'));assert.match(a.q('#diag-view').textContent,/數學挑戰/);assert.equal(a.w.eval('diagRun.pid'),'p1');assert.equal(a.w.eval('PARENT_SESSION'),null);

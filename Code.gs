@@ -228,7 +228,7 @@ function doPostBody(req) {
 }
 
 function out(obj) {
-  if (TIMING !== null) {
+  if (TIMING !== null && obj.code !== 'need_child_key') {
     const total = Date.now() - TIMING.start;
     const {open, lock, read, reads, sync, write} = TIMING;
     obj.timing = {open, lock, read, reads, sync, write,
@@ -1821,6 +1821,12 @@ function diagFk(fam,pid) {
   if(typeof pid!=='string'||!/^p[a-z0-9]{1,12}$/.test(pid)||!readPlayers(fam.code).some(p=>p.id===pid&&p.status!=='停用'))diagFail('bad_player');
   return fam.code+':'+pid;
 }
+function diagChildKeyOk(fam,pid,key) {
+  if(typeof key!=='string'||!/^[A-Za-z0-9-]{20,64}$/.test(key))return false;
+  const hash=PropertiesService.getScriptProperties().getProperty('diagckey:'+fam.code+':'+pid);
+  return !!hash&&parentHash(key)===hash;
+}
+function diagWeakId(fk,key){return 'w'+parentHash(fk+'|'+key).slice(0,10);}
 function diagProfile(fk,subject) {
   const x=diagObjects('profiles').find(x=>x.fk===fk&&x.subject===subject);
   return {row:x?x._row:diagRows('profiles').length+1,profile:x?JSON.parse(x.json):{ver:2,weak:[],review:[],spc:null,consent:null}};
@@ -1975,10 +1981,18 @@ function diagValidEvent(e,now) {
 }
 function diagPostEvents(fam,req,fk) {
   if(!diagConsent(fam))return {ok:false,code:'no_consent'};
+  if(!diagChildKeyOk(fam,req.playerId,req.childKey))return {ok:false,code:'need_child_key'};
   if(!Array.isArray(req.events)||req.events.length>50)return {ok:false,code:'bad_request'};
   const all=diagObjects('events'),existing=new Set(all.map(e=>e.eid)),accepted=[],rejected=[],fresh=[],checks=diagObjects('checks').filter(x=>x.fk===fk);
-  for(const e of req.events){
+  for(const raw of req.events){
+    let e=raw;
     const check=checks.find(c=>c.checkId===e?.checkId&&c.subject===e.subject);
+    if(e?.mode==='check'){
+      const x=check&&JSON.parse(check.items).find(x=>x.id===e.qid);
+      if(!x||![e.pick,e.first].every(n=>Number.isInteger(n)&&n>=0&&n<x.o.length)||![0,1].includes(e.moved)){rejected.push(typeof e.eid==='string'?e.eid:'');continue;}
+      const F=x.o[e.first]===x.a,L=x.o[e.pick]===x.a;
+      e={...e,ok:L?1:0,chg:(!e.moved||(F&&L))?'0':F?'RW':L?'WR':'WW'};
+    }
     if(!diagValidEvent(e,Date.now())||(e.mode==='check'&&(!check||!JSON.parse(check.items).some(x=>x.id===e.qid)))||(e.mode!=='check'&&e.checkId!=='')){rejected.push(e&&typeof e.eid==='string'?e.eid:'');continue;}
     accepted.push(e.eid);if(existing.has(e.eid))continue;existing.add(e.eid);
     const clean=diagClean(Object.fromEntries(DIAG_HEADERS.events.map(k=>[k,k==='fk'?fk:e[k]])));diagPut('events',clean);fresh.push(clean);
@@ -2010,8 +2024,11 @@ function diagPostEvents(fam,req,fk) {
   return {ok:true,accepted,rejected};
 }
 function diagChildState(fam,req,fk) {
-  const subjects={};for(const x of diagObjects('profiles').filter(x=>x.fk===fk&&(!req.subject||x.subject===req.subject))){const p=JSON.parse(x.json);subjects[x.subject]={weak:(p.weak||[]).map(x=>({key:x.key,w:x.w,streak:x.streak})),review:(p.review||[]).map(x=>({key:x.key||x.tag,qidSeen:x.qidSeen,step:x.step,dueAt:x.dueAt}))};}
-  const checks=diagObjects('checks').filter(x=>x.fk===fk&&!x.doneAt&&(!req.subject||x.subject===req.subject)).map(x=>({checkId:x.checkId,subject:x.subject,items:JSON.parse(x.items).map(q=>({id:q.id,q:q.q,o:q.o,a:q.a}))}));
+  if(!diagConsent(fam))return {ok:true,consent:false,subjects:{},checks:[]};
+  if(!diagChildKeyOk(fam,req.playerId,req.childKey))return {ok:false,code:'need_child_key'};
+  const tag=key=>typeof key==='string'&&key.startsWith('tag:')&&DIAG_TAG_IDS.includes(key.slice(4))?key.slice(4):'';
+  const subjects={};for(const x of diagObjects('profiles').filter(x=>x.fk===fk&&(!req.subject||x.subject===req.subject))){const p=JSON.parse(x.json);subjects[x.subject]={weak:(p.weak||[]).map(x=>({key:diagWeakId(fk,x.key),tag:tag(x.key),w:x.w,streak:x.streak})),review:(p.review||[]).map(x=>({key:diagWeakId(fk,x.key||'tag:'+x.tag),tag:DIAG_TAG_IDS.includes(x.tag)?x.tag:tag(x.key),qidSeen:x.qidSeen,step:x.step,dueAt:x.dueAt}))};}
+  const checks=diagObjects('checks').filter(x=>x.fk===fk&&!x.doneAt&&(!req.subject||x.subject===req.subject)).map(x=>({checkId:x.checkId,subject:x.subject,items:JSON.parse(x.items).map(q=>({id:q.id,q:q.q,o:q.o}))}));
   // Free text in AI questions and keys can contain parent-only wording; never expose it.
   const value={ok:true,consent:!!diagConsent(fam),subjects,checks};
   return JSON.parse(JSON.stringify(value).replace(/弱點|粗心|檢定/g,'練習'));
@@ -2029,6 +2046,10 @@ function diagAction(fam,req) {
       if(req.action==='diag_confirmExam')return diagConfirm(fam,req);
       if(req.action==='diag_check')return {ok:true,check:diagClean(diagOwnedCheck(fam,req.checkId))};
       const fk=diagFk(fam,req.playerId);
+      if(req.action==='diag_issueChildKey'){
+        const childKey=Utilities.getUuid();PropertiesService.getScriptProperties().setProperty('diagckey:'+fam.code+':'+req.playerId,parentHash(childKey));return {ok:true,childKey};
+      }
+      if(req.action==='diag_revokeChildKey'){PropertiesService.getScriptProperties().deleteProperty('diagckey:'+fam.code+':'+req.playerId);return {ok:true};}
       if(req.action==='diag_childState')return diagChildState(fam,req,fk);
       if(req.action==='diag_postEvents')return diagPostEvents(fam,req,fk);
       if(req.action==='diag_getProfile'){
