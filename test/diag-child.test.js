@@ -12,7 +12,7 @@ const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
 test.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
 const plain=x=>JSON.parse(JSON.stringify(x));
 const settle=async()=>{for(let i=0;i<8;i++)await new Promise(r=>setImmediate(r))};
-function state(){return {ok:true,consent:true,subjects:{math:{weak:[{key:'tag:neg',w:1,streak:0}],review:[0,1].map(i=>({key:'tag:neg',qidSeen:['seen'+i],step:0,dueAt:0}))},zh:{weak:[],review:[]}},checks:[{checkId:'check1',subject:'math',items:Array.from({length:5},(_,i)=>({id:'checkq'+i,q:'秘密題目 '+i+' 哪個不是水果？',o:['石頭','蘋果'],a:'石頭'}))}]}}
+function state(){return {ok:true,consent:true,subjects:{math:{weak:[{key:'wabc',tag:'neg',w:1,streak:0}],review:[0,1].map(i=>({key:'wabc',tag:'neg',qidSeen:['seen'+i],step:0,dueAt:0}))},zh:{weak:[],review:[]}},checks:[{checkId:'check1',subject:'math',items:Array.from({length:5},(_,i)=>({id:'checkq'+i,q:'秘密題目 '+i+' 哪個不是水果？',o:['石頭','蘋果']}))}]}}
 function bank(subject='數學'){return {id:'bank1',subject,questions:Array.from({length:30},(_,i)=>({id:'bankq'+i,t:'mc',q:'第 '+i+' 題不是哪一個？',o:['甲','乙'],a:'甲',sk:[i<15?'neg':'ctx']}))}}
 async function open(t,s=state()){
   const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>{if(!e.message.includes('navigation'))errors.push(e)});
@@ -32,7 +32,7 @@ test('T035 H: five immediate answers enqueue five valid events without correctne
   const {w,s}=await open(t);w.viewCheck(s.checks[0]);
   for(let i=0;i<5;i++){assert.match(w.document.querySelector('#diag-view .tag.ai').textContent,/AI 出的題/);assert.doesNotMatch(w.document.getElementById('app').textContent,/答對|答錯|正確答案/);assert.equal(w.document.querySelectorAll('.right,.wrong').length,0);childDOM(w);w.document.querySelector('[data-diag-opt="0"]').click()}
   await settle();const events=plain(w.eval('evQueue'));assert.equal(events.length,5);
-  for(const e of events){assert.equal(e.subject,'math');assert.equal(e.checkId,'check1');assert.equal(e.mode,'check');assert.equal(e.ok,1);assert.equal(typeof e.sec,'number');assert.equal(e.chg,'0');assert.equal(e.retry,0)}
+  for(const e of events){assert.equal(e.subject,'math');assert.equal(e.checkId,'check1');assert.equal(e.mode,'check');assert.equal(e.pick,0);assert.equal(e.first,0);assert.equal(e.moved,0);assert.equal('ok' in e,false);assert.equal(typeof e.sec,'number');assert.equal('chg' in e,false);assert.equal(e.retry,0)}
   assert.match(w.document.getElementById('app').textContent,/做完了！可以給爸媽看。/);assert.equal(w.localStorage.getItem('diag-check:p1:check1'),null);
   assert.doesNotMatch(w.localStorage.getItem('diag-evq'),/秘密題目|水果|蘋果/);childDOM(w);
 });
@@ -41,7 +41,7 @@ test('T035 H: pause/resume stores only indices and seconds; previous answer chan
   const progress=JSON.parse(w.localStorage.getItem('diag-check:p1:check1'));assert.deepEqual(Object.keys(progress).sort(),['answers','seconds']);assert.deepEqual(progress.answers,[0]);assert.doesNotMatch(JSON.stringify(progress),/秘密題目|石頭/);
   w.viewCheck(s.checks[0]);assert.match(w.document.getElementById('app').textContent,/第 2 \/ 5 題/);w.document.getElementById('diag-prev').click();w.document.querySelector('[data-diag-opt="1"]').click();assert.equal(w.eval('evQueue.length'),1);assert.equal(JSON.parse(w.localStorage.getItem('diag-check:p1:check1')).answers[0],1);
   w.document.dispatchEvent(new w.Event('visibilitychange'));childDOM(w);
-  assert.equal(w.eval('evQueue[0].chg'),'RW');assert.equal(w.eval('evQueue[0].ok'),0);
+  assert.equal(w.eval('evQueue[0].pick'),1);assert.equal(w.eval('evQueue[0].first'),0);assert.equal(w.eval('evQueue[0].moved'),1);
 });
 test('T035 L: offline queue status is exact; online retry clears accepted IDs and never sends text',async t=>{
   const a=await open(t),{w,s}=a;w.viewCheck(s.checks[0]);w.document.querySelector('[data-diag-opt="0"]').click();w.document.getElementById('diag-pause').click();await settle();
@@ -75,13 +75,14 @@ test('T035 scope: shared blocks remain byte identical to backend and only author
 test('T035 integration: backend accepts child events and completes the challenge without a parent session',async t=>{
   const a=await open(t),{w}=a;a.real();
   const auth=await w.api('parentSetPin',{setupCode:'MOCK2345',pin:'246810'}),parent=(action,data={})=>w.api(action,{playerId:'p1',session:auth.session,...data});
+  w.localStorage.setItem('diag-ckey:p1',(await parent('diag_issueChildKey')).childKey);
   await parent('diag_consent',{agree:true});
   const exam=await parent('diag_analyzeExam',{subject:'math',grade:1,term:1,examDate:'2026-11-01',codes:['N-1-1'],pages:[{n:1,b64:'ZmFrZQ=='}]});
   await parent('diag_confirmExam',{examId:exam.examId,items:[]});
   await parent('diag_makeCheck',{examId:exam.examId,whitelist:[{code:'N-1-1',grade:1}],words:[]});
   const state=await w.diagChildState('p1');assert.ok(state.checks.length);const check=state.checks[0];w.viewCheck(check);
   for(let i=0;i<check.items.length;i++)w.document.querySelector('[data-diag-opt="1"]').click();
-  await w.flushEvents();assert.equal(w.eval('evQueue.length'),0,JSON.stringify(plain(w.eval('evQueue'))));assert.equal((await w.api('diag_childState',{playerId:'p1'})).checks.length,0);
+  await w.flushEvents();assert.equal(w.eval('evQueue.length'),0,JSON.stringify(plain(w.eval('evQueue'))));assert.equal((await w.api('diag_childState',{playerId:'p1',childKey:w.localStorage.getItem('diag-ckey:p1')})).checks.length,0);
 });
 test('T035 telemetry: answer changes use WR, hidden interruption is recorded, and text fields are discarded',async t=>{
   const {w}=await open(t);w.b=bank();await w.diagPractice(w.b);

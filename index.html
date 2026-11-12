@@ -5130,7 +5130,7 @@ function ruleTags(text){const find=words=>{for(const word of words){const at=tex
 function diagRefreshStatus(){document.querySelectorAll('[data-diag-status]').forEach(el=>{const n=evQueue.length;el.textContent=n?'有 '+n+' 題作答紀錄還沒送出，連上網路後會自動補送。':''})}
 function evPush(e){
   // Explicit allowlist: never persist question text or player names.
-  const clean={};for(const k of ['playerId','ts','eid','qid','bank','tags','ok','sec','len','chg','scf','scok','mode','sid','retry','intr','subject','checkId'])if(e[k]!==undefined)clean[k]=e[k];
+  const clean={};for(const k of ['playerId','ts','eid','qid','bank','tags','ok','sec','len','chg','scf','scok','mode','sid','retry','intr','subject','checkId','pick','first','moved'])if(e[k]!==undefined)clean[k]=e[k];
   clean.eid=clean.eid||diagId();evQueue.push(clean);diagWrite('diag-evq',evQueue);diagRefreshStatus();
 }
 function diagForget(pid){evQueue=evQueue.filter(e=>e.playerId!==pid);diagWrite('diag-evq',evQueue);diagStates.delete(pid);for(const k of Object.keys(localStorage))if(k.startsWith('diag-check:'+pid+':'))localStorage.removeItem(k);diagRefreshStatus()}
@@ -5140,9 +5140,9 @@ function flushEvents(){
     for(const playerId of new Set(evQueue.map(e=>e.playerId))){
       while(evQueue.some(e=>e.playerId===playerId)){
         const batch=evQueue.filter(e=>e.playerId===playerId).slice(0,50);
-        try{const j=await api('diag_postEvents',{playerId,events:batch.map(({playerId,...e})=>e)}),ids=new Set(j.accepted||[]);
+        try{const j=await api('diag_postEvents',{playerId,childKey:localStorage.getItem('diag-ckey:'+playerId)||'',events:batch.map(({playerId,...e})=>e)}),ids=new Set(j.accepted||[]);
           if(!ids.size)break;evQueue=evQueue.filter(e=>e.playerId!==playerId||!ids.has(e.eid));diagWrite('diag-evq',evQueue);
-        }catch(e){if(e.code==='no_consent')diagForget(playerId);break}
+        }catch(e){if(e.code==='no_consent')diagForget(playerId);if(e.code==='need_child_key'){diagStates.delete(playerId);break}break}
       }
     }
   })().finally(()=>{diagFlush=null;diagRefreshStatus()});return diagFlush;
@@ -5152,7 +5152,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 window.addEventListener('pagehide',()=>{if(diagRun){diagRun.intr=1;diagSaveRun()}});
 const diagSafe=s=>String(s??'').replace(/弱點|粗心|檢定/g,'練習');
 function diagSubject(bank){const s=String(bank.subject||'').trim();return DIAG_SUBJECTS.includes(s)?s:({'國語':'zh','國文':'zh','數學':'math','自然':'sci','科學':'sci','社會':'soc','英語':'en','英文':'en'})[s]||''}
-async function diagChildState(pid){const state=await api('diag_childState',{playerId:pid});if(state.consent)diagStates.set(pid,state);else diagForget(pid);return state}
+async function diagChildState(pid){let state;try{state=await api('diag_childState',{playerId:pid,childKey:localStorage.getItem('diag-ckey:'+pid)||''})}catch(e){if(e.code==='need_child_key')diagStates.delete(pid);throw e}if(state.consent)diagStates.set(pid,state);else diagForget(pid);return state}
 async function diagHomeCard(){
   const pid=ACTIVE_PLAYER,slot=document.createElement('section');slot.id='diag-home';
   app.querySelector('h1')?.after(slot);slot.innerHTML='<p data-diag-status role="status"></p>';diagRefreshStatus();void flushEvents();
@@ -5161,21 +5161,21 @@ async function diagHomeCard(){
     const due=Object.entries(s.subjects||{}).flatMap(([subject,p])=>(p.review||[]).filter(r=>r.dueAt<=Date.now()).map(entry=>({subject,entry})));
     if(due.length){const card=document.createElement('article');card.className='card';card.innerHTML='<h2>老朋友來找你了：'+due.length+' 題</h2><button class="big">去複習</button>';card.querySelector('button').onclick=()=>diagReview(due);slot.append(card)}
     for(const check of s.checks||[]){const card=document.createElement('article');card.className='card';card.innerHTML='<h2>'+esc(DIAG_SUBJECT_NAME[check.subject]||'')+'挑戰</h2><p>AI 出的題，做完給爸媽看。</p><button class="big">開始</button>';card.querySelector('button').onclick=()=>viewCheck(check);slot.append(card)}
-  }catch(e){}
+  }catch(e){if(e.code==='need_child_key'&&slot.isConnected&&pid===ACTIVE_PLAYER)slot.innerHTML='<article class="card" id="diag-need-key"><h2>挑戰</h2><p>請家長在這台裝置開啟練習</p></article>'}
 }
 function diagBanks(){return [...new Map([PLANT_CARD,...Object.values(localBanks()),...BANKS,...Object.values(LIBBANKS)].map(b=>[b.id,b.id==='__plant'?{...b,questions:Q}:b])).values()]}
-function diagTag(key){const tag=String(key||'').replace(/^tag:/,'');return DIAG_TAG_IDS.includes(tag)?tag:''}
+function diagTag(tag){return DIAG_TAG_IDS.includes(tag)?tag:''}
 function diagQuestionTags(q){const tags=(q.sk||[]).filter(t=>DIAG_TAG_IDS.includes(t));if(tags.length)return tags;const hits=ruleTags(q.q);return [hits.neg?'neg':hits.qnt?'qnt':'ctx']}
-function diagMatches(q,key){return (diagTag(key)&&primaryTag(q)===diagTag(key))||q.code===key||('code:'+q.code)===key||q.c===key}
-function diagRoundProfile(profile){return {...profile,weak:(profile.weak||[]).map(w=>({...w,tag:diagTag(w.key)||w.key})),review:(profile.review||[]).map(r=>({...r,tag:diagTag(r.key)||r.tag||r.key,qidSeen:r.qidSeen||[]}))}}
+function diagMatches(q,tag){return !!diagTag(tag)&&primaryTag(q)===tag}
+function diagRoundProfile(profile){return {...profile,weak:(profile.weak||[]).map(w=>({...w,tag:diagTag(w.tag)})),review:(profile.review||[]).map(r=>({...r,tag:diagTag(r.tag),qidSeen:r.qidSeen||[]}))}}
 function diagPracticeItems(bank,state=diagStates.get(ACTIVE_PLAYER)){
   const subject=diagSubject(bank),p=diagRoundProfile(subject&&state?.consent?state.subjects?.[subject]||{}:{}),qs=bank.questions||[],weakPool={};
-  for(const w of p.weak)weakPool[w.tag]=qs.filter(q=>diagMatches(q,w.key));
-  const old=p.review.filter(r=>r.dueAt<=Date.now()).map(entry=>({entry,q:qs.find(q=>diagMatches(q,entry.key)&&!entry.qidSeen.includes(q.id))})).filter(x=>x.q);
+  for(const w of p.weak)weakPool[w.tag]=qs.filter(q=>diagMatches(q,w.tag));
+  const old=p.review.filter(r=>r.dueAt<=Date.now()).map(entry=>({entry,q:qs.find(q=>diagMatches(q,entry.tag)&&!entry.qidSeen.includes(q.id))})).filter(x=>x.q);
   // Due friends reserve a slot even before an active weight exists.
   for(const {entry} of old)if(!p.weak.some(w=>w.tag===entry.tag))p.weak.push({key:entry.key,tag:entry.tag,w:1});
   const active=p.weak.filter(w=>(w.w??1)*DIAG_CFG.fade**Math.max(0,(w.streak||0)-DIAG_CFG.streakFade+1)>=DIAG_CFG.graduate);
-  const normal=qs.filter(q=>!active.some(w=>diagMatches(q,w.key)));
+  const normal=qs.filter(q=>!active.some(w=>diagMatches(q,w.tag)));
   return composeRound({profile:p,normal,weakPool,old,n:12,rng:Math.random}).map(x=>({...x,bankId:bank.id,retry:0}));
 }
 async function diagPractice(bank){
@@ -5185,10 +5185,10 @@ async function diagPractice(bank){
   const items=diagPracticeItems(bank,state||{consent:false});if(!items.length)return;
   diagStart({pid,subject:diagSubject(bank),mode:'prac',items,profile:diagPracticeProfile(state,diagSubject(bank))});
 }
-function diagPracticeProfile(state,subject){const p=diagRoundProfile(state?.subjects?.[subject]||{});return {...p,tags:Object.fromEntries(p.weak.filter(w=>diagTag(w.key)).map(w=>[diagTag(w.key),{...w,scf:w.w>0?1:0}]))}}
+function diagPracticeProfile(state,subject){const p=diagRoundProfile(state?.subjects?.[subject]||{});return {...p,tags:Object.fromEntries(p.weak.filter(w=>diagTag(w.tag)).map(w=>[diagTag(w.tag),{...w,scf:w.w>0?1:0}]))}}
 function diagReview(due){
   const banks=diagBanks(),items=[];
-  for(const {subject,entry} of due){const candidates=banks.filter(b=>diagSubject(b)===subject).flatMap(b=>(b.questions||[]).map(q=>({q,bankId:b.id})));const item=candidates.find(x=>diagMatches(x.q,entry.key)&&!(entry.qidSeen||[]).includes(x.q.id))||candidates.find(x=>diagMatches(x.q,entry.key));if(item)items.push({...item,subject,kind:'old',retry:0})}
+  for(const {subject,entry} of due){const candidates=banks.filter(b=>diagSubject(b)===subject).flatMap(b=>(b.questions||[]).map(q=>({q,bankId:b.id})));const item=candidates.find(x=>diagMatches(x.q,entry.tag)&&!(entry.qidSeen||[]).includes(x.q.id))||candidates.find(x=>diagMatches(x.q,entry.tag));if(item)items.push({...item,subject,kind:'old',retry:0})}
   if(!items.length){toast('先選一本題庫練習，再來找老朋友。');return}
   diagStart({pid:ACTIVE_PLAYER,mode:'prac',subject:items[0].subject,items,profile:diagPracticeProfile(diagStates.get(ACTIVE_PLAYER),items[0].subject)});
 }
@@ -5217,14 +5217,15 @@ function diagNext(){
   const r=diagRun;if(!r||r.last===null)return;
   if(r.mode==='prac'&&!r.answered){diagPracticeFeedback(r);return}
   if(r.scaffold?.ask&&!r.scaffold.done)return;
-  const item=r.items[r.index],q=item.q,ok=Number(diagCorrect(q,r.last)),first=diagCorrect(q,r.first),fresh=r.answers[r.index]===undefined;
+  const item=r.items[r.index],q=item.q,ok=r.mode==='check'?undefined:Number(diagCorrect(q,r.last)),first=r.mode==='check'?undefined:diagCorrect(q,r.first),fresh=r.answers[r.index]===undefined;
   r.seconds[r.index]=Math.min(3600,r.elapsed+(performance.now()-r.started)/1000);r.answers[r.index]=r.last;
   if(fresh){const e={playerId:r.pid,ts:Date.now(),qid:q.id,bank:item.bankId||'',tags:diagQuestionTags(q).join(','),ok,sec:r.seconds[r.index],len:Math.min(2000,q.q.length+diagOptions(q).join('').length),chg:!r.changes||first&&ok?'0':first?'RW':ok?'WR':'WW',scf:r.scaffold?.level||0,scok:r.scaffold?.scok??'',mode:r.mode==='check'?'check':item.kind==='old'?'rev':'prac',sid:r.sid,retry:item.retry||0,intr:r.intr,subject:r.subject,checkId:r.checkId||''};
-    if(r.subject&&diagStates.get(r.pid)?.consent){evPush(e);if(r.mode==='prac'){const p=diagStates.get(r.pid).subjects[r.subject]||(diagStates.get(r.pid).subjects[r.subject]={weak:[],review:[]});p.review=scheduleReview(diagRoundProfile(p).review,e,DIAG_CFG,Date.now()).map(x=>({...x,key:x.key||'tag:'+x.tag}));const w=(p.weak||[]).find(w=>diagMatches(q,w.key));if(w&&!e.retry)w.streak=ok?(w.streak||0)+1:0}if(r.mode!=='check')void flushEvents()}
+    if(r.mode==='check'){delete e.ok;delete e.chg;Object.assign(e,{pick:r.last,first:r.first,moved:r.changes?1:0})}
+    if(r.subject&&diagStates.get(r.pid)?.consent){evPush(e);if(r.mode==='prac'){const p=diagStates.get(r.pid).subjects[r.subject]||(diagStates.get(r.pid).subjects[r.subject]={weak:[],review:[]});p.review=scheduleReview(diagRoundProfile(p).review,e,DIAG_CFG,Date.now()).map(x=>({...x,key:x.key||'local:'+x.tag}));const w=(p.weak||[]).find(w=>diagMatches(q,w.tag));if(w&&!e.retry)w.streak=ok?(w.streak||0)+1:0}if(r.mode!=='check')void flushEvents()}
   }else if(r.mode==='check'&&r.changes){
     // Amend the unsent event without adding another answer for this question.
     const queued=evQueue.find(e=>e.playerId===r.pid&&e.checkId===r.checkId&&e.qid===q.id);
-    if(queued){const original=queued.chg==='RW'?true:queued.chg==='WR'?false:queued.ok===1;Object.assign(queued,{ok,sec:r.seconds[r.index],chg:original&&ok?'0':original?'RW':ok?'WR':'WW',intr:Math.max(queued.intr,r.intr)});diagWrite('diag-evq',evQueue)}
+    if(queued){Object.assign(queued,{pick:r.last,moved:1,sec:r.seconds[r.index],intr:Math.max(queued.intr,r.intr)});diagWrite('diag-evq',evQueue)}
   }
   diagSaveRun();r.index++;r.intr=0;r.elapsed=0;r.first=null;r.last=null;r.changes=0;r.scaffold=null;
   if(r.index<r.items.length){diagQuestion();return}
@@ -5351,10 +5352,24 @@ function exClearPhotos(){
 window.addEventListener('pagehide',()=>{exClearPhotos();exForgetJob()});
 function exReview(id,root){if(typeof viewExamReview==='function')viewExamReview(id);else root.querySelector('#ex-message').textContent='下一步畫面準備中'}
 async function viewExamUpload(root,alive){
-  root.innerHTML='<section class="card par" id="ex-panel"><h2>考卷分析</h2><p id="ex-message" role="status">讀取中…</p><div id="ex-body"></div><div id="ex-records"></div><p id="ex-label">AI 判讀，請家長確認</p></section>';
+  root.innerHTML='<section class="card par" id="ex-panel"><h2>考卷分析</h2><p id="ex-message" role="status">讀取中…</p><div id="ex-body"></div><section id="ex-devices"></section><div id="ex-records"></div><p id="ex-label">AI 判讀，請家長確認</p></section>';
   const body=root.querySelector('#ex-body'),msg=root.querySelector('#ex-message');
   try{
     const players=(await parentCall('playerList')).players||[];if(!alive())return;
+    function devices(){
+      const slot=root.querySelector('#ex-devices');
+      slot.innerHTML='<h3>孩子的裝置</h3><p>在孩子平常用的這台裝置上按一次，孩子才看得到自己的挑戰。每個孩子同時只有一台裝置有效，換裝置要再按一次。</p>'+players.filter(p=>p.status==='啟用').map(p=>'<div><p>'+esc(p.name)+(localStorage.getItem('diag-ckey:'+p.id)?'（這台裝置）':'')+'</p><button data-ex-key="'+esc(p.id)+'">讓這台裝置給 '+esc(p.name)+' 用</button><button data-ex-revoke="'+esc(p.id)+'">停用 '+esc(p.name)+' 的裝置</button></div>').join('');
+      slot.querySelectorAll('button').forEach(b=>b.onclick=async()=>{
+        const issue=b.hasAttribute('data-ex-key'),pid=issue?b.dataset.exKey:b.dataset.exRevoke,p=players.find(p=>p.id===pid);
+        slot.querySelectorAll('button').forEach(x=>x.disabled=true);
+        try{const j=await parentCall(issue?'diag_issueChildKey':'diag_revokeChildKey',{playerId:pid});
+          if(issue)localStorage.setItem('diag-ckey:'+pid,j.childKey);else localStorage.removeItem('diag-ckey:'+pid);
+          diagStates.delete(pid);
+          if(alive())msg.textContent=issue?'這台裝置已開啟 '+p.name+' 的練習。':'已停用 '+p.name+' 的裝置，要再按「讓這台裝置給 '+p.name+' 用」才能恢復。';
+        }catch(e){if(alive())msg.textContent=EX_NETWORK_ERROR}finally{if(alive())devices()}
+      });
+    }
+    devices();
     if(!players.length){msg.textContent='請先新增孩子。';return}
     let pid=players[0].id;
     const [profile,quota]=await Promise.all([parentCall('diag_getProfile',{playerId:pid}),parentCall('diag_quota')]);if(!alive())return;
@@ -5546,6 +5561,11 @@ async function viewCheckPreview(value,ctx){
       if(typeof viewCheck!=='function'){ui.msg.textContent='下一步畫面準備中';return}
       now.disabled=true;
       try{
+        if(!localStorage.getItem('diag-ckey:'+ctx.pid)){
+          const issued=await parentCall('diag_issueChildKey',{playerId:ctx.pid});
+          localStorage.setItem('diag-ckey:'+ctx.pid,issued.childKey);
+          if(!ui.alive())return;
+        }
         const state=await diagChildState(ctx.pid);if(!ui.alive())return;
         const check=(state.checks||[]).find(x=>x.checkId===result.checkId);
         if(!check?.items.length){ui.msg.textContent='下一步畫面準備中';now.disabled=false;return}
