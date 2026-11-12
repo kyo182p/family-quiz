@@ -52,6 +52,7 @@ body{
   -webkit-tap-highlight-color:transparent;
 }
 main{max-width:720px;margin:0 auto;padding:16px 16px 96px}
+main#app{padding-bottom:calc(118px + env(safe-area-inset-bottom,0px))}
 button{font:inherit;color:inherit;cursor:pointer}
 .pic svg{font-family:var(--font-svg,"Huninn","PingFang TC","Noto Sans TC",sans-serif)}
 button:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
@@ -420,6 +421,14 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 /* Child rewards */
 .reward-page{max-width:620px;margin:auto;display:grid;gap:14px;overflow-wrap:anywhere}
 .reward-page,.parent-page{padding-bottom:calc(118px + env(safe-area-inset-bottom,0px))}
+main#app:has(.reward-page){padding-bottom:0}
+.parent-page{padding-bottom:24px}
+body:has(#parent-page) .style-btn,body:has(#parent-page) .tour-help{display:none!important}
+#diag-view .q,#diag-view .passage{font-size:max(22px,1.25em)}
+#diag-view .opt{display:flex;width:100%;box-sizing:border-box;min-height:56px;margin:8px 0;font-size:max(20px,1.15em)}
+#diag-view h1{font-size:clamp(1.3rem,6vw,1.8rem);white-space:nowrap}
+#diag-view .toprow{flex-wrap:nowrap;gap:8px}
+#diag-view .toprow button{flex-shrink:0}
 #reward-notice:empty{display:none}
 #reward-notice,#reward-updating{margin:0}
 .reward-page .toprow{justify-content:space-between}.reward-tabs,.reward-wallet{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -443,9 +452,10 @@ h2.ct{margin:0;font-size:1.2rem;font-weight:inherit;line-height:1.5}
 .parent-page button{min-width:44px;min-height:44px}
 .parent-page [hidden]{display:none!important}
 .parent-page button[aria-pressed="true"]{background:var(--leaf-soft);border-color:var(--leaf-strong);color:var(--leaf-ink)}
-.parent-bar{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;background:var(--parent);color:#EAF4EC;padding:10px;border-radius:14px}
+.parent-bar{box-sizing:border-box;height:64px;white-space:nowrap;margin-bottom:0;position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;background:var(--parent);color:#EAF4EC;padding:10px;border-radius:14px 14px 0 0}
 .parent-bar strong{flex:1}.parent-bar button{background:transparent;color:inherit;border:1px solid #8EA697;border-radius:10px;padding:8px}
-.parent-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;background:var(--parent);padding:6px;border-radius:12px}
+#parent-content{padding-top:0}
+.parent-tabs{position:sticky;top:64px;z-index:3;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;background:var(--parent);padding:6px;border-radius:0 0 12px 12px}
 .parent-tabs button{padding:4px 0;border:0;border-radius:8px;background:transparent;color:#EAF4EC}
 .parent-tabs [aria-current="page"]{background:var(--parent-soft);color:var(--ink)}
 .parent-count{background:var(--sun);color:#3a2700;border-radius:12px;padding:1px 5px}
@@ -5523,11 +5533,20 @@ async function viewExamReview(examId){
     };
   }catch(e){if(ui?.alive())ui.msg.textContent=e.message||e.code||'送不出去，請再試一次。';else if(root.isConnected&&epoch===parentEpoch&&loading)loading.textContent=e.message||e.code||'送不出去，請再試一次。'}
 }
+function exWeakName(w,curriculum){
+  const rows=Array.isArray(curriculum)?curriculum:[],code=w?.code||rows.find(x=>x.code===w?.label)?.code;
+  const name=rows.find(x=>x.code===code)?.text?.split('：')[0];
+  return name?name+'（'+code+'）':w?.label||code||'';
+}
+async function exCurriculum(subject){
+  try{const response=await fetch('data/curriculum/'+subject+'.json');return await response.json()}catch(e){return []}
+}
 async function viewSubjectResult(ctx){
   const ui=exReviewScreen('這一科的分析結果');if(!ui)return;
   const counts=ctx.counts,weak=(ctx.weak||ctx.profile?.weak||[]).filter(w=>w.examQs?.length>=2).slice(0,3),total=Object.keys(DIAG_CAUSE_NAME).reduce((n,k)=>n+(counts[k]||0),0);
+  const curriculum=await exCurriculum(ctx.exam.subject);if(!ui.alive())return;
   ctx={...ctx,weak};ui.msg.textContent='';
-  ui.body.innerHTML='<h3>共錯 '+total+' 題</h3><div class="causes" aria-label="錯因分布">'+Object.entries(DIAG_CAUSE_NAME).map(([k,label])=>'<div class="cz" data-cause="'+k+'"><span>'+esc(label)+'</span><span class="bar-track"><i style="width:'+((counts[k]||0)/Math.max(total,1)*100)+'%"></i></span><span data-count="'+(counts[k]||0)+'">'+(counts[k]||0)+' 題</span></div>').join('')+'</div>'+weak.map(w=>'<article class="weak"><h3>'+esc(w.label)+'</h3><p>考卷錯 '+w.examQs.length+' 題（第 '+w.examQs.map(esc).join('、')+' 題）</p><span class="pill">'+esc(DIAG_CAUSE_NAME[w.cause]||DIAG_CAUSE_NAME.unknown)+'</span></article>').join('')+(weak.length?'<h3>要不要做一次檢定確認？</h3><button class="big" id="ex-make" disabled>要，幫'+esc(ctx.name)+'出檢定題（約扣 1 次）</button><button class="ghost" id="ex-later">先不要，之後再說</button>':'<p>這份考卷沒有同一類錯 2 題以上的地方，先不用做挑戰。</p>');
+  ui.body.innerHTML='<h3>共錯 '+total+' 題</h3><div class="causes" aria-label="錯因分布">'+Object.entries(DIAG_CAUSE_NAME).map(([k,label])=>'<div class="cz" data-cause="'+k+'"><span>'+esc(label)+'</span><span class="bar-track"><i style="width:'+((counts[k]||0)/Math.max(total,1)*100)+'%"></i></span><span data-count="'+(counts[k]||0)+'">'+(counts[k]||0)+' 題</span></div>').join('')+'</div>'+weak.map(w=>'<article class="weak"><h3>'+esc(exWeakName(w,curriculum))+'</h3><p>考卷錯 '+w.examQs.length+' 題（第 '+w.examQs.map(esc).join('、')+' 題）</p><span class="pill">'+esc(DIAG_CAUSE_NAME[w.cause]||DIAG_CAUSE_NAME.unknown)+'</span></article>').join('')+(weak.length?'<h3>要不要做一次檢定確認？</h3><button class="big" id="ex-make" disabled>要，幫'+esc(ctx.name)+'出檢定題（約扣 1 次）</button><button class="ghost" id="ex-later">先不要，之後再說</button>':'<p>這份考卷沒有同一類錯 2 題以上的地方，先不用做挑戰。</p>');
   if(!weak.length)return;
   ui.body.querySelector('#ex-later').onclick=()=>{ui.msg.textContent='已存進'+ctx.name+'的'+DIAG_SUBJECT_NAME[ctx.exam.subject]+'紀錄。'};
   const make=ui.body.querySelector('#ex-make');make.onclick=()=>viewCheckPreview(null,ctx);
@@ -5536,7 +5555,7 @@ async function viewSubjectResult(ctx){
 async function viewCheckPreview(value,ctx){
   const ui=exReviewScreen('檢定題預覽');if(!ui)return;ui.msg.textContent='正在出題…';
   try{
-    let result=value,math=[];
+    let result=value,math=[],curriculum=[];
     if(typeof value==='string'){
       const j=await parentCall('diag_check',{checkId:value});result={...j.check,items:typeof j.check.items==='string'?JSON.parse(j.check.items):j.check.items,pending:[]};
     }
@@ -5546,8 +5565,10 @@ async function viewCheckPreview(value,ctx){
     }
     let whitelist=[],words=[];
     if(ctx.exam.subject==='math'){
-      const response=await fetch('data/curriculum/math.json');math=await response.json();whitelist=math.filter(x=>x.grade<=ctx.exam.grade).map(({code,grade})=>({code,grade}));
-    }else if(ctx.exam.subject==='en'&&!result){const response=await fetch('data/curriculum/en.json'),en=await response.json();words=[...en.words300,...en.words1200]}
+      try{const response=await fetch('data/curriculum/math.json');curriculum=await response.json()}catch(e){if(!result)throw e}
+      math=Array.isArray(curriculum)?curriculum:[];whitelist=math.filter(x=>x.grade<=ctx.exam.grade).map(({code,grade})=>({code,grade}));
+    }else if(ctx.exam.subject==='en'&&!result){const response=await fetch('data/curriculum/en.json'),en=await response.json();words=[...en.words300,...en.words1200];curriculum=en}
+    else curriculum=await exCurriculum(ctx.exam.subject);
     if(!ui.alive())return;
     if(!result)result=await parentCall('diag_makeCheck',{examId:ctx.exam.examId,whitelist,words});
     if(!ui.alive())return;
@@ -5555,7 +5576,7 @@ async function viewCheckPreview(value,ctx){
     function question(x){return '<article class="qli" data-check-item><p><span class="pill">AI 出的題</span> '+esc(({A:'有陷阱',B:'沒陷阱',R:'換問法'})[x.variant]||'')+'</p><p>'+esc(x.q||'')+'</p><ol>'+(x.o||[]).map(o=>'<li>'+esc(o)+'</li>').join('')+'</ol><p>答案：'+esc(x.a??'')+'</p></article>'}
     const groups=[...new Set(items.map(x=>x.weakKey))];
     ui.msg.textContent='已出好 '+items.length+' 題，交給'+ctx.name+'做';
-    ui.body.innerHTML=groups.map(key=>{const group=items.filter(x=>x.weakKey===key),w=(ctx.weak||[]).find(w=>w.key===key);return '<section data-weak-group><h3>'+esc(w?.label||key)+'</h3>'+[...new Set(group.map(x=>x.targetCode).filter(Boolean))].map(code=>'<p>範圍：'+esc(code)+' '+esc(math.find(x=>x.code===code)?.text||'')+'</p>').join('')+group.map(question).join('')+'</section>'}).join('')+(pending.length?'<section data-pending><h3>待確認</h3><p>這幾題沒通過驗算，不會出給孩子。</p>'+pending.map(p=>question(p.item||p)).join('')+'</section>':'')+'<p>'+DIAG_SOURCE+'</p><button class="big" id="ex-now">讓'+esc(ctx.name)+'現在做</button><button class="ghost" id="ex-home">放到'+esc(ctx.name)+'首頁，等一下做</button>';
+    ui.body.innerHTML=groups.map(key=>{const group=items.filter(x=>x.weakKey===key),w=(ctx.weak||[]).find(w=>w.key===key);return '<section data-weak-group><h3>'+esc(exWeakName(w||{label:key},curriculum))+'</h3>'+[...new Set(group.map(x=>x.targetCode).filter(Boolean))].map(code=>'<p>範圍：'+esc(code)+' '+esc(math.find(x=>x.code===code)?.text||'')+'</p>').join('')+group.map(question).join('')+'</section>'}).join('')+(pending.length?'<section data-pending><h3>待確認</h3><p>這幾題沒通過驗算，不會出給孩子。</p>'+pending.map(p=>question(p.item||p)).join('')+'</section>':'')+'<p>'+DIAG_SOURCE+'</p><button class="big" id="ex-now">讓'+esc(ctx.name)+'現在做</button><button class="ghost" id="ex-home">放到'+esc(ctx.name)+'首頁，等一下做</button>';
     const now=ui.body.querySelector('#ex-now');now.disabled=!items.length;
     now.onclick=async()=>{
       if(typeof viewCheck!=='function'){ui.msg.textContent='下一步畫面準備中';return}
@@ -5601,12 +5622,13 @@ async function viewCompare(checkId){
     const data=await parentCall('diag_getProfile',{playerId:ctx.pid});if(!ui.alive())return;
     const results=exJSON(check.resultJSON)||{},items=exJSON(check.items)||[],weak=data.profiles?.[exam.subject]?.weak||[];
     if(!check.doneAt){ui.msg.textContent='挑戰還沒完成。';return}
+    const curriculum=await exCurriculum(exam.subject);if(!ui.alive())return;
     const day=exDate(check.doneAt),days=Math.round((Date.parse(day)-Date.parse(exam.examDate))/86400000);
     ui.msg.textContent='AI 判讀，請家長確認';
     ui.body.innerHTML='<p>考卷是 '+esc(exam.examDate)+' 考的，挑戰是 '+day+' 做的，隔了 '+days+' 天。</p><p>不知道這份考卷有沒有訂正過；如果訂正過，「已經會了」可能是訂正後學會的。</p><div class="cmp" tabindex="0" role="region" aria-label="比較報告表格，可左右捲動"><table><thead><tr>'+['弱點','考卷錯幾題','有陷阱','沒陷阱','換問法','結論','下一步'].map(x=>'<th scope="col">'+x+'</th>').join('')+'</tr></thead><tbody>'+Object.entries(results).map(([key,r])=>{
       const w=weak.find(w=>w.key===key),group=items.filter(x=>x.weakKey===key);exVerifyResult(group,r);
       const original=pickWeak(examItems).find(w=>w.key===key),n=original?.examQs?.length??w?.examQs?.length;
-      return '<tr><th scope="row">'+esc(w?.label||original?.label||key)+'</th><td>'+(n===undefined?'—':n+' 題')+'</td><td>'+esc(r.trap)+'/2</td><td>'+esc(r.plain)+'/2</td><td>'+esc(r.rephrase)+'/1</td><td><span class="pill">'+esc(DIAG_STATUS[r.status]||DIAG_STATUS.unknown)+'</span></td><td>'+esc(EX_NEXT[r.status]||EX_NEXT.unknown)+'</td></tr>';
+      return '<tr><th scope="row">'+esc(exWeakName(w||original||{label:key},curriculum))+'</th><td>'+(n===undefined?'—':n+' 題')+'</td><td>'+esc(r.trap)+'/2</td><td>'+esc(r.plain)+'/2</td><td>'+esc(r.rephrase)+'/1</td><td><span class="pill">'+esc(DIAG_STATUS[r.status]||DIAG_STATUS.unknown)+'</span></td><td>'+esc(EX_NEXT[r.status]||EX_NEXT.unknown)+'</td></tr>';
     }).join('')+'</tbody></table></div><button class="ghost" id="ex-profile-back">返回孩子紀錄</button>';
     ui.body.querySelector('#ex-profile-back').onclick=()=>viewSubjectProfile(ctx.pid,exam.subject);
   }catch(e){if(ui.alive())ui.msg.textContent='報告讀取失敗，請稍後再試。'}
@@ -5618,17 +5640,18 @@ async function viewSubjectProfile(playerId,subject='zh'){
     if(!players.length){ui.msg.textContent='請先新增孩子。';return}
     const player=players.find(p=>p.id===playerId)||players[0],pid=player.id;
     const data=await parentCall('diag_getProfile',{playerId:pid});
-    const exams=data.exams||[];
+    const exams=data.exams||[],curricula=new Map();
+    await Promise.all(Object.keys(data.profiles||{}).map(async s=>curricula.set(s,await exCurriculum(s))));
     if(!ui.alive())return;
     ui.msg.textContent='AI 判讀，請家長確認';
     ui.body.innerHTML='<label>孩子<select id="ex-profile-player">'+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><div class="subj" role="tablist" aria-label="科目">'+DIAG_SUBJECTS.map(s=>'<button role="tab" id="ex-tab-'+s+'" aria-controls="ex-subject-body" data-subject="'+s+'">'+DIAG_SUBJECT_NAME[s]+'</button>').join('')+'</div><div id="ex-subject-body" role="tabpanel"></div><p>'+DIAG_SOURCE+'</p><button class="ghost" id="ex-upload-back">上傳考卷</button>';
     const select=ui.body.querySelector('select');select.value=pid;select.onchange=()=>viewSubjectProfile(select.value);
     ui.body.querySelector('#ex-upload-back').onclick=()=>parentMain('exam');
     function render(s,notice=''){
-      subject=s;const tabs=[...ui.body.querySelectorAll('[role=tab]')];tabs.forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.subject===s));b.tabIndex=b.dataset.subject===s?0:-1});
+      subject=s;const curriculum=curricula.get(s);const tabs=[...ui.body.querySelectorAll('[role=tab]')];tabs.forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.subject===s));b.tabIndex=b.dataset.subject===s?0:-1});
       const slot=ui.body.querySelector('#ex-subject-body');slot.setAttribute('aria-labelledby','ex-tab-'+s);
       const es=exams.filter(e=>e.subject===s),profile=data.profiles?.[s]||{},weak=profile.weak||[],checks=(data.checks||[]).filter(c=>c.subject===s&&c.doneAt);
-      slot.innerHTML='<p role="status">'+esc(notice)+'</p>'+(es.length?'<p>考卷 '+es.length+' 份，最近一份 '+esc(es.map(e=>e.examDate).sort().at(-1))+'</p>'+weak.map(w=>'<article><h3>'+esc(w.label)+'</h3><span class="pill">'+esc(DIAG_STATUS[w.status]||DIAG_STATUS.unknown)+'</span><p>讀題小幫手：'+(w.scf?'開著':'沒有開')+'</p></article>').join('')+(weak.length?'':'<p>還看不出來</p><p>讀題小幫手：沒有開</p>')+'<p>會在 '+exDate(Math.min(...es.map(e=>Number(e.createdAt)||Date.parse(e.createdAt)))+365*86400000)+' 自動刪除。</p><h3>已完成挑戰</h3>'+checks.map(c=>'<button class="ghost" data-compare="'+esc(c.checkId)+'">'+exDate(c.doneAt)+' 比較報告</button>').join(''):'<p>這一科還沒有考卷分析。可以從「上傳考卷」開始。</p>')+'<section class="ex-delete"><h3>刪除這份紀錄</h3><p>會刪掉這一科的考卷分析、挑戰結果和作答紀錄，其他科不受影響。刪掉就找不回來。</p><button class="ghost" id="ex-delete">刪除'+esc(player.name)+'的'+DIAG_SUBJECT_NAME[s]+'紀錄</button><div id="ex-delete-confirm" hidden><label for="ex-delete-name">輸入「'+esc(player.name)+'」確認</label><input id="ex-delete-name" autocomplete="off"><button id="ex-delete-go" class="ghost" disabled>確定刪除</button><button id="ex-delete-cancel" class="ghost">取消</button></div></section>';
+      slot.innerHTML='<p role="status">'+esc(notice)+'</p>'+(es.length?'<p>考卷 '+es.length+' 份，最近一份 '+esc(es.map(e=>e.examDate).sort().at(-1))+'</p>'+weak.map(w=>'<article><h3>'+esc(exWeakName(w,curriculum))+'</h3><span class="pill">'+esc(DIAG_STATUS[w.status]||DIAG_STATUS.unknown)+'</span><p>讀題小幫手：'+(w.scf?'開著':'沒有開')+'</p></article>').join('')+(weak.length?'':'<p>還看不出來</p><p>讀題小幫手：沒有開</p>')+'<p>會在 '+exDate(Math.min(...es.map(e=>Number(e.createdAt)||Date.parse(e.createdAt)))+365*86400000)+' 自動刪除。</p><h3>已完成挑戰</h3>'+checks.map(c=>'<button class="ghost" data-compare="'+esc(c.checkId)+'">'+exDate(c.doneAt)+' 比較報告</button>').join(''):'<p>這一科還沒有考卷分析。可以從「上傳考卷」開始。</p>')+'<section class="ex-delete"><h3>刪除這份紀錄</h3><p>會刪掉這一科的考卷分析、挑戰結果和作答紀錄，其他科不受影響。刪掉就找不回來。</p><button class="ghost" id="ex-delete">刪除'+esc(player.name)+'的'+DIAG_SUBJECT_NAME[s]+'紀錄</button><div id="ex-delete-confirm" hidden><label for="ex-delete-name">輸入「'+esc(player.name)+'」確認</label><input id="ex-delete-name" autocomplete="off"><button id="ex-delete-go" class="ghost" disabled>確定刪除</button><button id="ex-delete-cancel" class="ghost">取消</button></div></section>';
       slot.querySelectorAll('[data-compare]').forEach(b=>b.onclick=()=>viewCompare(b.dataset.compare));
       const box=slot.querySelector('#ex-delete-confirm'),input=slot.querySelector('input'),go=slot.querySelector('#ex-delete-go'),cancel=slot.querySelector('#ex-delete-cancel'),del=slot.querySelector('#ex-delete');
       del.onclick=()=>{box.hidden=false;del.hidden=true;input.focus()};
