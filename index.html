@@ -426,9 +426,9 @@ main#app:has(.reward-page){padding-bottom:0}
 body:has(#parent-page) .style-btn,body:has(#parent-page) .tour-help{display:none!important}
 #diag-view .q,#diag-view .passage{font-size:max(22px,1.25em)}
 #diag-view .opt{display:flex;width:100%;box-sizing:border-box;min-height:56px;margin:8px 0;font-size:max(20px,1.15em)}
-#diag-view h1{font-size:clamp(1.3rem,6vw,1.8rem);white-space:nowrap}
+#diag-view h1{font-size:clamp(1.3rem,6vw,1.8rem);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
 #diag-view .toprow{flex-wrap:nowrap;gap:8px}
-#diag-view .toprow button{flex-shrink:0}
+#diag-view .toprow button{flex:0 0 auto;width:auto;min-width:44px;min-height:44px}
 #reward-notice:empty{display:none}
 #reward-notice,#reward-updating{margin:0}
 .reward-page .toprow{justify-content:space-between}.reward-tabs,.reward-wallet{display:grid;grid-template-columns:1fr 1fr;gap:8px}

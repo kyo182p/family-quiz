@@ -48,7 +48,7 @@ test('T043 CSS: sticky parent bars, hidden floating buttons, bottom clearance an
   for(const selector of ['#diag-view .q','#diag-view .passage'])assert.match(rule(selector),/font-size:max\(22px,1.25em\)/);
   for(const text of ['display:flex','width:100%','box-sizing:border-box','min-height:56px','margin:8px 0','font-size:max(20px,1.15em)'])assert.ok(rule('#diag-view .opt').includes(text));
   assert.match(rule('#diag-view h1'),/font-size:clamp\(1.3rem,6vw,1.8rem\);white-space:nowrap/);
-  assert.match(rule('#diag-view .toprow'),/flex-wrap:nowrap;gap:8px/);assert.match(rule('#diag-view .toprow button'),/flex-shrink:0/);
+  assert.match(rule('#diag-view .toprow'),/flex-wrap:nowrap;gap:8px/);assert.match(rule('#diag-view .toprow button'),/flex:0 0 auto/);
 });
 
 test('T043 exWeakName: code, label code, unknown, tag, non-array and failed curriculum fallbacks',async t=>{
