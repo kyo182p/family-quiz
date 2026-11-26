@@ -192,14 +192,27 @@ function createGasEnv(options = {}) {
       const builder = {
         timeBased() { return builder; },
         everyMinutes(n) { minutes = n; return builder; },
-        create() { const trigger = {handler, minutes}; triggers.push(trigger); return trigger; },
+        everyDays(n) { builder.days = n; return builder; },
+        atHour(n) { builder.hour = n; return builder; },
+        create() { const trigger = {handler, minutes}; if(builder.days!==undefined)trigger.days=builder.days;if(builder.hour!==undefined)trigger.hour=builder.hour;triggers.push(trigger); return trigger; },
       };
       return builder;
     },
   };
   const globals = {
     Date: ClockDate, console: consoleProxy, Utilities, ScriptApp,
-    SpreadsheetApp: { getActive: () => { stats.opens++; return spreadsheet; }, flush() {} },
+    SpreadsheetApp: { getActive: () => { stats.opens++; return spreadsheet; }, openById: () => { stats.opens++; return spreadsheet; }, flush() {} },
+    UrlFetchApp: {
+      fetch(url, request) {
+        stats.fetches = (stats.fetches || 0) + 1;
+        const result = options.ai ? options.ai({...request, url}) : {code:500, body:{}};
+        return {getResponseCode:()=>result.code, getContentText:()=>typeof result.body === 'string' ? result.body : JSON.stringify(result.body)};
+      },
+      fetchAll(requests) {
+        stats.fetchAll = (stats.fetchAll || 0) + 1;
+        return requests.map(request => globals.UrlFetchApp.fetch(request.url,request));
+      },
+    },
     PropertiesService: { getScriptProperties: () => props },
     CacheService: { getScriptCache: () => cache },
     ContentService: {
