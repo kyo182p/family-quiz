@@ -91,18 +91,20 @@ test('T036 B/L: four-page limit, failed image and zero dimensions never join pho
 
 test('T036 C: top/undo/clear, normalized pointer boxes and all four checklist gates',async t=>{
   const a=await open(t),{w,q}=a;await a.redact();
+  q('[data-ex-fix]').click();assert.equal(q('[data-ex-undo]').textContent,'復原上一個');
   q('[data-ex-top]').click();assert.equal(w.eval('exPhotos[0].boxes.length'),1);assert.deepEqual(plain(w.eval('exPhotos[0].boxes[0]')),plain(w.eval('DIAG_TOP_BOX')));
   q('[data-ex-undo]').click();assert.equal(w.eval('exPhotos[0].boxes.length'),0);
   q('[data-ex-top]').click();q('[data-ex-top]').click();q('[data-ex-clear]').click();assert.equal(w.eval('exPhotos[0].boxes.length'),0);
   const c=q('canvas');c.getBoundingClientRect=()=>({left:0,top:0,width:100,height:200});
   c.onpointerdown({preventDefault(){},clientX:80,clientY:100,pointerId:1});c.onpointerup({clientX:20,clientY:20,pointerId:1});
   assert.deepEqual(plain(w.eval('exPhotos[0].boxes[0]')),{x:.2,y:.1,w:.6000000000000001,h:.4});
+  q('[data-ex-done]').click();assert.equal(q('#ex-send').disabled,true);
   const checks=[...w.document.querySelectorAll('#ex-checks input')];for(const c of checks.slice(0,3)){c.checked=true;c.dispatchEvent(new w.Event('change'))}assert.equal(q('#ex-send').disabled,true);
   checks[3].checked=true;checks[3].dispatchEvent(new w.Event('change'));assert.equal(q('#ex-send').disabled,false);
 });
 
 test('T036 C/D: JPEG export, pure black fill, cleanup and no image data in any storage',async t=>{
-  const a=await open(t),{w,q}=a,input=q('#ex-files');await a.redact(2);q('[data-ex-top]').click();await a.send();assert.equal(input.value,'');
+  const a=await open(t),{w,q}=a,input=q('#ex-files');await a.redact(2);q('[data-ex-fix]').click();q('[data-ex-top]').click();q('[data-ex-done]').click();await a.send();assert.equal(input.value,'');
   assert.equal(a.exports.length,2);for(const e of a.exports)assert.deepEqual(e,{type:'image/jpeg',quality:.85,w:1200,h:1600});
   assert.ok(a.fills.some(f=>f.color==='#000'&&f.rect[2]===1200));
   assert.ok(a.canvases.every(c=>c.width===0&&c.height===0));assert.equal(w.eval('exPhotos.length'),0);assert.equal(w.eval('exInput'),null);assert.deepEqual(a.revoked,a.created);
@@ -150,4 +152,52 @@ test('T036 scope: immutable shared blocks and prohibited image APIs absent from 
   const front=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'),back=fs.readFileSync(path.join(__dirname,'../Code.gs'),'utf8');
   const block=s=>s.slice(s.indexOf('// ==DIAG-SHARED-BEGIN=='),s.indexOf('// ==DIAG-SHARED-END==')+'// ==DIAG-SHARED-END=='.length);assert.equal(block(front),block(back));
   assert.doesNotMatch(front,/createImageBitmap/);assert.doesNotMatch(front.slice(front.indexOf("// 家長考卷分析：")),/accept="[^"]*heic/);
+});
+
+test('R3 form: cover-before-photo tip, next button goes to confirm without forced redaction',async t=>{
+  const a=await open(t),{w,q}=a;
+  assert.equal(q('#ex-form').firstElementChild.textContent,'拍照前，先用便利貼或手指遮住姓名、座號、學校、班級、分數、老師評語和家長簽名。');
+  assert.equal(q('#ex-next').textContent,'下一步：確認');
+  assert.ok(w.eval('DIAG_NOTICE').includes('上傳考卷前，請先把姓名、學校、班級、座號、分數遮住或塗黑。'));
+  await a.redact(2);assert.equal(q('h3').textContent,'這些都遮好了嗎？');
+  assert.equal(w.document.querySelectorAll('.ex-thumb canvas').length,2);assert.equal(w.document.querySelectorAll('[data-ex-fix]').length,2);
+  assert.equal(q('.redwrap'),null);assert.equal(w.document.querySelectorAll('#ex-checks input').length,4);
+});
+
+test('R3 confirm: send stays disabled until all four checks, every partial combination',async t=>{
+  const a=await open(t),{w,q}=a;await a.redact();
+  const checks=[...w.document.querySelectorAll('#ex-checks input')];
+  for(let mask=0;mask<16;mask++){
+    checks.forEach((c,i)=>{c.checked=!!(mask&1<<i);c.dispatchEvent(new w.Event('change'))});
+    assert.equal(q('#ex-send').disabled,mask!==15,'mask '+mask);
+  }
+  checks[2].checked=false;q('#ex-send').disabled=false;q('#ex-send').click();await settle();
+  assert.equal(a.requests.some(r=>r.action==='diag_analyzeExam'),false);
+});
+
+test('R3 send without redaction: no black fill, original page exported',async t=>{
+  const a=await open(t);await a.redact();await a.send();
+  assert.equal(a.exports.length,1);assert.deepEqual(a.exports[0],{type:'image/jpeg',quality:.85,w:1200,h:1600});
+  assert.equal(a.fills.length,0);
+  assert.equal(a.requests.filter(r=>r.action==='diag_analyzeExam')[0].pages.length,1);
+});
+
+test('R3 fix screen: done returns to confirm, thumbnail and export carry the boxes',async t=>{
+  const a=await open(t),{w,q}=a;await a.redact();q('[data-ex-fix]').click();
+  const c=q('.redwrap canvas');c.getBoundingClientRect=()=>({left:0,top:0,width:100,height:200});
+  c.onpointerdown({preventDefault(){},clientX:10,clientY:20,pointerId:1});c.onpointerup({clientX:60,clientY:120,pointerId:1});
+  q('[data-ex-done]').click();assert.match(q('.ex-thumb p').textContent,/已塗黑 1 處/);
+  assert.ok(a.fills.some(f=>f.color==='#000'&&f.rect.join()==='18,24,90,120'),'thumbnail 240px box');
+  a.fills.length=0;await a.send();assert.ok(a.fills.some(f=>f.color==='#000'&&f.rect.join()==='120,160,600,800'));
+});
+
+test('R3 fix screen: second finger cancels the box in progress and pinches instead',async t=>{
+  const a=await open(t),{w,q}=a;await a.redact();q('[data-ex-fix]').click();
+  const c=q('.redwrap canvas'),wrap=q('.redwrap');c.getBoundingClientRect=()=>({left:0,top:0,width:100,height:200});
+  wrap.getBoundingClientRect=()=>({left:0,top:0,width:100,height:200});Object.defineProperty(wrap,'clientWidth',{value:100});Object.defineProperty(wrap,'clientHeight',{value:200});
+  const ev=(id,x,y)=>({preventDefault(){},pointerId:id,clientX:x,clientY:y});
+  c.onpointerdown(ev(1,40,100));c.onpointerdown(ev(2,60,100));c.onpointermove(ev(2,80,100));c.onpointermove(ev(1,20,100));
+  assert.match(c.style.transform,/scale\(3\)/);c.onpointerup(ev(2,80,100));c.onpointerup(ev(1,20,100));
+  assert.equal(w.eval('exPhotos[0].boxes.length'),0);
+  c.onpointerdown(ev(1,0,0));c.onpointerdown(ev(2,1,0));c.onpointermove(ev(2,100,0));assert.match(c.style.transform,/scale\(6\)/);
 });
