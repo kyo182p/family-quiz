@@ -50,7 +50,7 @@ if (require.main === module) {
   runE2e({
     distFile: path.resolve(process.env.FQ_DIST || 'dist/index.html'),
     command: 'npx',
-    args: ['playwright', 'test', 'test/e2e/reward.spec.js', ...process.argv.slice(2)],
+    args: ['playwright', 'test', 'test/e2e/', ...process.argv.slice(2)],
     shell: process.platform === 'win32'
   }).then(code => { process.exitCode = code; }, error => {
     console.error(error.message);

@@ -490,8 +490,13 @@ body:has(#parent-page) .style-btn,body:has(#parent-page) .tour-help{display:none
 .ex-delete input{max-width:100%;min-width:0;min-height:44px;box-sizing:border-box}
 .card.par{border-color:var(--sky)}
 .quota{background:var(--sky-soft);color:var(--sky-ink);padding:12px;border-radius:12px;margin-top:16px}
-.redwrap{touch-action:none;overflow:hidden;border:2px solid var(--line);margin-top:16px}
-.redwrap canvas{display:block;width:100%;height:auto;touch-action:none}
+.redwrap{touch-action:none;overflow:hidden;border:2px solid var(--line);margin-top:16px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.redwrap canvas{display:block;width:100%;height:auto;touch-action:none;transform-origin:0 0}
+.ex-tip{background:var(--sun-soft);color:var(--sun-ink);padding:12px;border-radius:12px}
+.ex-thumb{display:flex;align-items:center;gap:12px;margin:12px 0}
+.ex-thumb canvas{flex:0 0 auto;width:96px;height:auto;border:2px solid var(--line)}
+#ex-panel input[type=date]{display:block;width:100%;min-width:0;-webkit-appearance:none;appearance:none;font:inherit;text-align:left}
+#ex-panel input[type=date]::-webkit-date-and-time-value{text-align:left}
 .ex-pages,.ex-tools{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
 .ex-pages img{width:80px;height:100px;object-fit:contain}
 #ex-panel input,#ex-panel select{max-width:100%;min-height:44px}
@@ -5342,7 +5347,7 @@ function diagPracticeFeedback(run,restore=false){
 
 
 // 家長考卷分析：照片只在記憶體，不使用家長清單快取。
-const DIAG_NOTICE='本功能由家庭題庫站長（網站維護者）經營。上傳考卷前，請先把姓名、學校、班級、座號、分數塗黑。照片會送到美國的 Anthropic 處理（AI 服務 Anthropic Claude 辨識題目），我們不存照片，只留題目文字和分析。Anthropic 不會拿來訓練 AI，會在約 30 天內刪除；若被系統判定違規，可能保留較久。孩子只用暱稱。同意後才開始使用，隨時可以刪除資料。分析結果保存 12 個月後自動刪除。';
+const DIAG_NOTICE='本功能由家庭題庫站長（網站維護者）經營。上傳考卷前，請先把姓名、學校、班級、座號、分數遮住或塗黑。照片會送到美國的 Anthropic 處理（AI 服務 Anthropic Claude 辨識題目），我們不存照片，只留題目文字和分析。Anthropic 不會拿來訓練 AI，會在約 30 天內刪除；若被系統判定違規，可能保留較久。孩子只用暱稱。同意後才開始使用，隨時可以刪除資料。分析結果保存 12 個月後自動刪除。';
 const EX_IMAGE_ERROR='這張照片打不開。請改用截圖，或把相機格式設成「最相容」再拍一次。';
 const EX_NETWORK_ERROR='送不出去，照片沒有存下來。請確認網路後再試一次。';
 const DIAG_SOURCE='出處：十二年國民基本教育課程綱要（國家教育研究院），本站為個人非營利使用，不代表該院立場。';
@@ -5392,7 +5397,7 @@ async function viewExamUpload(root,alive){
       slot.querySelectorAll('[data-ex-review]').forEach(b=>b.onclick=()=>exReview(b.dataset.exReview,root));
     }
     function upload(){
-      body.innerHTML='<button id="ex-upload" class="ghost">上傳考卷</button><form id="ex-form"><label>孩子<select id="ex-player">'+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><fieldset><legend>科目</legend><div class="chips" role="radiogroup" aria-label="科目">'+DIAG_SUBJECTS.map(s=>'<label class="chip"><input type="radio" name="ex-subject" value="'+s+'" '+(s==='math'?'checked':'')+'>'+DIAG_SUBJECT_NAME[s]+'</label>').join('')+'</div></fieldset><label>年級<select required id="ex-grade"><option value="">請選年級</option>'+[1,2,3,4,5,6].map(n=>'<option value="'+n+'">'+n+' 年級</option>').join('')+'</select></label><label>學期<select id="ex-term"><option value="1">上學期</option><option value="2">下學期</option></select></label><label>考試日期<input id="ex-date" type="date" required></label><p>一頁拍一張，四個角都要入鏡，不要斜拍。</p><label>考卷照片<input id="ex-files" type="file" accept="image/*" multiple></label><div class="ex-pages" id="ex-pages"></div><p class="quota"></p><p id="ex-limit" role="status"></p><button class="big" id="ex-next" disabled>下一步：塗黑個資</button></form><div id="ex-progress"></div>';
+      body.innerHTML='<button id="ex-upload" class="ghost">上傳考卷</button><form id="ex-form"><p class="ex-tip">拍照前，先用便利貼或手指遮住姓名、座號、學校、班級、分數、老師評語和家長簽名。</p><label>孩子<select id="ex-player">'+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><fieldset><legend>科目</legend><div class="chips" role="radiogroup" aria-label="科目">'+DIAG_SUBJECTS.map(s=>'<label class="chip"><input type="radio" name="ex-subject" value="'+s+'" '+(s==='math'?'checked':'')+'>'+DIAG_SUBJECT_NAME[s]+'</label>').join('')+'</div></fieldset><label>年級<select required id="ex-grade"><option value="">請選年級</option>'+[1,2,3,4,5,6].map(n=>'<option value="'+n+'">'+n+' 年級</option>').join('')+'</select></label><label>學期<select id="ex-term"><option value="1">上學期</option><option value="2">下學期</option></select></label><label>考試日期<input id="ex-date" type="date" required></label><p>一頁拍一張，四個角都要入鏡，不要斜拍。</p><label>考卷照片<input id="ex-files" type="file" accept="image/*" multiple></label><div class="ex-pages" id="ex-pages"></div><p class="quota"></p><p id="ex-limit" role="status"></p><button class="big" id="ex-next" disabled>下一步：確認</button></form><div id="ex-progress"></div>';
       const form=body.querySelector('form'),select=body.querySelector('#ex-player');select.value=pid;
       function defaults(){const p=players.find(p=>p.id===pid);body.querySelector('#ex-grade').value=p.grade||'';body.querySelector('#ex-term').value=p.term===2?'2':'1'}defaults();
       const now=new Date();body.querySelector('#ex-date').value=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
@@ -5431,23 +5436,20 @@ async function viewExamUpload(root,alive){
     await records();
   }catch(e){if(alive())msg.textContent=EX_NETWORK_ERROR}
 }
+const EX_MAX_ZOOM=6;
+function exDropCanvases(){for(const c of exCanvases)c.width=c.height=0;exCanvases=[]}
 function viewRedact(root,body,meta,alive,records){
-  body.innerHTML='<h3>塗黑個資</h3><p>用手指拖曳畫黑框。都遮好了再勾：</p><div id="ex-canvas-pages"></div><div id="ex-checks">'+['姓名、座號','學校、班級','分數','老師評語和家長簽名（含背面）'].map(t=>'<label><input type="checkbox">'+t+'</label>').join('')+'</div><button class="big" id="ex-send" disabled>送出分析</button>';
+  exDropCanvases();
+  body.innerHTML='<h3>這些都遮好了嗎？</h3><p>每頁看一下。還有沒遮到的，按「補塗黑」用手指畫黑框。</p><div id="ex-canvas-pages"></div><div id="ex-checks">'+['姓名、座號','學校、班級','分數','老師評語和家長簽名（含背面）'].map(t=>'<label><input type="checkbox">'+t+'</label>').join('')+'</div><button class="big" id="ex-send" disabled>送出分析</button>';
   exPhotos.forEach((p,i)=>{
-    const article=document.createElement('article');article.innerHTML='<h3>第 '+(i+1)+' 頁</h3><div class="redwrap"><canvas aria-label="第 '+(i+1)+' 頁，拖曳畫黑框"></canvas></div><div class="ex-tools"><button type="button" class="iconbtn" data-ex-top>遮住頂部</button><button type="button" class="iconbtn" data-ex-undo>復原</button><button type="button" class="iconbtn" data-ex-clear>全部清除</button></div>';body.querySelector('#ex-canvas-pages').append(article);
-    const c=article.querySelector('canvas'),plan=redactPlan(p.img.naturalWidth,p.img.naturalHeight,[]);c.width=plan.w;c.height=plan.h;exCanvases.push(c);const ctx=c.getContext('2d');let start=null,preview=null;
-    function draw(){ctx.globalAlpha=1;ctx.drawImage(p.img,0,0,c.width,c.height);ctx.fillStyle=getComputedStyle(c).getPropertyValue('--redact').trim()||'#000';for(const r of redactPlan(c.width,c.height,p.boxes.concat(preview?[preview]:[])).rects)ctx.fillRect(r.x,r.y,r.w,r.h)}
-    function point(e){const r=c.getBoundingClientRect();return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))}}
-    c.onpointerdown=e=>{if(start)return;e.preventDefault();start={...point(e),id:e.pointerId};c.setPointerCapture(e.pointerId)};
-    c.onpointermove=e=>{if(!start||e.pointerId!==start.id)return;const q=point(e);preview={x:Math.min(start.x,q.x),y:Math.min(start.y,q.y),w:Math.abs(start.x-q.x),h:Math.abs(start.y-q.y)};draw()};
-    c.onpointerup=e=>{if(!start||e.pointerId!==start.id)return;c.onpointermove(e);if(preview?.w&&preview.h)p.boxes.push(preview);start=preview=null;draw()};
-    c.onpointercancel=c.onlostpointercapture=()=>{start=preview=null;draw()};
-    for(const [key,fn] of [['top',()=>p.boxes.push({...DIAG_TOP_BOX})],['undo',()=>p.boxes.pop()],['clear',()=>p.boxes.length=0]])article.querySelector('[data-ex-'+key+']').onclick=()=>{fn();draw()};draw();
+    const article=document.createElement('article');article.className='ex-thumb';article.innerHTML='<canvas aria-label="第 '+(i+1)+' 頁縮圖"></canvas><div><p>第 '+(i+1)+' 頁'+(p.boxes.length?'，已塗黑 '+p.boxes.length+' 處':'')+'</p><button type="button" class="iconbtn" data-ex-fix>補塗黑</button></div>';body.querySelector('#ex-canvas-pages').append(article);
+    const c=article.querySelector('canvas'),plan=redactPlan(p.img.naturalWidth,p.img.naturalHeight,p.boxes,240);c.width=plan.w;c.height=plan.h;exCanvases.push(c);
+    const ctx=c.getContext('2d');ctx.globalAlpha=1;ctx.drawImage(p.img,0,0,c.width,c.height);ctx.fillStyle='#000';for(const r of plan.rects)ctx.fillRect(r.x,r.y,r.w,r.h);
+    article.querySelector('[data-ex-fix]').onclick=()=>viewFix(root,body,meta,alive,records,p,i);
   });
   const checks=Array.from(body.querySelectorAll('#ex-checks input')),send=body.querySelector('#ex-send');checks.forEach(c=>c.onchange=()=>send.disabled=!checks.every(c=>c.checked));
   send.onclick=async()=>{
-    if(send.disabled)return;send.disabled=true;checks.forEach(c=>c.disabled=true);body.querySelectorAll('.ex-tools button').forEach(b=>b.disabled=true);
-    exCanvases.forEach(c=>{c.onpointerdown=c.onpointermove=c.onpointerup=c.onpointercancel=c.onlostpointercapture=null});
+    if(send.disabled||!checks.every(c=>c.checked))return;send.disabled=true;checks.forEach(c=>c.disabled=true);body.querySelectorAll('[data-ex-fix]').forEach(b=>b.disabled=true);
     const gen=exGeneration,pages=[];
     try{
       for(const [i,p] of exPhotos.entries()){
@@ -5462,6 +5464,37 @@ function viewRedact(root,body,meta,alive,records){
       job.meta.codes=codes;if(exJob!==job)return;await exAnalyze(job,job.pages,root,alive,records);
     }catch(e){if(gen===exGeneration)exClearPhotos();if(alive())root.querySelector('#ex-message').textContent=EX_NETWORK_ERROR}
   };
+}
+// 補塗黑：一指畫框，兩指縮放與平移；框存成 0~1 的原圖比例，縮放不影響換算。
+function viewFix(root,body,meta,alive,records,p,i){
+  exDropCanvases();
+  body.innerHTML='<h3>第 '+(i+1)+' 頁：補塗黑</h3><p>一指拖曳畫黑框。兩指可以放大、移動。</p><div class="redwrap"><canvas aria-label="第 '+(i+1)+' 頁，拖曳畫黑框"></canvas></div><div class="ex-tools"><button type="button" class="iconbtn" data-ex-undo>復原上一個</button><button type="button" class="iconbtn" data-ex-top>遮住頂部</button><button type="button" class="iconbtn" data-ex-clear>全部清除</button></div><button type="button" class="big" data-ex-done>完成</button>';
+  const wrap=body.querySelector('.redwrap'),c=wrap.querySelector('canvas'),plan=redactPlan(p.img.naturalWidth,p.img.naturalHeight,[]);c.width=plan.w;c.height=plan.h;exCanvases.push(c);
+  const ctx=c.getContext('2d'),touches=new Map();let start=null,preview=null,pinch=null,view={s:1,x:0,y:0};
+  function draw(){ctx.globalAlpha=1;ctx.drawImage(p.img,0,0,c.width,c.height);ctx.fillStyle=getComputedStyle(c).getPropertyValue('--redact').trim()||'#000';for(const r of redactPlan(c.width,c.height,p.boxes.concat(preview?[preview]:[])).rects)ctx.fillRect(r.x,r.y,r.w,r.h)}
+  function point(e){const r=c.getBoundingClientRect();return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))}}
+  function local(e){const r=wrap.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}}
+  function gesture(){const [a,b]=touches.values();return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,d:Math.hypot(a.x-b.x,a.y-b.y)||1}}
+  function zoom(s,x,y){const W=wrap.clientWidth,H=wrap.clientHeight;s=Math.max(1,Math.min(EX_MAX_ZOOM,s));view={s,x:Math.min(0,Math.max(W-W*s,x)),y:Math.min(0,Math.max(H-H*s,y))};c.style.transform='translate('+view.x+'px,'+view.y+'px) scale('+view.s+')'}
+  c.onpointerdown=e=>{
+    e.preventDefault();if(touches.size>=2)return;touches.set(e.pointerId,local(e));c.setPointerCapture(e.pointerId);
+    if(touches.size===2){start=preview=null;draw();pinch={...gesture(),s:view.s,vx:view.x,vy:view.y}}else start={...point(e),id:e.pointerId};
+  };
+  c.onpointermove=e=>{
+    if(!touches.has(e.pointerId))return;touches.set(e.pointerId,local(e));
+    if(pinch){const g=gesture(),s=Math.max(1,Math.min(EX_MAX_ZOOM,pinch.s*g.d/pinch.d));zoom(s,g.x-(pinch.x-pinch.vx)/pinch.s*s,g.y-(pinch.y-pinch.vy)/pinch.s*s)}
+    else if(start&&e.pointerId===start.id){const q=point(e);preview={x:Math.min(start.x,q.x),y:Math.min(start.y,q.y),w:Math.abs(start.x-q.x),h:Math.abs(start.y-q.y)};draw()}
+  };
+  c.onpointerup=e=>{
+    if(!pinch&&start&&e.pointerId===start.id){c.onpointermove(e);if(preview?.w&&preview.h)p.boxes.push(preview);start=preview=null;draw()}
+    touches.delete(e.pointerId);if(touches.size<2)pinch=null;
+  };
+  c.onpointercancel=c.onlostpointercapture=e=>{if(!touches.has(e.pointerId))return;touches.delete(e.pointerId);if(touches.size<2)pinch=null;start=preview=null;draw()};
+  // iOS Safari：擋掉頁面捲動與原生雙指縮放。
+  for(const type of ['touchstart','touchmove','gesturestart','gesturechange'])wrap.addEventListener(type,e=>e.preventDefault(),{passive:false});
+  for(const [key,fn] of [['top',()=>p.boxes.push({...DIAG_TOP_BOX})],['undo',()=>p.boxes.pop()],['clear',()=>p.boxes.length=0]])body.querySelector('[data-ex-'+key+']').onclick=()=>{fn();draw()};
+  body.querySelector('[data-ex-done]').onclick=()=>viewRedact(root,body,meta,alive,records);
+  draw();wrap.scrollIntoView?.({block:'center'});
 }
 async function exAnalyze(job,pages,root,alive,records){
   if(exJob!==job)return;job.busy=true;job.error='';pages.forEach(p=>p.state='busy');viewAnalyzing(root,job,alive,records);
